@@ -77,7 +77,7 @@ export default function ChatScreen() {
 
   const renderMessage = ({
     item,
-  }: { item: { text: string; sender: string } }) => (
+  }: { item: { id: string; text: string; sender: string } }) => (
     <View
       style={[
         styles.messageContainer,
