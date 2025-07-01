@@ -1,79 +1,185 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { Colors } from '@/constants/Colors';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  FlatList,
+  KeyboardAvoidingView,
+  LayoutAnimation,
+  Platform,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  UIManager,
+  View,
+} from 'react-native';
 
-export default function HomeScreen() {
+if (
+  Platform.OS === 'android' &&
+  UIManager.setLayoutAnimationEnabledExperimental
+) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+const mockMessages = [
+  { id: '1', text: 'Hello!', sender: 'them' },
+  { id: '2', text: 'Hi there!', sender: 'me' },
+  { id: '3', text: 'How are you?', sender: 'them' },
+  { id: '4', text: 'I am good, thanks! And you?', sender: 'me' },
+  { id: '5', text: 'I am doing great!', sender: 'them' },
+  { id: '6', text: 'That is great to hear', sender: 'me' },
+  {
+    id: '7',
+    text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
+    sender: 'them',
+  },
+  {
+    id: '8',
+    text: 'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
+    sender: 'me',
+  },
+  {
+    id: '9',
+    text: 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
+    sender: 'them',
+  },
+  {
+    id: '10',
+    text: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
+    sender: 'me',
+  },
+];
+
+export default function ChatScreen() {
+  const [messages, setMessages] = useState(mockMessages);
+  const [inputText, setInputText] = useState('');
+  const flatListRef = useRef<FlatList>(null);
+
+  const handleSend = () => {
+    if (inputText.trim().length > 0) {
+      const newMessage = {
+        id: (messages.length + 1).toString(),
+        text: inputText,
+        sender: 'me',
+      };
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setMessages([...messages, newMessage]);
+      setInputText('');
+    }
+  };
+
+  useEffect(() => {
+    if (flatListRef.current) {
+      flatListRef.current.scrollToEnd({ animated: true });
+    }
+  }, [messages]);
+
+  const renderMessage = ({
+    item,
+  }: { item: { id: string; text: string; sender: string } }) => (
+    <View
+      style={[
+        styles.messageContainer,
+        item.sender === 'me'
+          ? styles.myMessageContainer
+          : styles.theirMessageContainer,
+      ]}
+    >
+      <ThemedText
+        style={item.sender === 'me' ? styles.myMessageText : undefined}
+      >
+        {item.text}
+      </ThemedText>
+    </View>
+  );
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-            <ThemedView style={styles.titleContainer}>
-        <ThemedText type='title'>Dawid is so f*cking stupid, but he's trying 😭</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Help against Dawid's brain cancer!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Donate braincells</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <ThemedView style={styles.container}>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.messageList}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() =>
+          flatListRef.current?.scrollToEnd({ animated: true })
+        }
+        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="Type a message..."
+            placeholderTextColor="#9BA1A6"
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </ThemedView>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
+  container: {
+    flex: 1,
+  },
+  messageList: {
+    paddingHorizontal: 10,
+    paddingBottom: 10,
+  },
+  messageContainer: {
+    borderRadius: 20,
+    padding: 15,
+    marginVertical: 5,
+    maxWidth: '80%',
+  },
+  myMessageContainer: {
+    backgroundColor: '#007AFF',
+    alignSelf: 'flex-end',
+    borderBottomRightRadius: 5,
+  },
+  theirMessageContainer: {
+    backgroundColor: '#2C2C2E',
+    alignSelf: 'flex-start',
+    borderBottomLeftRadius: 5,
+  },
+  myMessageText: {
+    color: '#fff',
+  },
+  inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    padding: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#2C2C2E',
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  input: {
+    flex: 1,
+    backgroundColor: '#2C2C2E',
+    borderRadius: 20,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    color: Colors.text,
+    marginRight: 10,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  sendButton: {
+    backgroundColor: '#007AFF',
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  sendButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
   },
 });
