@@ -1,15 +1,12 @@
 import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { Button } from '@react-navigation/elements'
-import { router } from 'expo-router'
-import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
+import { Link, useRouter } from 'expo-router'
+import { StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
 export default function SignUpScreen() {
-
-    const handleSignIn = () => {
-        router.navigate('/sign-in');
-    }
+  const router = useRouter()
 
   const handleSignUp = () => {
     /*Sign up logic*/
@@ -35,13 +32,11 @@ export default function SignUpScreen() {
             >
               Confirm
             </Button>
-            <TouchableOpacity onPress={handleSignIn}>
-              <ThemedText
-                style={{ color: '#007aff', paddingTop: 10, fontSize: 14 }}
-              >
+            <Link href='/sign-in' style={{ paddingTop: 10 }}>
+              <ThemedText style={{ color: '#007aff', fontSize: 14 }}>
                 Sign in
               </ThemedText>
-            </TouchableOpacity>
+            </Link>
           </View>
         </SafeAreaView>
       </SafeAreaProvider>

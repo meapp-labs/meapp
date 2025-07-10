@@ -4,7 +4,7 @@ import { ThemedView } from '@/components/ThemedView'
 import Toolbar from '@/components/Toolbar'
 import { Colors } from '@/constants/Colors'
 import { Button } from '@react-navigation/elements'
-import { router } from 'expo-router'
+import { useRouter } from 'expo-router'
 import React, { useEffect, useRef, useState } from 'react'
 import {
   FlatList,
@@ -56,6 +56,7 @@ const mockMessages = [
 ]
 
 export default function ChatScreen() {
+  const router = useRouter()
   const [messages, setMessages] = useState(mockMessages)
   const [inputText, setInputText] = useState('')
   const flatListRef = useRef<FlatList>(null)
