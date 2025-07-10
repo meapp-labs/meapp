@@ -27,7 +27,7 @@ export default function SignInScreen() {
                         <TextInput style={styles.input} placeholder='Username' />
                         <TextInput style={styles.input} placeholder='Password' />
                         <Button style={styles.signInButton} color='#007AFF' onPress={handleSignIn}>
-                            Sign in
+                            Confirm
                         </Button>
                         <TouchableOpacity onPress={handleSignUp}>
                             <ThemedText style={{color:'#007aff', paddingTop: 10, fontSize:14}}>Sign up</ThemedText>
