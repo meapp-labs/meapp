@@ -7,6 +7,8 @@
     "icon": "./assets/images/icon.png",
     "scheme": "meapp",
     "userInterfaceStyle": "automatic",
+    "backgroundColor": "#000000",
+    "assetBundlePatterns": ["assets/images/*"],
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
@@ -14,9 +16,10 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
+        "backgroundColor": "#000000"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "permissions": []
     },
     "web": {
       "bundler": "metro",
@@ -31,7 +34,7 @@
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#ffffff"
+          "backgroundColor": "#000000"
         }
       ],
       "expo-font"

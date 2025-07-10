@@ -1,11 +1,11 @@
-import FriendsScreen from '@/components/FriendsScreen';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import Toolbar from '@/components/Toolbar';
-import { Colors } from '@/constants/Colors';
-import { Button } from '@react-navigation/elements';
-import { router } from 'expo-router';
-import React, { useEffect, useRef, useState } from 'react';
+import FriendsScreen from '@/components/FriendsScreen'
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import Toolbar from '@/components/Toolbar'
+import { Colors } from '@/constants/Colors'
+import { Button } from '@react-navigation/elements'
+import { router } from 'expo-router'
+import React, { useEffect, useRef, useState } from 'react'
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -17,13 +17,13 @@ import {
   TouchableOpacity,
   UIManager,
   View,
-} from 'react-native';
+} from 'react-native'
 
 if (
   Platform.OS === 'android' &&
   UIManager.setLayoutAnimationEnabledExperimental
 ) {
-  UIManager.setLayoutAnimationEnabledExperimental(true);
+  UIManager.setLayoutAnimationEnabledExperimental(true)
 }
 
 const mockMessages = [
@@ -53,13 +53,12 @@ const mockMessages = [
     text: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
     sender: 'me',
   },
-];
+]
 
 export default function ChatScreen() {
-  const [messages, setMessages] = useState(mockMessages);
-  const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
-
+  const [messages, setMessages] = useState(mockMessages)
+  const [inputText, setInputText] = useState('')
+  const flatListRef = useRef<FlatList>(null)
 
   const handleSend = () => {
     if (inputText.trim().length > 0) {
@@ -67,22 +66,24 @@ export default function ChatScreen() {
         id: (messages.length + 1).toString(),
         text: inputText,
         sender: 'me',
-      };
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
-      setMessages([...messages, newMessage]);
-      setInputText('');
+      }
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
+      setMessages([...messages, newMessage])
+      setInputText('')
     }
-  };
+  }
 
   useEffect(() => {
     if (flatListRef.current) {
-      flatListRef.current.scrollToEnd({ animated: true });
+      flatListRef.current.scrollToEnd({ animated: true })
     }
-  }, [messages]);
+  }, [messages])
 
   const renderMessage = ({
     item,
-  }: { item: { id: string; text: string; sender: string } }) => (
+  }: {
+    item: { id: string; text: string; sender: string }
+  }) => (
     <View
       style={[
         styles.messageContainer,
@@ -97,21 +98,31 @@ export default function ChatScreen() {
         {item.text}
       </ThemedText>
     </View>
-  );
+  )
 
   return (
-    <ThemedView style={[styles.container, {
-      flexDirection: 'row'
-
-    }]}>
-      <View style={{ flex: 1, borderRightColor:'#2c2c2e', borderRightWidth: 1 }}>
+    <ThemedView
+      style={[
+        styles.container,
+        {
+          flexDirection: 'row',
+        },
+      ]}
+    >
+      <View
+        style={{ flex: 1, borderRightColor: '#2c2c2e', borderRightWidth: 1 }}
+      >
         <FriendsScreen />
-        
+
         {/*Mock logout button*/}
-        <Button style={{margin: 10, alignItems:'center', justifyContent:'center'}} onPress={() => router.navigate('/sign-in')}>Logout</Button>
-      
+        <Button
+          style={{ margin: 10, alignItems: 'center', justifyContent: 'center' }}
+          onPress={() => router.navigate('/sign-in')}
+        >
+          Logout
+        </Button>
       </View>
-  
+
       <View style={{ flex: 5 }}>
         <FlatList
           ref={flatListRef}
@@ -135,8 +146,8 @@ export default function ChatScreen() {
               style={styles.input}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Type a message..."
-              placeholderTextColor="#9BA1A6"
+              placeholder='Type a message...'
+              placeholderTextColor='#9BA1A6'
             />
             <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
               <Text style={styles.sendButtonText}>Send</Text>
@@ -145,10 +156,10 @@ export default function ChatScreen() {
         </KeyboardAvoidingView>
       </View>
       <View>
-        <Toolbar/>
+        <Toolbar />
       </View>
     </ThemedView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -204,4 +215,4 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: 'bold',
   },
-});
+})

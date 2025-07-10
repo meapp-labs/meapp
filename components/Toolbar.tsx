@@ -1,44 +1,45 @@
-import { ThemedView } from '@/components/ThemedView';
-import { MaterialIcons } from '@expo/vector-icons';
-import { useState } from 'react';
-import { Pressable, StyleSheet } from 'react-native';
+import { ThemedView } from '@/components/ThemedView'
+import { MaterialIcons } from '@expo/vector-icons'
+import { useState } from 'react'
+import { Pressable, StyleSheet } from 'react-native'
 
 export default function Toolbar() {
-  const [isPressed, setPressed] = useState<string | null>(null);
-
-  const handlePress = () => {
-    {/*todo*/}
-  }
+  const [isPressed, setPressed] = useState<string | null>(null)
 
   return (
     <ThemedView style={styles.container}>
       <Pressable
         onPressIn={() => setPressed('settings')}
-        onPressOut={() => setPressed(null)}>
+        onPressOut={() => setPressed(null)}
+      >
         <MaterialIcons
           name='settings'
           color={isPressed === 'settings' ? 'gray' : 'white'}
-          size={28} />
+          size={28}
+        />
       </Pressable>
       <Pressable
         onPressIn={() => setPressed('attach-file')}
-        onPressOut={() => setPressed(null)}>
+        onPressOut={() => setPressed(null)}
+      >
         <MaterialIcons
           name='attach-file'
           color={isPressed === 'attach-file' ? 'gray' : 'white'}
-          size={28} />
+          size={28}
+        />
       </Pressable>
       <Pressable
         onPressIn={() => setPressed('info-outline')}
-        onPressOut={() => setPressed(null)}>
+        onPressOut={() => setPressed(null)}
+      >
         <MaterialIcons
           name='info-outline'
           color={isPressed === 'info-outline' ? 'gray' : 'white'}
-          size={28} />
+          size={28}
+        />
       </Pressable>
-
     </ThemedView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
