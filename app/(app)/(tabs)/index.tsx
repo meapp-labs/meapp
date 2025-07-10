@@ -1,6 +1,10 @@
+import FriendsScreen from '@/components/FriendsScreen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import Toolbar from '@/components/Toolbar';
 import { Colors } from '@/constants/Colors';
+import { Button } from '@react-navigation/elements';
+import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   FlatList,
@@ -56,6 +60,7 @@ export default function ChatScreen() {
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
 
+
   const handleSend = () => {
     if (inputText.trim().length > 0) {
       const newMessage = {
@@ -95,36 +100,53 @@ export default function ChatScreen() {
   );
 
   return (
-    <ThemedView style={styles.container}>
-      <FlatList
-        ref={flatListRef}
-        data={messages}
-        renderItem={renderMessage}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.messageList}
-        showsVerticalScrollIndicator={false}
-        onContentSizeChange={() =>
-          flatListRef.current?.scrollToEnd({ animated: true })
-        }
-        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-      />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-      >
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.input}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Type a message..."
-            placeholderTextColor="#9BA1A6"
-          />
-          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </View>
-      </KeyboardAvoidingView>
+    <ThemedView style={[styles.container, {
+      flexDirection: 'row'
+
+    }]}>
+      <View style={{ flex: 1, borderRightColor:'#2c2c2e', borderRightWidth: 1 }}>
+        <FriendsScreen />
+        
+        {/*Mock logout button*/}
+        <Button style={{margin: 10, alignItems:'center', justifyContent:'center'}} onPress={() => router.navigate('/sign-in')}>Logout</Button>
+      
+      </View>
+  
+      <View style={{ flex: 5 }}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.messageList}
+          showsVerticalScrollIndicator={false}
+          onContentSizeChange={() =>
+            flatListRef.current?.scrollToEnd({ animated: true })
+          }
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        />
+
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        >
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.input}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Type a message..."
+              placeholderTextColor="#9BA1A6"
+            />
+            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+              <Text style={styles.sendButtonText}>Send</Text>
+            </TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </View>
+      <View>
+        <Toolbar/>
+      </View>
     </ThemedView>
   );
 }
