@@ -1,6 +1,8 @@
+
 import FriendsScreen from '@/components/FriendsScreen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import Toolbar from '@/components/Toolbar';
 import { Colors } from '@/constants/Colors';
 import { Button } from '@react-navigation/elements';
 import { router } from 'expo-router';
@@ -142,6 +144,9 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
+      </View>
+      <View>
+        <Toolbar/>
       </View>
     </ThemedView>
   );
