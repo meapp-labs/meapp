@@ -1,4 +1,3 @@
-
 import FriendsScreen from '@/components/FriendsScreen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
