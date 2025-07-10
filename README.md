@@ -12,3 +12,10 @@
    yarn start
    ```
    
+
+3. Start the server
+
+   ```
+   node server.js
+   ```
+   

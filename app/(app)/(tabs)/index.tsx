@@ -1,77 +1,48 @@
-import FriendsScreen from '@/components/FriendsScreen'
 import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
-import Toolbar from '@/components/Toolbar'
 import { Colors } from '@/constants/Colors'
-import { Button } from '@react-navigation/elements'
-import { useRouter } from 'expo-router'
 import React, { useEffect, useRef, useState } from 'react'
+import WS from 'react-native-websocket'
 import {
   FlatList,
   KeyboardAvoidingView,
-  LayoutAnimation,
   Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  UIManager,
   View,
 } from 'react-native'
 
-if (
-  Platform.OS === 'android' &&
-  UIManager.setLayoutAnimationEnabledExperimental
-) {
-  UIManager.setLayoutAnimationEnabledExperimental(true)
-}
-
-const mockMessages = [
-  { id: '1', text: 'Hello!', sender: 'them' },
-  { id: '2', text: 'Hi there!', sender: 'me' },
-  { id: '3', text: 'How are you?', sender: 'them' },
-  { id: '4', text: 'I am good, thanks! And you?', sender: 'me' },
-  { id: '5', text: 'I am doing great!', sender: 'them' },
-  { id: '6', text: 'That is great to hear', sender: 'me' },
-  {
-    id: '7',
-    text: 'Lorem ipsum dolor sit amet, consectetur adipiscing elit.',
-    sender: 'them',
-  },
-  {
-    id: '8',
-    text: 'Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.',
-    sender: 'me',
-  },
-  {
-    id: '9',
-    text: 'Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.',
-    sender: 'them',
-  },
-  {
-    id: '10',
-    text: 'Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.',
-    sender: 'me',
-  },
-]
-
 export default function ChatScreen() {
-  const router = useRouter()
-  const [messages, setMessages] = useState(mockMessages)
+  const [messages, setMessages] = useState<
+    { id: string; text: string; sender: string }[]
+  >([])
   const [inputText, setInputText] = useState('')
   const flatListRef = useRef<FlatList>(null)
+  const webSocketRef = useRef<WebSocket>(null)
 
   const handleSend = () => {
-    if (inputText.trim().length > 0) {
+    if (inputText.trim().length > 0 && webSocketRef.current) {
+      webSocketRef.current.send(inputText)
+      // Optimistically add the message to the UI
       const newMessage = {
         id: (messages.length + 1).toString(),
         text: inputText,
         sender: 'me',
       }
-      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut)
       setMessages([...messages, newMessage])
       setInputText('')
     }
+  }
+
+  const handleMessage = (event: { data: string }) => {
+    const newMessage = {
+      id: (messages.length + 1).toString(),
+      text: event.data,
+      sender: 'them',
+    }
+    setMessages((prevMessages) => [...prevMessages, newMessage])
   }
 
   useEffect(() => {
@@ -102,28 +73,15 @@ export default function ChatScreen() {
   )
 
   return (
-    <ThemedView
-      style={[
-        styles.container,
-        {
-          flexDirection: 'row',
-        },
-      ]}
-    >
-      <View
-        style={{ flex: 1, borderRightColor: '#2c2c2e', borderRightWidth: 1 }}
-      >
-        <FriendsScreen />
-
-        {/*Mock logout button*/}
-        <Button
-          style={{ margin: 10, alignItems: 'center', justifyContent: 'center' }}
-          onPress={() => router.navigate('/sign-in')}
-        >
-          Logout
-        </Button>
-      </View>
-
+    <ThemedView style={styles.container}>
+      <WS
+        ref={webSocketRef}
+        url='ws://localhost:8080'
+        onMessage={handleMessage}
+        onError={() => console.log('WebSocket Error:')}
+        onClose={() => console.log('WebSocket Closed')}
+        reconnect
+      />
       <View style={{ flex: 5 }}>
         <FlatList
           ref={flatListRef}
@@ -155,9 +113,6 @@ export default function ChatScreen() {
             </TouchableOpacity>
           </View>
         </KeyboardAvoidingView>
-      </View>
-      <View>
-        <Toolbar />
       </View>
     </ThemedView>
   )
