@@ -6,7 +6,7 @@ import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 
 
-export default function SignInScreen() {
+export default function SignUpScreen() {
 
     const handleSignIn = () => {
         router.navigate('/sign-in');
