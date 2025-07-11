@@ -3,6 +3,8 @@
     "tabWidth": 4,
     "trailingComma": "all",
     "singleQuote": true,
+    "jsxSingleQuote": false,
+    "arrowParens": "always",
     "semi": true,
     "importOrder": ["^@core/(.*)$", "^@server/(.*)$", "^@ui/(.*)$", "^[./]"],
     "importOrderSeparation": true,
