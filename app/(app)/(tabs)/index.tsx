@@ -1,11 +1,16 @@
+import FriendsScreen from '@/components/FriendsScreen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import Toolbar from '@/components/Toolbar';
 import styles from '@/styles';
+import { Button } from '@react-navigation/elements';
+import { router } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
+    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
@@ -86,47 +91,80 @@ export default function ChatScreen() {
     }[readyState];
 
     return (
-        <ThemedView style={{ flex: 1 }}>
-            <View style={styles.statusBar}>
-                <ThemedText style={styles.statusText}>
-                    {connectionStatus}
-                </ThemedText>
-            </View>
-            <FlatList
-                ref={flatListRef}
-                data={messages}
-                renderItem={renderMessage}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.messageList}
-                showsVerticalScrollIndicator={false}
-                onContentSizeChange={() =>
-                    flatListRef.current?.scrollToEnd({ animated: true })
-                }
-                onLayout={() =>
-                    flatListRef.current?.scrollToEnd({ animated: true })
-                }
-            />
-
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        <ThemedView
+            style={[
+                styles.viewContainer,
+                {
+                    flexDirection: 'row',
+                },
+            ]}
+        >
+            <View
+                style={{
+                    flex: 1,
+                    borderRightColor: '#2c2c2e',
+                    borderRightWidth: 1,
+                }}
             >
-                <View style={styles.inputContainer}>
-                    <TextInput
-                        style={styles.input}
-                        value={inputText}
-                        onChangeText={setInputText}
-                        placeholder="Type a message..."
-                        placeholderTextColor="#9BA1A6"
-                    />
-                    <TouchableOpacity
-                        style={styles.sendButton}
-                        onPress={handleSend}
-                    >
-                        <Text style={styles.sendButtonText}>Send</Text>
-                    </TouchableOpacity>
+                <FriendsScreen />
+
+                {/*Mock logout button*/}
+                <Button
+                    style={{
+                        margin: 10,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                    onPress={() => router.navigate('/sign-in')}
+                >
+                    Logout
+                </Button>
+            </View>
+
+            <View style={{ flex: 5 }}>
+                <View style={styles.statusBar}>
+                    <ThemedText style={styles.statusText}>
+                        {connectionStatus}
+                    </ThemedText>
                 </View>
-            </KeyboardAvoidingView>
+                <FlatList
+                    ref={flatListRef}
+                    data={messages}
+                    renderItem={renderMessage}
+                    keyExtractor={(item) => item.id}
+                    contentContainerStyle={styles.messageList}
+                    showsVerticalScrollIndicator={false}
+                    onContentSizeChange={() =>
+                        flatListRef.current?.scrollToEnd({ animated: true })
+                    }
+                    onLayout={() =>
+                        flatListRef.current?.scrollToEnd({ animated: true })
+                    }
+                />
+                <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+                >
+                    <View style={styles.inputContainer}>
+                        <TextInput
+                            style={styles.messageInput}
+                            value={inputText}
+                            onChangeText={setInputText}
+                            placeholder="Type a message..."
+                            placeholderTextColor="#9BA1A6"
+                        />
+                        <TouchableOpacity
+                            style={styles.sendButton}
+                            onPress={handleSend}
+                        >
+                            <Text style={styles.sendButtonText}>Send</Text>
+                        </TouchableOpacity>
+                    </View>
+                </KeyboardAvoidingView>
+            </View>
+            <View>
+                <Toolbar />
+            </View>
         </ThemedView>
     );
 }

@@ -128,4 +128,7 @@ export default StyleSheet.create({
         marginTop: 15,
         paddingVertical: 15,
     },
+    viewContainer: {
+        flex: 1,
+    },
 });
