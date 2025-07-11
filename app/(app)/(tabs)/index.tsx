@@ -2,7 +2,7 @@ import { ThemedText } from '@/components/ThemedText'
 import { ThemedView } from '@/components/ThemedView'
 import { Colors } from '@/constants/Colors'
 import React, { useEffect, useRef, useState } from 'react'
-import WS from 'react-native-websocket'
+import useWebSocket, { ReadyState } from 'react-use-websocket'
 import {
   FlatList,
   KeyboardAvoidingView,
@@ -20,29 +20,35 @@ export default function ChatScreen() {
   >([])
   const [inputText, setInputText] = useState('')
   const flatListRef = useRef<FlatList>(null)
-  const webSocketRef = useRef<WebSocket>(null)
+  const [socketUrl] = useState('ws://localhost:8080')
+
+  const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
+    shouldReconnect: () => true,
+  })
+
+  useEffect(() => {
+    if (lastMessage !== null) {
+      const newMessage = {
+        id: `${Date.now()}`,
+        text: lastMessage.data,
+        sender: 'them',
+      }
+      setMessages((prevMessages) => [...prevMessages, newMessage])
+    }
+  }, [lastMessage])
 
   const handleSend = () => {
-    if (inputText.trim().length > 0 && webSocketRef.current) {
-      webSocketRef.current.send(inputText)
+    if (inputText.trim().length > 0 && readyState === ReadyState.OPEN) {
+      sendMessage(inputText)
       // Optimistically add the message to the UI
       const newMessage = {
-        id: (messages.length + 1).toString(),
+        id: `${Date.now()}`,
         text: inputText,
         sender: 'me',
       }
-      setMessages([...messages, newMessage])
+      setMessages((prevMessages) => [...prevMessages, newMessage])
       setInputText('')
     }
-  }
-
-  const handleMessage = (event: { data: string }) => {
-    const newMessage = {
-      id: (messages.length + 1).toString(),
-      text: event.data,
-      sender: 'them',
-    }
-    setMessages((prevMessages) => [...prevMessages, newMessage])
   }
 
   useEffect(() => {
@@ -72,48 +78,49 @@ export default function ChatScreen() {
     </View>
   )
 
+  const connectionStatus = {
+    [ReadyState.CONNECTING]: 'Connecting...',
+    [ReadyState.OPEN]: 'Connected',
+    [ReadyState.CLOSING]: 'Closing...',
+    [ReadyState.CLOSED]: 'Disconnected',
+    [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
+  }[readyState]
+
   return (
     <ThemedView style={styles.container}>
-      <WS
-        ref={webSocketRef}
-        url='ws://localhost:8080'
-        onMessage={handleMessage}
-        onError={() => console.log('WebSocket Error:')}
-        onClose={() => console.log('WebSocket Closed')}
-        reconnect
-      />
-      <View style={{ flex: 5 }}>
-        <FlatList
-          ref={flatListRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.messageList}
-          showsVerticalScrollIndicator={false}
-          onContentSizeChange={() =>
-            flatListRef.current?.scrollToEnd({ animated: true })
-          }
-          onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        />
-
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-        >
-          <View style={styles.inputContainer}>
-            <TextInput
-              style={styles.input}
-              value={inputText}
-              onChangeText={setInputText}
-              placeholder='Type a message...'
-              placeholderTextColor='#9BA1A6'
-            />
-            <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
-              <Text style={styles.sendButtonText}>Send</Text>
-            </TouchableOpacity>
-          </View>
-        </KeyboardAvoidingView>
+      <View style={styles.statusBar}>
+        <ThemedText style={styles.statusText}>{connectionStatus}</ThemedText>
       </View>
+      <FlatList
+        ref={flatListRef}
+        data={messages}
+        renderItem={renderMessage}
+        keyExtractor={(item) => item.id}
+        contentContainerStyle={styles.messageList}
+        showsVerticalScrollIndicator={false}
+        onContentSizeChange={() =>
+          flatListRef.current?.scrollToEnd({ animated: true })
+        }
+        onLayout={() => flatListRef.current?.scrollToEnd({ animated: true })}
+      />
+
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View style={styles.inputContainer}>
+          <TextInput
+            style={styles.input}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder='Type a message...'
+            placeholderTextColor='#9BA1A6'
+          />
+          <TouchableOpacity style={styles.sendButton} onPress={handleSend}>
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </ThemedView>
   )
 }
@@ -121,6 +128,14 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  statusBar: {
+    padding: 10,
+    backgroundColor: '#1C1C1E',
+    alignItems: 'center',
+  },
+  statusText: {
+    color: '#9BA1A6',
   },
   messageList: {
     paddingHorizontal: 10,
