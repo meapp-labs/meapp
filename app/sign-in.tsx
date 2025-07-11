@@ -1,20 +1,15 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import { Button } from '@react-navigation/elements';
-import { router } from 'expo-router';
-import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
-import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
-
+import { ThemedText } from '@/components/ThemedText'
+import { ThemedView } from '@/components/ThemedView'
+import { Button } from '@react-navigation/elements'
+import { Link, useRouter } from 'expo-router'
+import { StyleSheet, TextInput, View } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 
 export default function SignInScreen() {
-
+    const router = useRouter()
     const handleSignIn = () => {
         /* Sign in logic*/
-        router.navigate('/');
-    }
-
-    const handleSignUp = () => {
-        router.navigate('/sign-up');
+        router.navigate('/')
     }
 
     return (
@@ -23,27 +18,42 @@ export default function SignInScreen() {
                 <SafeAreaView style={styles.container}>
                     <View style={styles.formContainer}>
                         <ThemedText type='title' style={{ marginBottom: 20 }}>
-                            Sign in to your account</ThemedText>
-                        <TextInput style={styles.input} placeholder='Username' />
-                        <TextInput style={styles.input} placeholder='Password' />
-                        <Button style={styles.signInButton} color='#007AFF' onPress={handleSignIn}>
+                            Sign in to your account
+                        </ThemedText>
+                        <TextInput
+                            style={styles.input}
+                            placeholder='Username'
+                        />
+                        <TextInput
+                            style={styles.input}
+                            placeholder='Password'
+                        />
+                        <Button
+                            style={styles.signInButton}
+                            color='#007AFF'
+                            onPress={handleSignIn}
+                        >
                             Confirm
                         </Button>
-                        <TouchableOpacity onPress={handleSignUp}>
-                            <ThemedText style={{color:'#007aff', paddingTop: 10, fontSize:14}}>Sign up</ThemedText>
-                            </TouchableOpacity>
+                        <Link href='/sign-up' style={{ paddingTop: 10 }}>
+                            <ThemedText
+                                style={{ color: '#007aff', fontSize: 14 }}
+                            >
+                                Sign up
+                            </ThemedText>
+                        </Link>
                     </View>
                 </SafeAreaView>
             </SafeAreaProvider>
         </ThemedView>
-    );
-} 
+    )
+}
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
     },
     formContainer: {
         alignItems: 'center',
@@ -53,17 +63,17 @@ const styles = StyleSheet.create({
         borderColor: '#2c2c2e',
         borderRadius: 25,
         paddingHorizontal: 20,
-        paddingVertical: 25
+        paddingVertical: 25,
     },
     input: {
         color: '#fff',
         padding: 15,
         marginBottom: 15,
         borderRadius: 10,
-        backgroundColor: '#2C2C2E'
+        backgroundColor: '#2C2C2E',
     },
     signInButton: {
         marginTop: 5,
         padding: 10,
     },
-});
+})
