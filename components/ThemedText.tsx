@@ -1,10 +1,9 @@
-import { StyleSheet, Text, type TextProps } from 'react-native'
-
-import { Colors } from '@/constants/Colors'
+import { Colors } from '@/constants/Colors';
+import { StyleSheet, Text, type TextProps } from 'react-native';
 
 export type ThemedTextProps = TextProps & {
-    type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link'
-}
+    type?: 'default' | 'title' | 'defaultSemiBold' | 'subtitle' | 'link';
+};
 
 export function ThemedText({
     style,
@@ -24,7 +23,7 @@ export function ThemedText({
             ]}
             {...rest}
         />
-    )
+    );
 }
 
 const styles = StyleSheet.create({
@@ -51,4 +50,4 @@ const styles = StyleSheet.create({
         fontSize: 16,
         color: Colors.tint,
     },
-})
+});

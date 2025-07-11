@@ -1,8 +1,7 @@
-import { View, type ViewProps } from 'react-native'
+import { Colors } from '@/constants/Colors';
+import { View, type ViewProps } from 'react-native';
 
-import { Colors } from '@/constants/Colors'
-
-export type ThemedViewProps = ViewProps
+export type ThemedViewProps = ViewProps;
 
 export function ThemedView({ style, ...otherProps }: ThemedViewProps) {
     return (
@@ -10,5 +9,5 @@ export function ThemedView({ style, ...otherProps }: ThemedViewProps) {
             style={[{ backgroundColor: Colors.background }, style]}
             {...otherProps}
         />
-    )
+    );
 }
