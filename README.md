@@ -2,20 +2,18 @@
 
 1. Install dependencies
 
-   ```bash
-   yarn install
-   ```
+    ```bash
+    yarn install
+    ```
 
 2. Start the app
 
-   ```
-   yarn start
-   ```
-   
+    ```
+    yarn start
+    ```
 
 3. Start the server
 
-   ```
-   node server.js
-   ```
-   
+    ```
+    node server.js
+    ```
