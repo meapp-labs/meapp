@@ -1,7 +1,8 @@
-import { ThemedText } from '@/components/ThemedText'
-import { ThemedView } from '@/components/ThemedView'
-import React, { useState } from 'react'
-import { FlatList, Image, Pressable, StyleSheet } from 'react-native'
+import { ThemedText } from '@/components/ThemedText';
+import { ThemedView } from '@/components/ThemedView';
+import styles from '@/styles';
+import React, { useState } from 'react';
+import { FlatList, Image, Pressable } from 'react-native';
 
 const mockOthers = [
     {
@@ -29,16 +30,16 @@ const mockOthers = [
         name: 'Eve',
         avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704h',
     },
-]
+];
 
 export default function FriendsScreen() {
-    const [hovered, setHovered] = useState<string | null>(null)
-    const [pressed, setPressed] = useState<string | null>(null)
+    const [hovered, setHovered] = useState<string | null>(null);
+    const [pressed, setPressed] = useState<string | null>(null);
 
     const renderFriend = ({
         item,
     }: {
-        item: { id: string; name: string; avatar: string }
+        item: { id: string; name: string; avatar: string };
     }) => (
         <Pressable
             onPressIn={() => setPressed(item.id)}
@@ -53,12 +54,12 @@ export default function FriendsScreen() {
             <Image source={{ uri: item.avatar }} style={styles.avatar} />
             <ThemedText style={styles.friendName}>{item.name}</ThemedText>
         </Pressable>
-    )
+    );
 
     return (
-        <ThemedView style={styles.container}>
+        <ThemedView style={{ flex: 1 }}>
             <ThemedText
-                type='subtitle'
+                type="subtitle"
                 style={{
                     textAlign: 'center',
                     paddingVertical: 15,
@@ -75,35 +76,5 @@ export default function FriendsScreen() {
                 keyExtractor={(item) => item.id}
             />
         </ThemedView>
-    )
+    );
 }
-
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    friendItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 5,
-        borderRadius: 10,
-        marginHorizontal: 10,
-        marginVertical: 5,
-    },
-    avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        marginRight: 15,
-        marginLeft: 15,
-    },
-    friendName: {
-        fontSize: 15,
-    },
-    friendItemHovered: {
-        backgroundColor: '#2C2C2E',
-    },
-    friendItemPressed: {
-        backgroundColor: '#49494d',
-    },
-})

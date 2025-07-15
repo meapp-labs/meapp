@@ -1,11 +1,13 @@
 {
-    "semi": false,
-    "singleQuote": true,
-    "trailingComma": "es5",
     "printWidth": 80,
     "tabWidth": 4,
-    "useTabs": false,
-    "jsxSingleQuote": true,
-    "bracketSpacing": true,
-    "arrowParens": "always"
+    "trailingComma": "all",
+    "singleQuote": true,
+    "jsxSingleQuote": false,
+    "arrowParens": "always",
+    "semi": true,
+    "importOrder": ["^@core/(.*)$", "^@server/(.*)$", "^@ui/(.*)$", "^[./]"],
+    "importOrderSeparation": true,
+    "importOrderSortSpecifiers": true,
+    "plugins": ["@trivago/prettier-plugin-sort-imports"]
 }
