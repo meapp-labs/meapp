@@ -1,17 +1,35 @@
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
+import { useAuthStore } from '@/stores/authStore';
 import styles from '@/styles';
 import { Button } from '@react-navigation/elements';
 import { Link, useRouter } from 'expo-router';
 import { TextInput, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+import { useForm, Controller } from 'react-hook-form';
+
+type FormData = {
+    username: string;
+};
 
 export default function SignInScreen() {
     const router = useRouter();
-    const handleSignIn = () => {
-        /* Sign in logic*/
+    const setUsername = useAuthStore((state: any) => state.setUsername);
+
+    const {
+        control,
+        handleSubmit,
+        formState: { errors },
+    } = useForm<FormData>({
+        defaultValues: {
+            username: '',
+        },
+    });
+
+    const onSubmit = handleSubmit((data: FormData) => {
+        setUsername(data.username);
         router.navigate('/');
-    };
+    });
 
     return (
         <ThemedView style={{ flex: 1 }}>
@@ -27,18 +45,31 @@ export default function SignInScreen() {
                         <ThemedText type="title" style={{ marginBottom: 20 }}>
                             Sign in to your account
                         </ThemedText>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Username"
+                        <Controller
+                            control={control}
+                            rules={{
+                                required: true,
+                            }}
+                            render={({
+                                field: { onChange, onBlur, value },
+                            }) => (
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Username"
+                                    onBlur={onBlur}
+                                    onChangeText={onChange}
+                                    value={value}
+                                />
+                            )}
+                            name="username"
                         />
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Password"
-                        />
+                        {errors.username && (
+                            <ThemedText>This is required.</ThemedText>
+                        )}
                         <Button
                             style={styles.signButton}
                             color="#007AFF"
-                            onPress={handleSignIn}
+                            onPress={onSubmit}
                         >
                             Confirm
                         </Button>
