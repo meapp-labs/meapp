@@ -24,6 +24,6 @@
         "**/*.tsx",
         ".expo/types/**/*.ts",
         "expo-env.d.ts",
-        "eslint.config.js"
+        "client/eslint.config.js"
     ]
 }

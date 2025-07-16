@@ -2,6 +2,7 @@ import FriendsScreen from '@/components/FriendsScreen';
 import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import Toolbar from '@/components/Toolbar';
+import { useAuthStore } from '@/stores/authStore';
 import styles from '@/styles';
 import { Button } from '@react-navigation/elements';
 import { router } from 'expo-router';
@@ -10,13 +11,12 @@ import {
     FlatList,
     KeyboardAvoidingView,
     Platform,
-    StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
     View,
 } from 'react-native';
-import useWebSocket, { ReadyState } from 'react-use-websocket';
+import { createConnection } from '../../../connection/peer-connection';
 
 export default function ChatScreen() {
     const [messages, setMessages] = useState<
@@ -24,27 +24,28 @@ export default function ChatScreen() {
     >([]);
     const [inputText, setInputText] = useState('');
     const flatListRef = useRef<FlatList>(null);
-    const [socketUrl] = useState('ws://localhost:8080');
 
-    const { sendMessage, lastMessage, readyState } = useWebSocket(socketUrl, {
-        shouldReconnect: () => true,
-    });
+    const username = useAuthStore((state: any) => state.username);
+    const connectionRef = useRef<any>(null);
 
     useEffect(() => {
-        if (lastMessage !== null) {
+        const connection = createConnection(username);
+        connectionRef.current = connection;
+
+        connection.onMessage = (message: { text: string }) => {
             const newMessage = {
                 id: `${Date.now()}`,
-                text: lastMessage.data,
+                text: JSON.stringify(message),
                 sender: 'them',
             };
+            console.log(newMessage);
             setMessages((prevMessages) => [...prevMessages, newMessage]);
-        }
-    }, [lastMessage]);
+        };
+    }, [username]);
 
     const handleSend = () => {
-        if (inputText.trim().length > 0 && readyState === ReadyState.OPEN) {
-            sendMessage(inputText);
-            // Optimistically add the message to the UI
+        if (inputText.trim().length > 0 && connectionRef.current) {
+            connectionRef.current.sendTo(username + '1', { text: inputText });
             const newMessage = {
                 id: `${Date.now()}`,
                 text: inputText,
@@ -82,14 +83,6 @@ export default function ChatScreen() {
         </View>
     );
 
-    const connectionStatus = {
-        [ReadyState.CONNECTING]: 'Connecting...',
-        [ReadyState.OPEN]: 'Connected',
-        [ReadyState.CLOSING]: 'Closing...',
-        [ReadyState.CLOSED]: 'Disconnected',
-        [ReadyState.UNINSTANTIATED]: 'Uninstantiated',
-    }[readyState];
-
     return (
         <ThemedView
             style={[
@@ -124,7 +117,7 @@ export default function ChatScreen() {
             <View style={{ flex: 5 }}>
                 <View style={styles.statusBar}>
                     <ThemedText style={styles.statusText}>
-                        {connectionStatus}
+                        {username + ' connected'}
                     </ThemedText>
                 </View>
                 <FlatList
