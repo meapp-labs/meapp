@@ -1,0 +1,243 @@
+import type { FastifyInstance } from 'fastify';
+import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { LOGIN_CONFIG } from '../lib/config';
+import { handleAsyncOperation, handleSyncOperation } from '../lib/helpers';
+import {
+    ApiError,
+    ErrorCode,
+    createAuthError,
+    createDatabaseError,
+    createRateLimitError,
+    createUserExistsError,
+    handleError,
+} from '../lib/errors';
+import { createSuccessResponse } from '../lib/responses';
+import { z } from 'zod';
+
+export const authSchema = z.object({
+    username: z
+        .string()
+        .min(3, 'Username must be at least 3 characters')
+        .max(20, 'Username must be at most 20 characters')
+        .regex(
+            /^[a-zA-Z0-9_-]+$/,
+            'Username can only contain letters, numbers, underscores, and hyphens',
+        ),
+    pass: z
+        .string()
+        .min(12, 'Password must be at least 12 characters')
+        .regex(
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).*$/,
+            'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
+        ),
+});
+
+async function checkRateLimit(redis: any, username: string): Promise<boolean> {
+    try {
+        const key = `login_attempts:${username}`;
+        const attempts = await redis.get(key);
+        return (
+            !attempts || parseInt(attempts) < LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS
+        );
+    } catch (error) {
+        throw createDatabaseError('rate limit check', error as Error);
+    }
+}
+
+async function incrementLoginAttempts(
+    redis: any,
+    username: string,
+): Promise<void> {
+    try {
+        const key = `login_attempts:${username}`;
+        const current = await redis.incr(key);
+        if (current === 1) {
+            await redis.expire(key, LOGIN_CONFIG.LOCKOUT_DURATION / 1000);
+        }
+    } catch (error) {
+        throw createDatabaseError('increment login attempts', error as Error);
+    }
+}
+
+async function clearLoginAttempts(redis: any, username: string): Promise<void> {
+    try {
+        await redis.del(`login_attempts:${username}`);
+    } catch (error) {
+        throw createDatabaseError('clear login attempts', error as Error);
+    }
+}
+
+export default async function (server: FastifyInstance) {
+    const { redis } = server;
+
+    // Registration endpoint
+    server
+        .withTypeProvider<ZodTypeProvider>()
+        .post(
+            '/register',
+            { schema: { body: authSchema } },
+            async (request, reply) => {
+                try {
+                    const { username, pass } = request.body;
+
+                    // Check if user already exists
+                    const existingUser = await handleAsyncOperation(
+                        () => redis.get(username),
+                        'Failed to check existing user',
+                        ErrorCode.DATABASE_ERROR,
+                    );
+
+                    if (existingUser) {
+                        throw createUserExistsError(username);
+                    }
+
+                    // Hash password
+                    const salt = randomBytes(LOGIN_CONFIG.SALT_LENGTH).toString(
+                        'hex',
+                    );
+                    const hashedPassword = scryptSync(
+                        pass,
+                        salt,
+                        LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
+                    ).toString('hex');
+
+                    // Store user
+                    const wasSet = await handleAsyncOperation(
+                        () =>
+                            redis.set(
+                                username,
+                                `${salt}:${hashedPassword}`,
+                                'NX',
+                            ),
+                        'Failed to create user',
+                        ErrorCode.DATABASE_ERROR,
+                    );
+
+                    if (wasSet !== 'OK') {
+                        throw createUserExistsError(username);
+                    }
+
+                    reply
+                        .code(201)
+                        .send(
+                            createSuccessResponse('registered', { username }),
+                        );
+                } catch (error) {
+                    const response = handleError(error, server);
+                    reply
+                        .code(
+                            response.error?.code ===
+                                ErrorCode.USER_ALREADY_EXISTS
+                                ? 409
+                                : 500,
+                        )
+                        .send(response);
+                }
+            },
+        );
+
+    // Login endpoint
+    server
+        .withTypeProvider<ZodTypeProvider>()
+        .post(
+            '/login',
+            { schema: { body: authSchema } },
+            async (request, reply) => {
+                try {
+                    const { username, pass } = request.body;
+
+                    // Check rate limiting
+                    const canAttempt = await checkRateLimit(redis, username);
+                    if (!canAttempt) {
+                        throw createRateLimitError(
+                            'Too many login attempts. Please try again later.',
+                            {
+                                lockoutDuration:
+                                    LOGIN_CONFIG.LOCKOUT_DURATION / 1000 / 60,
+                                maxAttempts: LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS,
+                            },
+                        );
+                    }
+
+                    // Get user data
+                    const user = await handleAsyncOperation(
+                        () => redis.get(username),
+                        'Failed to retrieve user data',
+                        ErrorCode.DATABASE_ERROR,
+                    );
+
+                    if (!user) {
+                        await incrementLoginAttempts(redis, username);
+                        throw createAuthError('Invalid credentials');
+                    }
+
+                    // Parse stored password
+                    const [salt, key] = user.split(':');
+                    if (!salt || !key) {
+                        await incrementLoginAttempts(redis, username);
+                        throw new ApiError(
+                            ErrorCode.DATA_CORRUPTION,
+                            'User data is corrupted',
+                            500,
+                        );
+                    }
+
+                    // Verify password
+                    const hashedBuffer = scryptSync(
+                        pass,
+                        salt,
+                        LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
+                    );
+                    const keyBuffer = Buffer.from(key, 'hex');
+                    const match = timingSafeEqual(hashedBuffer, keyBuffer);
+
+                    if (match) {
+                        await clearLoginAttempts(redis, username);
+
+                        // Set session (synchronous operation)
+                        handleSyncOperation(
+                            () => request.session.set('username', username),
+                            'Failed to create session',
+                            ErrorCode.SESSION_ERROR,
+                        );
+
+                        reply.code(200).send(
+                            createSuccessResponse('logged_in', {
+                                username,
+                            }),
+                        );
+                    } else {
+                        await incrementLoginAttempts(redis, username);
+                        throw createAuthError('Invalid credentials');
+                    }
+                } catch (error) {
+                    const response = handleError(error, server);
+                    const statusCode =
+                        response.error?.code === ErrorCode.TOO_MANY_ATTEMPTS
+                            ? 429
+                            : response.error?.code === ErrorCode.UNAUTHORIZED
+                              ? 401
+                              : 500;
+                    reply.code(statusCode).send(response);
+                }
+            },
+        );
+
+    // Logout endpoint
+    server.post('/logout', async (request, reply) => {
+        try {
+            // Delete session (synchronous operation)
+            handleSyncOperation(
+                () => request.session.delete(),
+                'Failed to destroy session',
+                ErrorCode.SESSION_ERROR,
+            );
+
+            reply.code(200).send(createSuccessResponse('logged_out'));
+        } catch (error) {
+            const response = handleError(error, server);
+            reply.code(500).send(response);
+        }
+    });
+}
