@@ -5,4 +5,7 @@
 !.vscode/launch.json
 
 # Gemini
-.gemini/
+**/.gemini/
+
+# local env files
+**/.env*.local
