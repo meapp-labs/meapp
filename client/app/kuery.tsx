@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginUser, logoutUser, registerUser } from '@/services/auth';
-import { set } from 'react-hook-form';
 
 export default function Query() {
     const [loggedIn, setLoggedIn] = useState('nobody logged in');
