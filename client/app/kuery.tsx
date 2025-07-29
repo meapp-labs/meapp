@@ -1,13 +1,20 @@
 import { useState } from 'react';
 import { Switch, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { loginUser, logoutUser, registerUser } from '@/services/auth';
+import { set } from 'react-hook-form';
 
 export default function Query() {
-    const [loggedIn, setLoggedIn] = useState('nobody');
+    const [loggedIn, setLoggedIn] = useState('nobody logged in');
+    const [loginSuccess, setLoginSuccess] = useState(false);
     const [username, setUsername] = useState('');
     const [pass, setPass] = useState('');
     const [isEnabled, setIsEnabled] = useState(true);
-    const toggleSwitch = () => setIsEnabled((previousState) => !previousState);
+    const toggleSwitch = () =>
+        setIsEnabled((previousState) => {
+            setUsername('');
+            setPass('');
+            return !previousState;
+        });
 
     const userData = {
         username,
@@ -19,7 +26,7 @@ export default function Query() {
             const response = await registerUser(userData);
             console.log('Succes: ', response);
         } catch (error) {
-            throw error;
+            console.log('Error: ', error);
         }
     };
 
@@ -28,11 +35,13 @@ export default function Query() {
             const response = await loginUser(userData);
             if (response.status === 'logged_in') {
                 setLoggedIn(username);
+                setLoginSuccess(true);
             }
             console.log('Success: ', response);
         } catch (error) {
-            setLoggedIn('nobody');
-            throw error;
+            setLoggedIn('nobody logged in');
+            setLoginSuccess(false);
+            console.log('Error: ', error);
         }
     };
 
@@ -40,11 +49,12 @@ export default function Query() {
         try {
             const response = await logoutUser();
             if (response.status === 'logged_out') {
-                setLoggedIn('nobody');
+                setLoggedIn('nobody logged in');
+                setLoginSuccess(false);
             }
             console.log('Success: ', response);
         } catch (error) {
-            throw error;
+            console.log('Error: ', error);
         }
     };
 
@@ -56,7 +66,13 @@ export default function Query() {
                         <Text className="color-zinc-300 font-semibold">
                             Currently logged in:
                         </Text>
-                        <Text className="font-semibold color-green-500">
+                        <Text
+                            className={
+                                loginSuccess
+                                    ? 'font-semibold color-green-500'
+                                    : 'font-semibold color-rose-800'
+                            }
+                        >
                             {loggedIn}
                         </Text>
                     </View>
@@ -105,6 +121,8 @@ export default function Query() {
                                     Username
                                 </Text>
                                 <TextInput
+                                    value={username}
+                                    onChangeText={setUsername}
                                     placeholder="John Messenger"
                                     placeholderTextColor={'gray'}
                                     className="border rounded-md border-zinc-600 hover:border-zinc-300 p-2 color-zinc-300"
@@ -113,6 +131,8 @@ export default function Query() {
                                     Password
                                 </Text>
                                 <TextInput
+                                    value={pass}
+                                    onChangeText={setPass}
                                     placeholder="Enter password"
                                     placeholderTextColor={'gray'}
                                     className="border rounded-md border-zinc-600 hover:border-zinc-300 p-2 color-zinc-300"
@@ -149,13 +169,9 @@ export default function Query() {
                                 true: '#41daa7ff',
                             }}
                             thumbColor={isEnabled ? '#10b981' : '#0284c7'}
-                            onValueChange={() => {
-                                toggleSwitch();
-                                setUsername('');
-                                setPass('');
-                            }}
+                            onValueChange={toggleSwitch}
                             className="self-center w-full"
-                        />{' '}
+                        />
                         <Text className="font-semibold text-emerald-500">
                             Register
                         </Text>
