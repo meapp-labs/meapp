@@ -149,7 +149,11 @@ export default function Query() {
                                 true: '#41daa7ff',
                             }}
                             thumbColor={isEnabled ? '#10b981' : '#0284c7'}
-                            onValueChange={toggleSwitch}
+                            onValueChange={() => {
+                                toggleSwitch();
+                                setUsername('');
+                                setPass('');
+                            }}
                             className="self-center w-full"
                         />{' '}
                         <Text className="font-semibold text-emerald-500">
