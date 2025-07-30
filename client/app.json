@@ -4,7 +4,7 @@
         "slug": "meapp",
         "version": "1.0.0",
         "orientation": "portrait",
-        "icon": "./assets/images/icon.png",
+        "icon": "./images/icon.png",
         "scheme": "meapp",
         "userInterfaceStyle": "automatic",
         "backgroundColor": "#000000",
@@ -15,7 +15,7 @@
         },
         "android": {
             "adaptiveIcon": {
-                "foregroundImage": "./assets/images/adaptive-icon.png",
+                "foregroundImage": "./images/adaptive-icon.png",
                 "backgroundColor": "#000000"
             },
             "edgeToEdgeEnabled": true,
@@ -24,14 +24,14 @@
         "web": {
             "bundler": "metro",
             "output": "static",
-            "favicon": "./assets/images/favicon.png"
+            "favicon": "./images/favicon.png"
         },
         "plugins": [
             "expo-router",
             [
                 "expo-splash-screen",
                 {
-                    "image": "./assets/images/splash-icon.png",
+                    "image": "./images/splash-icon.png",
                     "imageWidth": 200,
                     "resizeMode": "contain",
                     "backgroundColor": "#000000"

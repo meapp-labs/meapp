@@ -20,7 +20,9 @@
         "**/node_modules": true,
         "**/bower_components": true,
         "**/*.code-search": true,
-        "**/.expo": true
+        "**/.expo": true,
+        "**/yarn.lock": true,
+        "**/bun.lock": true
     },
 
     // Emmet for JSX
