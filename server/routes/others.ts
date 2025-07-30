@@ -3,7 +3,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { LOGIN_CONFIG } from '../lib/config';
 import { handleAsyncOperation } from '../lib/helpers';
 import { ErrorCode, handleError, NotFoundError } from '../lib/errors';
-import { createSuccessResponse } from '../lib/responses';
 import type { AuthenticatedRequest } from '../lib/types';
 import z from 'zod';
 
@@ -39,7 +38,7 @@ export default async function (server: FastifyInstance) {
                     ErrorCode.DATABASE_ERROR,
                 );
 
-                reply.code(200).send(createSuccessResponse('added', { other }));
+                reply.code(200).send(other);
             } catch (error) {
                 const response = handleError(error, server);
                 reply.code(500).send(response);
@@ -70,14 +69,10 @@ export default async function (server: FastifyInstance) {
                     throw new NotFoundError('Item', { item: other });
                 }
 
-                reply
-                    .code(200)
-                    .send(
-                        createSuccessResponse('removed', {
-                            other,
-                            count: removedCount,
-                        }),
-                    );
+                reply.code(200).send({
+                    other,
+                    count: removedCount,
+                });
             } catch (error) {
                 const response = handleError(error, server);
                 const statusCode =
@@ -104,7 +99,7 @@ export default async function (server: FastifyInstance) {
                     ErrorCode.DATABASE_ERROR,
                 );
 
-                reply.code(200).send(createSuccessResponse('ok', { others }));
+                reply.code(200).send(others);
             } catch (error) {
                 const response = handleError(error, server);
                 reply.code(500).send(response);

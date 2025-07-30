@@ -1,9 +1,11 @@
 import MessageList from '@/components/chat/MessageList';
 import FriendsScreen from '@/components/FriendsScreen';
 import Toolbar from '@/components/Toolbar';
+import { getMessages } from '@/services/messages';
 import { useAuthStore } from '@/stores/authStore';
 import { theme } from '@/theme/theme';
 import { Button } from '@react-navigation/elements';
+import { useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
@@ -18,21 +20,21 @@ import {
 } from 'react-native';
 
 export default function ChatScreen() {
-    const [messages, setMessages] = useState<
-        { id: string; text: string; sender: string }[]
-    >([]);
+    const {
+        data: messages,
+        isPending,
+        isSuccess,
+    } = useQuery({
+        queryKey: ['messages'],
+        queryFn: async () => await getMessages(),
+    });
+
     const [inputText, setInputText] = useState('');
 
     const username = useAuthStore((state: any) => state.username);
 
     const handleSend = () => {
         if (inputText.trim().length > 0) {
-            const newMessage = {
-                id: `${Date.now()}`,
-                text: inputText,
-                sender: 'me',
-            };
-            setMessages((prevMessages) => [...prevMessages, newMessage]);
             setInputText('');
         }
     };
@@ -71,8 +73,13 @@ export default function ChatScreen() {
             )}
 
             <View style={{ flex: 5 }}>
-                <MessageList username={username} messages={messages} />
-
+                {isPending ? (
+                    <Text>loading</Text>
+                ) : (
+                    isSuccess && (
+                        <MessageList username={username} messages={messages} />
+                    )
+                )}
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}

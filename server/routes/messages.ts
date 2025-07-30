@@ -4,7 +4,6 @@ import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { LOGIN_CONFIG } from '../lib/config';
 import { handleAsyncOperation } from '../lib/helpers';
 import { ErrorCode, handleError } from '../lib/errors';
-import { createSuccessResponse } from '../lib/responses';
 import type { AuthenticatedRequest } from '../lib/types';
 import z from 'zod';
 
@@ -53,11 +52,7 @@ export default async function (server: FastifyInstance) {
                     ErrorCode.DATABASE_ERROR,
                 );
 
-                reply.code(200).send(
-                    createSuccessResponse('sent', {
-                        message: messageWithTimestamp,
-                    }),
-                );
+                reply.code(200).send(messageWithTimestamp);
             } catch (error) {
                 const response = handleError(error, server);
                 reply.code(500).send(response);
@@ -91,34 +86,7 @@ export default async function (server: FastifyInstance) {
                     })
                     .filter(Boolean);
 
-                reply.code(200).send(createSuccessResponse('ok', { messages }));
-            } catch (error) {
-                const response = handleError(error, server);
-                reply.code(500).send(response);
-            }
-        },
-    );
-
-    // Clear messages endpoint
-    server.delete(
-        '/clear-messages',
-        { preHandler: [server.authenticate] },
-        async (request, reply) => {
-            try {
-                const username = (request as AuthenticatedRequest).username;
-                const key = `${username}:messages`;
-
-                const deletedCount = await handleAsyncOperation(
-                    () => redis.del(key),
-                    'Failed to clear messages',
-                    ErrorCode.DATABASE_ERROR,
-                );
-
-                reply.code(200).send(
-                    createSuccessResponse('cleared', {
-                        count: deletedCount,
-                    }),
-                );
+                reply.code(200).send(messages);
             } catch (error) {
                 const response = handleError(error, server);
                 reply.code(500).send(response);

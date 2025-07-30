@@ -1,11 +1,7 @@
+import { LoginType, RegisterType } from '@/validation/userValidation';
 import axios from 'axios';
 
-interface UserForm {
-    username: string;
-    pass: string;
-}
-
-export const registerUser = async (userData: UserForm) => {
+export const registerUser = async (userData: RegisterType) => {
     try {
         const response = await axios.post(
             'http://localhost:3000/register',
@@ -22,15 +18,13 @@ export const registerUser = async (userData: UserForm) => {
     }
 };
 
-export const loginUser = async (userData: UserForm) => {
+export const loginUser = async (userData: LoginType) => {
     try {
         const response = await axios.post(
             'http://localhost:3000/login',
             userData,
             {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
+                withCredentials: true,
             },
         );
         return response.data;

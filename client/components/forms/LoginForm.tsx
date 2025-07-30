@@ -9,10 +9,22 @@ import Button from '../common/Button';
 import { Text } from '../common/Text';
 import FormContainer from './FormContainer';
 import ControlledFormInput from './ControlledFormInput';
+import { useMutation } from '@tanstack/react-query';
+import { loginUser } from '@/services/auth';
 
 export default function LoginForm() {
     const router = useRouter();
     const setUsername = useAuthStore((state) => state.setUsername);
+
+    const { mutate, isError, isPending, error } = useMutation({
+        mutationFn: (userData: LoginType) => {
+            return loginUser(userData);
+        },
+        onSuccess: (_, variables) => {
+            router.navigate('/');
+            setUsername(variables.username);
+        },
+    });
 
     const {
         control,
@@ -27,12 +39,13 @@ export default function LoginForm() {
     });
 
     const onSubmit = handleSubmit((data: LoginType) => {
-        setUsername(data.username);
-        router.navigate('/');
+        mutate(data);
     });
 
     return (
         <FormContainer>
+            {isPending && <Text>loading</Text>}
+            {isError && <Text>error {error.message}</Text>}
             <Text style={styles.title}>Sign in to your account</Text>
             <ControlledFormInput
                 control={control}
