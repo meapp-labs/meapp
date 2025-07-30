@@ -1,8 +1,12 @@
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
-import styles from '@/styles';
 import React, { useState } from 'react';
-import { FlatList, Image, Pressable } from 'react-native';
+import {
+    FlatList,
+    Image,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from 'react-native';
 
 const mockOthers = [
     {
@@ -52,14 +56,13 @@ export default function FriendsScreen() {
             ]}
         >
             <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            <ThemedText style={styles.friendName}>{item.name}</ThemedText>
+            <Text style={styles.friendName}>{item.name}</Text>
         </Pressable>
     );
 
     return (
-        <ThemedView style={{ flex: 1 }}>
-            <ThemedText
-                type="subtitle"
+        <View style={styles.container}>
+            <Text
                 style={{
                     textAlign: 'center',
                     paddingVertical: 15,
@@ -69,12 +72,42 @@ export default function FriendsScreen() {
                 }}
             >
                 Contacts
-            </ThemedText>
+            </Text>
             <FlatList
                 data={mockOthers}
                 renderItem={renderFriend}
                 keyExtractor={(item) => item.id}
             />
-        </ThemedView>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        flex: 1,
+    },
+    friendItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 5,
+        borderRadius: 10,
+        marginHorizontal: 10,
+        marginVertical: 5,
+    },
+    avatar: {
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        marginRight: 15,
+        marginLeft: 15,
+    },
+    friendName: {
+        fontSize: 15,
+    },
+    friendItemHovered: {
+        backgroundColor: '#2C2C2E',
+    },
+    friendItemPressed: {
+        backgroundColor: '#49494d',
+    },
+});

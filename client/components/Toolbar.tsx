@@ -1,14 +1,12 @@
-import { ThemedView } from '@/components/ThemedView';
-import styles from '@/styles';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useState } from 'react';
-import { Pressable } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 export default function Toolbar() {
     const [isPressed, setPressed] = useState<string | null>(null);
 
     return (
-        <ThemedView style={styles.toolbarContainer}>
+        <View style={styles.container}>
             <Pressable
                 onPressIn={() => setPressed('settings')}
                 onPressOut={() => setPressed(null)}
@@ -39,6 +37,17 @@ export default function Toolbar() {
                     size={28}
                 />
             </Pressable>
-        </ThemedView>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        gap: 10,
+        padding: 10,
+        flexDirection: 'column-reverse',
+        flex: 1,
+        borderLeftWidth: 1,
+        borderColor: '#2c2c2e',
+    },
+});
