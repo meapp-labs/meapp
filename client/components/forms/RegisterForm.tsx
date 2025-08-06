@@ -8,9 +8,20 @@ import CustomButton from '../common/Button';
 import { Text } from '../common/Text';
 import FormContainer from './FormContainer';
 import ControlledFormInput from './ControlledFormInput';
+import { useMutation } from '@tanstack/react-query';
+import { registerUser } from '@/services/auth';
 
 export default function RegisterForm() {
     const router = useRouter();
+
+    const { mutate, isError, isPending, error } = useMutation({
+        mutationFn: (userData: RegisterType) => {
+            return registerUser(userData);
+        },
+        onSuccess: () => {
+            router.replace('/(auth)/login');
+        },
+    });
 
     const {
         control,
@@ -28,11 +39,13 @@ export default function RegisterForm() {
 
     const onSubmit = handleSubmit((data: RegisterType) => {
         console.log(data);
-        router.navigate('/');
+        mutate(data);
     });
 
     return (
         <FormContainer>
+            {isPending && <Text>Loading...</Text>}
+            {isError && <Text>Error: {error.message}</Text>}
             <Text style={styles.title}>Create a new account</Text>
             <ControlledFormInput
                 control={control}

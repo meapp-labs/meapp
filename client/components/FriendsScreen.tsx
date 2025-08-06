@@ -1,12 +1,6 @@
 import React, { useState } from 'react';
-import {
-    FlatList,
-    Image,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from 'react-native';
+import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from '@/components/common/Text';
 
 const mockOthers = [
     {
@@ -65,15 +59,19 @@ export default function FriendsScreen() {
             <Text
                 style={{
                     textAlign: 'center',
-                    paddingVertical: 15,
-                    borderBottomWidth: 1,
-                    borderBottomColor: '#2c2c2e',
-                    marginBottom: 5,
+                    marginVertical: 20,
+                    fontSize: 20,
+                    fontWeight: 'bold',
                 }}
             >
                 Contacts
             </Text>
             <FlatList
+                style={{
+                    borderTopWidth: 1,
+                    borderTopColor: '#2c2c2e',
+                    paddingTop: 5,
+                }}
                 data={mockOthers}
                 renderItem={renderFriend}
                 keyExtractor={(item) => item.id}

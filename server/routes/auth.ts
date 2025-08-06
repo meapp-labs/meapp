@@ -12,7 +12,6 @@ import {
     createUserExistsError,
     handleError,
 } from '../lib/errors';
-import { createSuccessResponse } from '../lib/responses';
 import { z } from 'zod';
 
 export const authSchema = z.object({
@@ -24,7 +23,7 @@ export const authSchema = z.object({
             /^[a-zA-Z0-9_-]+$/,
             'Username can only contain letters, numbers, underscores, and hyphens',
         ),
-    pass: z
+    password: z
         .string()
         .min(12, 'Password must be at least 12 characters')
         .regex(
@@ -79,7 +78,7 @@ export default async function (server: FastifyInstance) {
             { schema: { body: authSchema } },
             async (request, reply) => {
                 try {
-                    const { username, pass } = request.body;
+                    const { username, password } = request.body;
 
                     // Check if user already exists
                     const existingUser = await handleAsyncOperation(
@@ -97,7 +96,7 @@ export default async function (server: FastifyInstance) {
                         'hex',
                     );
                     const hashedPassword = scryptSync(
-                        pass,
+                        password,
                         salt,
                         LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
                     ).toString('hex');
@@ -118,11 +117,7 @@ export default async function (server: FastifyInstance) {
                         throw createUserExistsError(username);
                     }
 
-                    reply
-                        .code(201)
-                        .send(
-                            createSuccessResponse('registered', { username }),
-                        );
+                    reply.code(201).send(username);
                 } catch (error) {
                     const response = handleError(error, server);
                     reply
@@ -145,7 +140,7 @@ export default async function (server: FastifyInstance) {
             { schema: { body: authSchema } },
             async (request, reply) => {
                 try {
-                    const { username, pass } = request.body;
+                    const { username, password } = request.body;
 
                     // Check rate limiting
                     const canAttempt = await checkRateLimit(redis, username);
@@ -185,7 +180,7 @@ export default async function (server: FastifyInstance) {
 
                     // Verify password
                     const hashedBuffer = scryptSync(
-                        pass,
+                        password,
                         salt,
                         LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
                     );
@@ -202,11 +197,7 @@ export default async function (server: FastifyInstance) {
                             ErrorCode.SESSION_ERROR,
                         );
 
-                        reply.code(200).send(
-                            createSuccessResponse('logged_in', {
-                                username,
-                            }),
-                        );
+                        reply.code(200).send(username);
                     } else {
                         await incrementLoginAttempts(redis, username);
                         throw createAuthError('Invalid credentials');
@@ -234,7 +225,7 @@ export default async function (server: FastifyInstance) {
                 ErrorCode.SESSION_ERROR,
             );
 
-            reply.code(200).send(createSuccessResponse('logged_out'));
+            reply.code(200).send('logged_out');
         } catch (error) {
             const response = handleError(error, server);
             reply.code(500).send(response);

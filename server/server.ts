@@ -30,11 +30,19 @@ await server.register(fastifyRedis, {
 await server.register(fastifyCors, {
     origin: (origin, cb) => {
         if (!origin) return cb(null, true);
-        const { hostname } = new URL(origin);
-        if (hostname === 'localhost' || hostname === '127.0.0.1') {
-            cb(null, true);
-        } else {
-            cb(new Error('Not allowed by CORS'), false);
+
+        try {
+            const { hostname, protocol } = new URL(origin);
+            if (
+                (hostname === 'localhost' || hostname === '127.0.0.1') &&
+                (protocol === 'http:' || protocol === 'https:')
+            ) {
+                cb(null, true);
+            } else {
+                cb(new Error('Not allowed by CORS'), false);
+            }
+        } catch (error) {
+            cb(new Error('Invalid origin'), false);
         }
     },
     credentials: true,
@@ -48,8 +56,8 @@ await server.register(fastifySecureSession, {
     cookie: {
         path: '/',
         httpOnly: true,
-        secure: env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: false,
+        sameSite: 'lax',
         maxAge: 1000 * 60 * 60 * 24, // 24 hours
     },
 });

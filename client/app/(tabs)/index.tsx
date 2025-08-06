@@ -1,15 +1,18 @@
 import MessageList from '@/components/chat/MessageList';
 import FriendsScreen from '@/components/FriendsScreen';
 import Toolbar from '@/components/Toolbar';
+import { logoutUser } from '@/services/auth';
+import { getMessages } from '@/services/messages';
 import { useAuthStore } from '@/stores/authStore';
 import { theme } from '@/theme/theme';
-import { Button } from '@react-navigation/elements';
-import { router } from 'expo-router';
+import Button from '@/components/common/Button';
+import { Text } from '@/components/common/Text';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
     KeyboardAvoidingView,
     Platform,
-    Text,
     TextInput,
     TouchableOpacity,
     View,
@@ -18,21 +21,35 @@ import {
 } from 'react-native';
 
 export default function ChatScreen() {
-    const [messages, setMessages] = useState<
-        { id: string; text: string; sender: string }[]
-    >([]);
+    const router = useRouter();
+
+    const {
+        data: messages,
+        isPending: messagesPending,
+        isSuccess: messagesSuccess,
+    } = useQuery({
+        queryKey: ['messages'],
+        queryFn: async () => await getMessages(),
+    });
+
+    const {
+        mutate: logout,
+        isError: logoutError,
+        isPending: logoutPending,
+        error,
+    } = useMutation({
+        mutationFn: logoutUser,
+        onSuccess: () => {
+            router.replace('/(auth)/login');
+        },
+    });
+
     const [inputText, setInputText] = useState('');
 
     const username = useAuthStore((state: any) => state.username);
 
     const handleSend = () => {
         if (inputText.trim().length > 0) {
-            const newMessage = {
-                id: `${Date.now()}`,
-                text: inputText,
-                sender: 'me',
-            };
-            setMessages((prevMessages) => [...prevMessages, newMessage]);
             setInputText('');
         }
     };
@@ -56,23 +73,45 @@ export default function ChatScreen() {
                     }}
                 >
                     <FriendsScreen />
-
-                    <Button
+                    <View
                         style={{
-                            margin: 10,
-                            alignItems: 'center',
-                            justifyContent: 'center',
+                            alignSelf: 'center',
+                            flexDirection: 'row',
+                            gap: 5,
                         }}
-                        onPress={() => router.navigate('/login')}
                     >
-                        Logout
-                    </Button>
+                        <Text>Current user:</Text>
+                        <Text style={{ fontWeight: 'bold', color: 'lime' }}>
+                            {username}
+                        </Text>
+                    </View>
+                    {logoutPending && (
+                        <Text style={{ textAlign: 'center' }}>
+                            Just a second...
+                        </Text>
+                    )}
+                    {logoutError && (
+                        <Text style={{ textAlign: 'center' }}>
+                            Error: {error.message}
+                        </Text>
+                    )}
+                    <Button
+                        style={{ margin: 10, borderRadius: 25 }}
+                        variant="secondary"
+                        title="Logout"
+                        onPress={logout}
+                    />
                 </View>
             )}
 
             <View style={{ flex: 5 }}>
-                <MessageList username={username} messages={messages} />
-
+                {messagesPending ? (
+                    <Text>loading</Text>
+                ) : (
+                    messagesSuccess && (
+                        <MessageList username={username} messages={messages} />
+                    )
+                )}
                 <KeyboardAvoidingView
                     behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                     keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}

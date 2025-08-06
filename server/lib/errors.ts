@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import type { FastifyInstance } from 'fastify';
-import { createErrorResponse } from './responses';
 
 // Error Types
 export enum ErrorCode {
@@ -186,7 +185,7 @@ export function handleError(error: unknown, server: FastifyInstance): any {
             error.message,
             error.details,
         );
-        return createErrorResponse(error);
+        return error;
     }
 
     // Handle Zod validation errors
@@ -203,7 +202,7 @@ export function handleError(error: unknown, server: FastifyInstance): any {
             validationError.message,
             validationError.details,
         );
-        return createErrorResponse(validationError);
+        return validationError;
     }
 
     // Handle unexpected errors
@@ -222,5 +221,5 @@ export function handleError(error: unknown, server: FastifyInstance): any {
         internalError.message,
         internalError.details,
     );
-    return createErrorResponse(internalError);
+    return internalError;
 }

@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import { handleSyncOperation } from '../lib/helpers';
 import { ErrorCode, createAuthError, handleError } from '../lib/errors';
-import { createErrorResponse } from '../lib/responses';
 import type { AuthenticatedRequest } from '../lib/types';
 
 export default fp(async function (server: FastifyInstance) {
@@ -18,9 +17,7 @@ export default fp(async function (server: FastifyInstance) {
 
                 if (!username) {
                     const error = createAuthError('Authentication required');
-                    return reply
-                        .code(error.statusCode)
-                        .send(createErrorResponse(error));
+                    return reply.code(error.statusCode).send(error);
                 }
 
                 (request as AuthenticatedRequest).username = username;
