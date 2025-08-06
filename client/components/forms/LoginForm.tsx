@@ -21,7 +21,7 @@ export default function LoginForm() {
             return loginUser(userData);
         },
         onSuccess: (_, variables) => {
-            router.navigate('/');
+            router.replace('/');
             setUsername(variables.username);
         },
     });
@@ -44,7 +44,7 @@ export default function LoginForm() {
 
     return (
         <FormContainer>
-            {isPending && <Text>loading</Text>}
+            {isPending && <Text>Loading...</Text>}
             {isError && <Text>error {error.message}</Text>}
             <Text style={styles.title}>Sign in to your account</Text>
             <ControlledFormInput
