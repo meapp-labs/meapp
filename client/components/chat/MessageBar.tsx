@@ -10,10 +10,8 @@ import { theme } from '@/theme/theme';
 import Button from '../common/Button';
 import { useMutation } from '@tanstack/react-query';
 import { MessageData, sendMessage } from '@/services/messages';
-import { useAuthStore } from '@/stores/authStore';
 
 export default function MessageBar() {
-    const { username } = useAuthStore();
     const [inputData, setInputData] = useState('');
 
     const { mutate } = useMutation({
@@ -31,7 +29,7 @@ export default function MessageBar() {
     const handleSend = () => {
         if (inputData.trim().length > 0) {
             const messageData: MessageData = {
-                from: username,
+                to: 'dawid', // hardcoded, later pick from list of others
                 text: inputData,
             };
             mutate(messageData);

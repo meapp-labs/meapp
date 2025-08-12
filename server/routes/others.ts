@@ -2,15 +2,20 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { LOGIN_CONFIG } from '../lib/config';
 import { handleAsyncOperation } from '../lib/helpers';
-import { ErrorCode, handleError, NotFoundError } from '../lib/errors';
+import {
+    ErrorCode,
+    handleError,
+    NotFoundError,
+    createUserNotFoundError,
+    ApiError,
+} from '../lib/errors';
 import type { AuthenticatedRequest } from '../lib/types';
 import z from 'zod';
 
+import { usernameSchema } from '../lib/validation';
+
 export const otherSchema = z.object({
-    other: z
-        .string()
-        .min(1, 'Other field cannot be empty')
-        .max(1000, 'Other field too long'),
+    other: usernameSchema,
 });
 
 export default async function (server: FastifyInstance) {
@@ -27,7 +32,35 @@ export default async function (server: FastifyInstance) {
             try {
                 const { other } = request.body;
                 const username = (request as AuthenticatedRequest).username;
+
+                if (other === username) {
+                    throw new ApiError(
+                        ErrorCode.VALIDATION_ERROR,
+                        'You cannot add yourself to your own list of others.',
+                        400,
+                    );
+                }
+
+                const otherExists = await handleAsyncOperation(
+                    () => redis.exists(other),
+                    'Failed to check other user existence',
+                    ErrorCode.DATABASE_ERROR,
+                );
+
+                if (!otherExists) {
+                    throw createUserNotFoundError(other);
+                }
+
                 const key = `${username}:others`;
+
+                const others = await redis.lrange(key, 0, -1);
+                if (others.includes(other)) {
+                    throw new ApiError(
+                        ErrorCode.DUPLICATE_ITEM,
+                        'User is already in the list.',
+                        409,
+                    );
+                }
 
                 await handleAsyncOperation(
                     async () => {
@@ -41,7 +74,8 @@ export default async function (server: FastifyInstance) {
                 reply.code(200).send(other);
             } catch (error) {
                 const response = handleError(error, server);
-                reply.code(500).send(response);
+                const statusCode = response.statusCode || 500;
+                reply.code(statusCode).send(response);
             }
         },
     );

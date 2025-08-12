@@ -20,7 +20,7 @@ export default function MessageList({ username }: TMessageList) {
         isSuccess: messagesSuccess,
     } = useQuery({
         queryKey: ['messages'],
-        queryFn: async () => await getMessages(),
+        queryFn: async () => await getMessages('emil'), // hardcoded
     });
 
     useEffect(() => {
@@ -78,28 +78,4 @@ const styles = StyleSheet.create({
         backgroundColor: theme.colors.surface,
         alignItems: 'center',
     },
-
-    // messageList: {
-    //     paddingHorizontal: 10,
-    //     paddingBottom: 10,
-    // },
-    // messageContainer: {
-    //     borderRadius: 20,
-    //     padding: 15,
-    //     marginVertical: 5,
-    //     maxWidth: '80%',
-    // },
-    // myMessageContainer: {
-    //     backgroundColor: '#007AFF',
-    //     alignSelf: 'flex-end',
-    //     borderBottomRightRadius: 5,
-    // },
-    // theirMessageContainer: {
-    //     backgroundColor: '#2C2C2E',
-    //     alignSelf: 'flex-start',
-    //     borderBottomLeftRadius: 5,
-    // },
-    // myMessageText: {
-    //     color: '#fff',
-    // },
 });
