@@ -1,6 +1,11 @@
 import React, { useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
+import { theme } from '@/theme/theme';
+import { logoutUser } from '@/services/auth';
+import { useMutation } from '@tanstack/react-query';
+import { router } from 'expo-router';
 
 const mockOthers = [
     {
@@ -33,7 +38,12 @@ const mockOthers = [
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [pressed, setPressed] = useState<string | null>(null);
-
+    const { mutate: logout } = useMutation({
+        mutationFn: logoutUser,
+        onSuccess: () => {
+            router.replace('/(auth)/login');
+        },
+    });
     const renderFriend = ({
         item,
     }: {
@@ -49,63 +59,68 @@ export default function FriendsScreen() {
                 pressed === item.id && styles.friendItemPressed,
             ]}
         >
-            <Image source={{ uri: item.avatar }} style={styles.avatar} />
-            <Text style={styles.friendName}>{item.name}</Text>
+            <Image style={styles.avatar} source={{ uri: item.avatar }} />
+            <Text>{item.name}</Text>
         </Pressable>
     );
 
     return (
-        <View style={styles.container}>
-            <Text
-                style={{
-                    textAlign: 'center',
-                    marginVertical: 20,
-                    fontSize: 20,
-                    fontWeight: 'bold',
-                }}
-            >
-                Contacts
-            </Text>
+        <View style={styles.friendList}>
+            <View style={styles.headerContainer}>
+                <Text style={styles.contactHeader}>Contacts</Text>
+            </View>
             <FlatList
-                style={{
-                    borderTopWidth: 1,
-                    borderTopColor: '#2c2c2e',
-                    paddingTop: 5,
-                }}
                 data={mockOthers}
                 renderItem={renderFriend}
                 keyExtractor={(item) => item.id}
             />
+            <View style={styles.logoutButton}>
+                <Button variant="secondary" title="Logout" onPress={logout} />
+            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+    headerContainer: {
+        alignSelf: 'center',
+        borderBottomWidth: 1,
+        borderColor: theme.colors.card,
+        width: '90%',
+        marginBottom: theme.spacing.xs,
+    },
+    contactHeader: {
+        ...theme.typography.h2,
+        marginVertical: theme.spacing.md,
+        alignSelf: 'center',
+    },
+    friendList: {
+        flex: 1 / 6,
+        backgroundColor: theme.colors.surface,
+        margin: theme.spacing.sm,
+        borderRadius: theme.spacing.sm,
     },
     friendItem: {
-        flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 5,
-        borderRadius: 10,
-        marginHorizontal: 10,
-        marginVertical: 5,
+        flexDirection: 'row',
+        margin: theme.spacing.xs,
+        borderRadius: theme.spacing.sm,
+        borderColor: theme.colors.surface,
+        borderWidth: 1,
+        paddingVertical: theme.spacing.xs,
     },
     avatar: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        marginRight: 15,
-        marginLeft: 15,
+        marginHorizontal: 15,
     },
-    friendName: {
-        fontSize: 15,
-    },
+
     friendItemHovered: {
-        backgroundColor: '#2C2C2E',
+        borderColor: theme.colors.secondary,
     },
     friendItemPressed: {
-        backgroundColor: '#49494d',
+        backgroundColor: theme.colors.card,
     },
+    logoutButton: { margin: theme.spacing.sm },
 });
