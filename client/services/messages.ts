@@ -12,6 +12,7 @@ export const sendMessage = async (messageData: MessageData) => {
             'http://localhost:3000/send-message',
             messageData,
             {
+                withCredentials: true,
                 headers: {
                     'Content-Type': 'application/json',
                 },

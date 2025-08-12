@@ -16,14 +16,12 @@ export default function MessageBar() {
     const { username } = useAuthStore();
     const [inputData, setInputData] = useState('');
 
-    //////////////////
-    //not fully working, gives 401
     const { mutate } = useMutation({
         mutationFn: (messageData: MessageData) => {
             return sendMessage(messageData);
         },
         onSuccess: (data) => {
-            console.log('Success:', data.message);
+            console.log('Success:', data);
         },
         onError: (error: any) => {
             console.log('Error:', error.message);
@@ -40,7 +38,6 @@ export default function MessageBar() {
             setInputData('');
         }
     };
-    //////////////////
 
     return (
         <KeyboardAvoidingView
