@@ -20,8 +20,8 @@ export default function Toolbar() {
 
 const styles = StyleSheet.create({
     container: {
-        gap: 10,
-        padding: 10,
+        gap: theme.spacing.sm,
+        padding: theme.spacing.sm,
         flexDirection: 'column-reverse',
         backgroundColor: theme.colors.surface,
         marginLeft: theme.spacing.sm,
