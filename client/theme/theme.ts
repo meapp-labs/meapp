@@ -3,7 +3,7 @@ const colors = {
     secondary: '#7C4DFF', // Soft amethyst purple (secondary actions)
     background: '#121212', // True black background
     surface: '#1E1E1E', // Slightly elevated surfaces
-    card: '#252525', // Cards/modals (higher elevation)
+    card: '#363636ff', // Cards/modals (higher elevation)
     text: '#E0E0E0', // Primary text (high contrast)
     textSecondary: '#9E9E9E', // Secondary text (60% opacity)
     border: '#424242', // Subtle borders/dividers

@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
         minHeight: 44,
     },
     text: {
-        fontSize: theme.typography.body.fontSize,
+        ...theme.typography.body,
         fontWeight: '600',
     },
 

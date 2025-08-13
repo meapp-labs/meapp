@@ -2,7 +2,7 @@ import { TMessage } from '@/components/chat/Message';
 import axios from 'axios';
 
 export interface MessageData {
-    from: string;
+    to: string;
     text: string;
 }
 
@@ -12,6 +12,7 @@ export const sendMessage = async (messageData: MessageData) => {
             'http://localhost:3000/send-message',
             messageData,
             {
+                withCredentials: true,
                 headers: {
                     'Content-Type': 'application/json',
                 },
@@ -23,9 +24,10 @@ export const sendMessage = async (messageData: MessageData) => {
     }
 };
 
-export async function getMessages(): Promise<TMessage[]> {
+export async function getMessages(from: string): Promise<TMessage[]> {
     try {
         const response = await axios.get('http://localhost:3000/get-messages', {
+            params: { from },
             withCredentials: true,
         });
         return response.data;
