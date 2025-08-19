@@ -12,12 +12,12 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
 
-export default function DLoginForm() {
+export default function LoginForm() {
     const [isVisible, setVisible] = useState(false);
     const setUsername = useAuthStore((state) => state.setUsername);
 
     const registerRoute = () => {
-        router.replace('/(auth)/register');
+        router.replace('/register');
     };
 
     const { mutate, isError, isPending, error } = useMutation({
@@ -47,7 +47,7 @@ export default function DLoginForm() {
     });
 
     return (
-        <View style={styles.container}>
+        <View>
             {isPending && (
                 <Text style={{ marginBottom: theme.spacing.md }}>
                     Loading...
@@ -61,7 +61,7 @@ export default function DLoginForm() {
             <View style={[styles.formContainer, styles.shadow]}>
                 <Text style={styles.header}>Login to your account</Text>
                 <View style={{ flexDirection: 'row' }}>
-                    <Text>Don't have an account? </Text>
+                    <Text>Don&apos;t have an account? </Text>
                     <TouchableHighlight onPress={registerRoute}>
                         <Text style={{ color: theme.colors.secondary }}>
                             Sign up
@@ -93,7 +93,11 @@ export default function DLoginForm() {
                             />
                         )}
                     />
-
+                    {errors.username && (
+                        <Text style={styles.errorText}>
+                            {errors.username.message}
+                        </Text>
+                    )}
                     <View style={styles.captionContainer}>
                         <Text>Password</Text>
                         <Pressable
@@ -133,7 +137,11 @@ export default function DLoginForm() {
                             />
                         )}
                     />
-
+                    {errors.password && (
+                        <Text style={styles.errorText}>
+                            {errors.password.message}
+                        </Text>
+                    )}
                     <TouchableOpacity
                         style={styles.submitButton}
                         onPress={onSubmit}
@@ -144,29 +152,11 @@ export default function DLoginForm() {
                     </TouchableOpacity>
                 </View>
             </View>
-            <View style={styles.errorContainer}>
-                {errors.username && (
-                    <Text style={styles.errorText}>
-                        {errors.username.message}
-                    </Text>
-                )}
-                {errors.password && (
-                    <Text style={styles.errorText}>
-                        {errors.password.message}
-                    </Text>
-                )}
-            </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: theme.colors.background,
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     formContainer: {
         padding: theme.spacing.lg,
         borderRadius: theme.spacing.md,
@@ -217,12 +207,8 @@ const styles = StyleSheet.create({
         minHeight: theme.spacing.lg,
     },
     errorText: {
-        textAlign: 'center',
+        textAlign: 'left',
         color: theme.colors.error,
         ...theme.typography.caption,
-    },
-    errorContainer: {
-        gap: theme.spacing.xs,
-        marginTop: theme.spacing.md,
     },
 });

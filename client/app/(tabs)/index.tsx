@@ -1,11 +1,9 @@
 import FriendsScreen from '@/components/FriendsScreen';
-
 import { useAuthStore } from '@/stores/authStore';
-import { StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native';
-import { theme } from '@/theme/theme';
+import { SafeAreaView, StyleSheet } from 'react-native';
 import MessageContainer from '@/components/chat/MessageContainer';
 import Toolbar from '@/components/Toolbar';
+import { theme } from '@/theme/theme';
 
 export default function ChatScreen() {
     const username = useAuthStore((state: any) => state.username);
@@ -22,8 +20,7 @@ export default function ChatScreen() {
 const styles = StyleSheet.create({
     container: {
         backgroundColor: theme.colors.background,
-        height: '100%',
         flexDirection: 'row',
-        paddingRight: theme.spacing.sm,
+        flex: 1,
     },
 });

@@ -1,10 +1,23 @@
 import CenteredContainer from '@/components/common/CenteredContainer';
 import LoginForm from '@/components/forms/LoginForm';
+import { StyleSheet, View } from 'react-native';
+import { theme } from '@/theme/theme';
 
 export default function LoginScreen() {
     return (
-        <CenteredContainer>
-            <LoginForm />
-        </CenteredContainer>
+        <View style={styles.container}>
+            <CenteredContainer>
+                <LoginForm />
+            </CenteredContainer>
+        </View>
     );
 }
+
+const styles = StyleSheet.create({
+    container: {
+        backgroundColor: theme.colors.background,
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+});

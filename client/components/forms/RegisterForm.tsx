@@ -11,9 +11,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
 
-export default function DRegisterForm() {
+export default function RegisterForm() {
     const registerRoute = () => {
-        router.replace('/(auth)/login');
+        router.replace('/login');
     };
     const [isVisible, setVisible] = useState(false);
 
@@ -22,7 +22,7 @@ export default function DRegisterForm() {
             return registerUser(userData);
         },
         onSuccess: () => {
-            router.replace('/(auth)/login');
+            router.replace('/login');
         },
     });
 
@@ -63,7 +63,6 @@ export default function DRegisterForm() {
                     <View style={styles.captionContainer}>
                         <Text>Username</Text>
                     </View>
-
                     <Controller
                         control={control}
                         name="username"
@@ -75,6 +74,8 @@ export default function DRegisterForm() {
                                         borderColor: theme.colors.error,
                                     },
                                 ]}
+                                autoComplete="off"
+                                textContentType="none"
                                 placeholder="Enter username"
                                 placeholderTextColor={
                                     theme.colors.textSecondary
@@ -85,10 +86,14 @@ export default function DRegisterForm() {
                             />
                         )}
                     />
+                    {errors.username && (
+                        <Text style={styles.errorText}>
+                            {errors.username.message}
+                        </Text>
+                    )}
                     <View style={styles.captionContainer}>
                         <Text>Email</Text>
                     </View>
-
                     <Controller
                         control={control}
                         name="email"
@@ -100,6 +105,8 @@ export default function DRegisterForm() {
                                         borderColor: theme.colors.error,
                                     },
                                 ]}
+                                autoComplete="off"
+                                textContentType="none"
                                 placeholder="Enter email"
                                 placeholderTextColor={
                                     theme.colors.textSecondary
@@ -110,6 +117,11 @@ export default function DRegisterForm() {
                             />
                         )}
                     />
+                    {errors.email && (
+                        <Text style={styles.errorText}>
+                            {errors.email.message}
+                        </Text>
+                    )}
                     <View style={styles.captionContainer}>
                         <Text>Password</Text>
                         <Pressable
@@ -127,7 +139,6 @@ export default function DRegisterForm() {
                             />
                         </Pressable>
                     </View>
-
                     <Controller
                         control={control}
                         name="password"
@@ -140,6 +151,8 @@ export default function DRegisterForm() {
                                         borderColor: theme.colors.error,
                                     },
                                 ]}
+                                autoComplete="off"
+                                textContentType="none"
                                 placeholder="Enter password"
                                 placeholderTextColor={
                                     theme.colors.textSecondary
@@ -150,7 +163,11 @@ export default function DRegisterForm() {
                             />
                         )}
                     />
-
+                    {errors.password && (
+                        <Text style={styles.errorText}>
+                            {errors.password.message}
+                        </Text>
+                    )}
                     <Controller
                         control={control}
                         name="confirmPassword"
@@ -163,6 +180,8 @@ export default function DRegisterForm() {
                                         borderColor: theme.colors.error,
                                     },
                                 ]}
+                                autoComplete="off"
+                                textContentType="none"
                                 placeholder="Confirm password"
                                 placeholderTextColor={
                                     theme.colors.textSecondary
@@ -173,7 +192,11 @@ export default function DRegisterForm() {
                             />
                         )}
                     />
-
+                    {errors.confirmPassword && (
+                        <Text style={styles.errorText}>
+                            {errors.confirmPassword.message}
+                        </Text>
+                    )}
                     <TouchableOpacity
                         onPress={() => onSubmit()}
                         style={styles.submitButton}
@@ -183,26 +206,6 @@ export default function DRegisterForm() {
                         </Text>
                     </TouchableOpacity>
                 </View>
-            </View>
-            <View style={styles.errorContainer}>
-                {errors.username && (
-                    <Text style={styles.errorText}>
-                        {errors.username.message}
-                    </Text>
-                )}
-                {errors.email && (
-                    <Text style={styles.errorText}>{errors.email.message}</Text>
-                )}
-                {errors.password && (
-                    <Text style={styles.errorText}>
-                        {errors.password.message}
-                    </Text>
-                )}
-                {errors.confirmPassword && (
-                    <Text style={styles.errorText}>
-                        {errors.confirmPassword.message}
-                    </Text>
-                )}
             </View>
         </View>
     );
@@ -265,12 +268,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     errorText: {
-        textAlign: 'center',
+        textAlign: 'left',
         color: theme.colors.error,
         ...theme.typography.caption,
-    },
-    errorContainer: {
-        gap: theme.spacing.xs,
-        marginTop: theme.spacing.md,
     },
 });
