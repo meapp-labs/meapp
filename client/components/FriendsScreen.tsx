@@ -41,7 +41,7 @@ export default function FriendsScreen() {
     const { mutate: logout } = useMutation({
         mutationFn: logoutUser,
         onSuccess: () => {
-            router.replace('/(auth)/login');
+            router.replace('/login');
         },
     });
     const renderFriend = ({

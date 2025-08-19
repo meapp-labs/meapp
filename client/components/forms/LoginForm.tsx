@@ -1,4 +1,11 @@
-import { Pressable, TextInput, TouchableHighlight, View } from 'react-native';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    TextInput,
+    TouchableHighlight,
+    View,
+} from 'react-native';
 import { theme } from '@/theme/theme';
 import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from '../common/Text';
@@ -47,7 +54,10 @@ export default function LoginForm() {
     });
 
     return (
-        <View>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+            keyboardVerticalOffset={20}
+        >
             {isPending && (
                 <Text style={{ marginBottom: theme.spacing.md }}>
                     Loading...
@@ -58,6 +68,7 @@ export default function LoginForm() {
                     error: {error.message}
                 </Text>
             )}
+
             <View style={[styles.formContainer, styles.shadow]}>
                 <Text style={styles.header}>Login to your account</Text>
                 <View style={{ flexDirection: 'row' }}>
@@ -152,7 +163,7 @@ export default function LoginForm() {
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
@@ -162,18 +173,20 @@ const styles = StyleSheet.create({
         borderRadius: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.secondary,
+        backgroundColor: theme.colors.background,
     },
     submitButton: {
         marginTop: theme.spacing.sm,
-        padding: theme.spacing.sm,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
         backgroundColor: theme.colors.backgroundSecondary,
         borderRadius: theme.spacing.xs,
         alignItems: 'center',
     },
     formInput: {
         borderColor: theme.colors.borderSecondary,
-        flex: 1,
-        padding: theme.spacing.sm,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
         borderWidth: 1,
         borderRadius: theme.spacing.xs,
         color: theme.colors.text,

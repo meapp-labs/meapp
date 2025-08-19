@@ -1,6 +1,16 @@
-import { Pressable, TextInput, TouchableHighlight, View } from 'react-native';
+import {
+    Platform,
+    Pressable,
+    TextInput,
+    TouchableHighlight,
+    View,
+} from 'react-native';
 import { theme } from '@/theme/theme';
-import { StyleSheet, TouchableOpacity } from 'react-native';
+import {
+    StyleSheet,
+    TouchableOpacity,
+    KeyboardAvoidingView,
+} from 'react-native';
 import { Text } from '@/components/common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -46,7 +56,10 @@ export default function RegisterForm() {
     });
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+            keyboardVerticalOffset={20}
+        >
             {isPending && <Text>Loading...</Text>}
             {isError && <Text>Error: {error.message}</Text>}
             <View style={[styles.formContainer, styles.shadow]}>
@@ -201,42 +214,43 @@ export default function RegisterForm() {
                         onPress={() => onSubmit()}
                         style={styles.submitButton}
                     >
-                        <Text style={{ color: 'black', fontWeight: 'bold' }}>
+                        <Text
+                            style={{
+                                color: 'black',
+                                fontWeight: 'bold',
+                            }}
+                        >
                             Register
                         </Text>
                     </TouchableOpacity>
                 </View>
             </View>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        backgroundColor: theme.colors.background,
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
     formContainer: {
         padding: theme.spacing.lg,
         borderRadius: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.secondary,
+        backgroundColor: theme.colors.background,
     },
     submitButton: {
         marginTop: theme.spacing.sm,
-        padding: theme.spacing.sm,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
         backgroundColor: theme.colors.backgroundSecondary,
         borderRadius: theme.spacing.xs,
         alignItems: 'center',
     },
     formInput: {
-        flex: 1,
-        padding: theme.spacing.sm,
+        borderColor: theme.colors.borderSecondary,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
         borderWidth: 1,
         borderRadius: theme.spacing.xs,
-        borderColor: theme.colors.borderSecondary,
         color: theme.colors.text,
     },
     header: {
