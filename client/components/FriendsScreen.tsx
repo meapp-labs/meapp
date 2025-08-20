@@ -1,11 +1,20 @@
 import React, { useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import {
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    StyleSheet,
+    View,
+} from 'react-native';
 import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
 import { logoutUser } from '@/services/auth';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import MoreIcon from './forms/MoreActionsIcon';
+import FriendModal from './forms/FriendModal';
 
 const mockOthers = [
     {
@@ -38,12 +47,14 @@ const mockOthers = [
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [pressed, setPressed] = useState<string | null>(null);
+    const [showModal, setShowModal] = useState(false);
     const { mutate: logout } = useMutation({
         mutationFn: logoutUser,
         onSuccess: () => {
             router.replace('/login');
         },
     });
+
     const renderFriend = ({
         item,
     }: {
@@ -59,8 +70,33 @@ export default function FriendsScreen() {
                 pressed === item.id && styles.friendItemPressed,
             ]}
         >
-            <Image style={styles.avatar} source={{ uri: item.avatar }} />
-            <Text>{item.name}</Text>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    flex: 1,
+                }}
+            >
+                <Image style={styles.avatar} source={{ uri: item.avatar }} />
+                <Text>{item.name}</Text>
+            </View>
+            {(hovered === item.id || pressed === item.id) && (
+                <MoreIcon setShowModal={setShowModal} />
+            )}
+            <Pressable onPress={() => setShowModal(false)}>
+                <Modal
+                    animationType="fade"
+                    visible={showModal}
+                    transparent
+                    onRequestClose={() => setShowModal(false)}
+                >
+                    <View style={styles.modalContainer}>
+                        <View style={styles.modalBox}>
+                            <FriendModal />
+                        </View>
+                    </View>
+                </Modal>
+            </Pressable>
         </Pressable>
     );
 
@@ -107,13 +143,13 @@ const styles = StyleSheet.create({
         borderRadius: theme.spacing.sm,
         borderColor: theme.colors.surface,
         borderWidth: 1,
-        paddingVertical: theme.spacing.xs,
+        paddingVertical: theme.spacing.sm,
     },
     avatar: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        marginHorizontal: 15,
+        marginHorizontal: theme.spacing.md,
     },
 
     friendItemHovered: {
@@ -122,5 +158,15 @@ const styles = StyleSheet.create({
     friendItemPressed: {
         backgroundColor: theme.colors.card,
     },
-    logoutButton: { margin: theme.spacing.sm },
+    logoutButton: {
+        margin: theme.spacing.sm,
+    },
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    modalBox: {
+        backgroundColor: theme.colors.background,
+    },
 });
