@@ -13,36 +13,9 @@ import { theme } from '@/theme/theme';
 import { logoutUser } from '@/services/auth';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import MoreIcon from './forms/MoreActionsIcon';
+import MoreIcon from './forms/MoreIcon';
 import FriendModal from './forms/FriendModal';
-
-const mockOthers = [
-    {
-        id: '1',
-        name: 'Alice',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-    },
-    {
-        id: '2',
-        name: 'Bob',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
-    },
-    {
-        id: '3',
-        name: 'Charlie',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704f',
-    },
-    {
-        id: '4',
-        name: 'David',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704g',
-    },
-    {
-        id: '5',
-        name: 'Eve',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704h',
-    },
-];
+import { mockOthers } from '../misc/mockOthers';
 
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
@@ -91,9 +64,11 @@ export default function FriendsScreen() {
                     onRequestClose={() => setShowModal(false)}
                 >
                     <View style={styles.modalContainer}>
-                        <View style={styles.modalBox}>
-                            <FriendModal />
-                        </View>
+                        <Pressable style={styles.border}>
+                            <View style={styles.modalBox}>
+                                <FriendModal />
+                            </View>
+                        </Pressable>
                     </View>
                 </Modal>
             </Pressable>
@@ -140,6 +115,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         margin: theme.spacing.xs,
+        marginHorizontal: theme.spacing.sm,
         borderRadius: theme.spacing.sm,
         borderColor: theme.colors.surface,
         borderWidth: 1,
@@ -168,5 +144,12 @@ const styles = StyleSheet.create({
     },
     modalBox: {
         backgroundColor: theme.colors.background,
+    },
+    border: {
+        borderWidth: 1,
+        borderColor: theme.colors.secondary,
+        borderRadius: 25,
+        padding: theme.spacing.md,
+        cursor: 'auto',
     },
 });
