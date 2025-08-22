@@ -6,44 +6,19 @@ import { theme } from '@/theme/theme';
 import { logoutUser } from '@/services/auth';
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
-
-const mockOthers = [
-    {
-        id: '1',
-        name: 'Alice',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-    },
-    {
-        id: '2',
-        name: 'Bob',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704e',
-    },
-    {
-        id: '3',
-        name: 'Charlie',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704f',
-    },
-    {
-        id: '4',
-        name: 'David',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704g',
-    },
-    {
-        id: '5',
-        name: 'Eve',
-        avatar: 'https://i.pravatar.cc/150?u=a042581f4e29026704h',
-    },
-];
+import { mockOthers } from '../misc/mockOthers';
 
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [pressed, setPressed] = useState<string | null>(null);
+
     const { mutate: logout } = useMutation({
         mutationFn: logoutUser,
         onSuccess: () => {
-            router.replace('/(auth)/login');
+            router.replace('/login');
         },
     });
+
     const renderFriend = ({
         item,
     }: {
@@ -59,8 +34,16 @@ export default function FriendsScreen() {
                 pressed === item.id && styles.friendItemPressed,
             ]}
         >
-            <Image style={styles.avatar} source={{ uri: item.avatar }} />
-            <Text>{item.name}</Text>
+            <View
+                style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    flex: 1,
+                }}
+            >
+                <Image style={styles.avatar} source={{ uri: item.avatar }} />
+                <Text>{item.name}</Text>
+            </View>
         </Pressable>
     );
 
@@ -104,16 +87,17 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         flexDirection: 'row',
         margin: theme.spacing.xs,
+        marginHorizontal: theme.spacing.sm,
         borderRadius: theme.spacing.sm,
         borderColor: theme.colors.surface,
         borderWidth: 1,
-        paddingVertical: theme.spacing.xs,
+        paddingVertical: theme.spacing.sm,
     },
     avatar: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        marginHorizontal: 15,
+        marginHorizontal: theme.spacing.md,
     },
 
     friendItemHovered: {
@@ -122,5 +106,7 @@ const styles = StyleSheet.create({
     friendItemPressed: {
         backgroundColor: theme.colors.card,
     },
-    logoutButton: { margin: theme.spacing.sm },
+    logoutButton: {
+        margin: theme.spacing.sm,
+    },
 });

@@ -1,5 +1,5 @@
 import { useAuthStore } from '@/stores/authStore';
-import { theme } from '@/theme/theme';
+
 import { Stack } from 'expo-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
@@ -9,21 +9,11 @@ export default function RootLayout() {
 
     return (
         <QueryClientProvider client={queryClient}>
-        <Stack
-            screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: theme.colors.background },
-            }}
-        >
-            <Stack.Protected guard={username}>
-                <Stack.Screen name="(tabs)" />
-            </Stack.Protected>
-
-            <Stack.Protected guard={!username}>
-                <Stack.Screen name="login" />
-                <Stack.Screen name="register" />
-            </Stack.Protected>
-        </Stack>
+            <Stack screenOptions={{ headerShown: false }}>
+                <Stack.Protected guard={!!username}>
+                    <Stack.Screen name="(tabs)" />
+                </Stack.Protected>
+            </Stack>
         </QueryClientProvider>
     );
 }
