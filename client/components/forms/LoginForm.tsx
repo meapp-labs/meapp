@@ -1,20 +1,32 @@
-import { useAuthStore } from '@/stores/authStore';
-import { Link, useRouter } from 'expo-router';
-import { StyleSheet } from 'react-native';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
+import {
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    TextInput,
+    TouchableHighlight,
+    View,
+    StyleSheet,
+    TouchableOpacity,
+} from 'react-native';
 import { theme } from '@/theme/theme';
-import { LoginSchema, LoginType } from '@/validation/userValidation';
-import Button from '../common/Button';
 import { Text } from '../common/Text';
-import FormContainer from './FormContainer';
-import ControlledFormInput from './ControlledFormInput';
-import { useMutation } from '@tanstack/react-query';
+import { router } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
 import { loginUser } from '@/services/auth';
+import { useAuthStore } from '@/stores/authStore';
+import { LoginType, LoginSchema } from '@/validation/userValidation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { useForm, Controller } from 'react-hook-form';
 
 export default function LoginForm() {
-    const router = useRouter();
+    const [isVisible, setVisible] = useState(false);
     const setUsername = useAuthStore((state) => state.setUsername);
+
+    const registerRoute = () => {
+        router.replace('/register');
+    };
 
     const { mutate, isError, isPending, error } = useMutation({
         mutationFn: (userData: LoginType) => {
@@ -43,38 +55,174 @@ export default function LoginForm() {
     });
 
     return (
-        <FormContainer>
-            {isPending && <Text>Loading...</Text>}
-            {isError && <Text>error {error.message}</Text>}
-            <Text style={styles.title}>Sign in to your account</Text>
-            <ControlledFormInput
-                control={control}
-                name="username"
-                placeholder="Enter username *"
-                errors={errors}
-            />
-            <ControlledFormInput
-                control={control}
-                name="password"
-                placeholder="Enter password *"
-                errors={errors}
-                secureTextEntry
-            />
-
-            <Button title="Login" onPress={onSubmit} />
-            <Link href="/register" style={{ paddingTop: theme.spacing.md }}>
-                <Text style={{ color: theme.colors.text }}>
-                    Don&apos;t have an account? Sign up
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+            keyboardVerticalOffset={20}
+        >
+            {isPending && (
+                <Text style={{ marginBottom: theme.spacing.md }}>
+                    Loading...
                 </Text>
-            </Link>
-        </FormContainer>
+            )}
+            {isError && (
+                <Text style={{ marginBottom: theme.spacing.md }}>
+                    error: {error.message}
+                </Text>
+            )}
+
+            <View style={[styles.formContainer, styles.shadow]}>
+                <Text style={styles.header}>Login to your account</Text>
+                <View style={{ flexDirection: 'row' }}>
+                    <Text>Don&apos;t have an account? </Text>
+                    <TouchableHighlight onPress={registerRoute}>
+                        <Text style={{ color: theme.colors.secondary }}>
+                            Sign up
+                        </Text>
+                    </TouchableHighlight>
+                </View>
+                <View style={styles.inputContainer}>
+                    <View style={styles.captionContainer}>
+                        <Text>Username</Text>
+                    </View>
+                    <Controller
+                        control={control}
+                        name="username"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                style={[
+                                    styles.formInput,
+                                    errors.username && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                placeholder="Enter username"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.username && (
+                        <Text style={styles.errorText}>
+                            {errors.username.message}
+                        </Text>
+                    )}
+                    <View style={styles.captionContainer}>
+                        <Text>Password</Text>
+                        <Pressable
+                            style={styles.icon}
+                            onPress={() => setVisible((prev) => !prev)}
+                        >
+                            <Ionicons
+                                name={
+                                    isVisible
+                                        ? 'eye-off-outline'
+                                        : 'eye-outline'
+                                }
+                                size={22}
+                                color="white"
+                            />
+                        </Pressable>
+                    </View>
+                    <Controller
+                        control={control}
+                        name="password"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                secureTextEntry={!isVisible}
+                                style={[
+                                    styles.formInput,
+                                    errors.password && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                placeholder="Enter password"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.password && (
+                        <Text style={styles.errorText}>
+                            {errors.password.message}
+                        </Text>
+                    )}
+                    <TouchableOpacity
+                        style={styles.submitButton}
+                        onPress={onSubmit}
+                    >
+                        <Text style={{ color: 'black', fontWeight: 'bold' }}>
+                            Login
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    title: {
-        ...theme.typography.h2,
+    formContainer: {
+        padding: theme.spacing.lg,
+        borderRadius: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.secondary,
+        backgroundColor: theme.colors.background,
+    },
+    submitButton: {
+        marginTop: theme.spacing.sm,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderRadius: theme.spacing.xs,
+        alignItems: 'center',
+    },
+    formInput: {
+        borderColor: theme.colors.borderSecondary,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
+        borderWidth: 1,
+        borderRadius: theme.spacing.xs,
         color: theme.colors.text,
-        marginBottom: theme.spacing.xl,
+    },
+    header: {
+        ...theme.typography.h1,
+        fontWeight: 'bold',
+    },
+    inputContainer: {
+        marginTop: theme.spacing.md,
+        rowGap: theme.spacing.sm,
+    },
+    shadow: {
+        //ios
+        shadowColor: theme.colors.secondary,
+        shadowOffset: {
+            width: 0,
+            height: 0,
+        },
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
+        //android
+        elevation: 15,
+    },
+    icon: {
+        marginLeft: theme.spacing.sm,
+    },
+    captionContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        minHeight: theme.spacing.lg,
+    },
+    errorText: {
+        textAlign: 'left',
+        color: theme.colors.error,
+        ...theme.typography.caption,
     },
 });

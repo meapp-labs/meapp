@@ -3,19 +3,26 @@ import { randomBytes } from 'crypto';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import { LOGIN_CONFIG } from '../lib/config';
 import { handleAsyncOperation } from '../lib/helpers';
-import { ErrorCode, handleError } from '../lib/errors';
+import {
+    ErrorCode,
+    handleError,
+    createAuthError,
+    createUserNotFoundError,
+} from '../lib/errors';
 import type { AuthenticatedRequest } from '../lib/types';
 import z from 'zod';
+import { usernameSchema } from '../lib/validation';
 
 export const messageSchema = z.object({
-    from: z
-        .string()
-        .min(1, 'From field cannot be empty')
-        .max(50, 'From field too long'),
+    to: usernameSchema,
     text: z
         .string()
         .min(1, 'Message text cannot be empty')
         .max(2000, 'Message too long'),
+});
+
+export const getMessagesSchema = z.object({
+    from: usernameSchema,
 });
 
 export default async function (server: FastifyInstance) {
@@ -32,10 +39,35 @@ export default async function (server: FastifyInstance) {
             try {
                 const message = request.body;
                 const username = (request as AuthenticatedRequest).username;
-                const key = `${username}:messages`;
+                const recipientUsername = message.to;
+
+                const recipientExists = await handleAsyncOperation(
+                    () => redis.exists(recipientUsername),
+                    'Failed to check recipient existence',
+                    ErrorCode.DATABASE_ERROR,
+                );
+
+                if (!recipientExists) {
+                    throw createUserNotFoundError(recipientUsername);
+                }
+
+                const recipientOthersKey = `${recipientUsername}:others`;
+                const recipientOthers = await handleAsyncOperation(
+                    () => redis.lrange(recipientOthersKey, 0, -1),
+                    'Failed to retrieve recipient data',
+                    ErrorCode.DATABASE_ERROR,
+                );
+
+                if (!recipientOthers.includes(username)) {
+                    throw createAuthError(
+                        'You are not authorized to send messages to this user.',
+                    );
+                }
+
+                const key = `${recipientUsername}:messages:${username}`;
 
                 const messageWithTimestamp = {
-                    ...message,
+                    text: message.text,
                     timestamp: new Date().toISOString(),
                     id: crypto.randomUUID(),
                 };
@@ -46,7 +78,6 @@ export default async function (server: FastifyInstance) {
                             key,
                             JSON.stringify(messageWithTimestamp),
                         );
-                        await redis.expire(key, LOGIN_CONFIG.MESSAGE_EXPIRY);
                     },
                     'Failed to send message',
                     ErrorCode.DATABASE_ERROR,
@@ -55,19 +86,29 @@ export default async function (server: FastifyInstance) {
                 reply.code(200).send(messageWithTimestamp);
             } catch (error) {
                 const response = handleError(error, server);
-                reply.code(500).send(response);
+                const statusCode =
+                    response.error?.code === ErrorCode.UNAUTHORIZED
+                        ? 401
+                        : response.error?.code === ErrorCode.USER_NOT_FOUND
+                          ? 404
+                          : 500;
+                reply.code(statusCode).send(response);
             }
         },
     );
 
     // Get messages endpoint
-    server.get(
+    server.withTypeProvider<ZodTypeProvider>().get(
         '/get-messages',
-        { preHandler: [server.authenticate] },
+        {
+            schema: { querystring: getMessagesSchema },
+            preHandler: [server.authenticate],
+        },
         async (request, reply) => {
             try {
                 const username = (request as AuthenticatedRequest).username;
-                const key = `${username}:messages`;
+                const { from } = request.query;
+                const key = `${username}:messages:${from}`;
 
                 const messagesRaw = await handleAsyncOperation(
                     () => redis.lrange(key, 0, -1),

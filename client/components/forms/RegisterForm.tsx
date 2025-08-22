@@ -1,25 +1,36 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { Link, useRouter } from 'expo-router';
-import { useForm } from 'react-hook-form';
-import { StyleSheet } from 'react-native';
+import {
+    Platform,
+    Pressable,
+    TextInput,
+    TouchableHighlight,
+    View,
+    StyleSheet,
+    TouchableOpacity,
+    KeyboardAvoidingView,
+} from 'react-native';
 import { theme } from '@/theme/theme';
-import { RegisterSchema, RegisterType } from '@/validation/userValidation';
-import CustomButton from '../common/Button';
-import { Text } from '../common/Text';
-import FormContainer from './FormContainer';
-import ControlledFormInput from './ControlledFormInput';
-import { useMutation } from '@tanstack/react-query';
+import { Text } from '@/components/common/Text';
+import { router } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
+import { useState } from 'react';
 import { registerUser } from '@/services/auth';
+import { RegisterType, RegisterSchema } from '@/validation/userValidation';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useMutation } from '@tanstack/react-query';
+import { Controller, useForm } from 'react-hook-form';
 
 export default function RegisterForm() {
-    const router = useRouter();
+    const registerRoute = () => {
+        router.replace('/login');
+    };
+    const [isVisible, setVisible] = useState(false);
 
     const { mutate, isError, isPending, error } = useMutation({
         mutationFn: (userData: RegisterType) => {
             return registerUser(userData);
         },
         onSuccess: () => {
-            router.replace('/(auth)/login');
+            router.replace('/login');
         },
     });
 
@@ -43,51 +54,234 @@ export default function RegisterForm() {
     });
 
     return (
-        <FormContainer>
+        <KeyboardAvoidingView
+            behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+            keyboardVerticalOffset={20}
+        >
             {isPending && <Text>Loading...</Text>}
             {isError && <Text>Error: {error.message}</Text>}
-            <Text style={styles.title}>Create a new account</Text>
-            <ControlledFormInput
-                control={control}
-                name="username"
-                placeholder="Enter username *"
-                errors={errors}
-            />
-            <ControlledFormInput
-                control={control}
-                name="email"
-                placeholder="Enter email *"
-                errors={errors}
-            />
-            <ControlledFormInput
-                control={control}
-                name="password"
-                placeholder="Enter password *"
-                errors={errors}
-                keyboardType="email-address"
-            />
-            <ControlledFormInput
-                control={control}
-                name="confirmPassword"
-                placeholder="Confirm password *"
-                errors={errors}
-                secureTextEntry
-            />
-
-            <CustomButton title="Register" onPress={onSubmit} />
-            <Link href="/login" style={{ paddingTop: theme.spacing.md }}>
-                <Text style={{ color: theme.colors.text }}>
-                    Already have an account? Sign in
-                </Text>
-            </Link>
-        </FormContainer>
+            <View style={[styles.formContainer, styles.shadow]}>
+                <Text style={styles.header}>Create a new account</Text>
+                <View style={{ flexDirection: 'row' }}>
+                    <Text>Already have an account? </Text>
+                    <TouchableHighlight onPress={registerRoute}>
+                        <Text style={{ color: theme.colors.secondary }}>
+                            Sign in
+                        </Text>
+                    </TouchableHighlight>
+                </View>
+                <View style={styles.inputContainer}>
+                    <View style={styles.captionContainer}>
+                        <Text>Username</Text>
+                    </View>
+                    <Controller
+                        control={control}
+                        name="username"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                style={[
+                                    styles.formInput,
+                                    errors.username && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                autoComplete="off"
+                                textContentType="none"
+                                placeholder="Enter username"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.username && (
+                        <Text style={styles.errorText}>
+                            {errors.username.message}
+                        </Text>
+                    )}
+                    <View style={styles.captionContainer}>
+                        <Text>Email</Text>
+                    </View>
+                    <Controller
+                        control={control}
+                        name="email"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                style={[
+                                    styles.formInput,
+                                    errors.email && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                autoComplete="off"
+                                textContentType="none"
+                                placeholder="Enter email"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.email && (
+                        <Text style={styles.errorText}>
+                            {errors.email.message}
+                        </Text>
+                    )}
+                    <View style={styles.captionContainer}>
+                        <Text>Password</Text>
+                        <Pressable
+                            style={styles.icon}
+                            onPress={() => setVisible((prev) => !prev)}
+                        >
+                            <Ionicons
+                                name={
+                                    isVisible
+                                        ? 'eye-off-outline'
+                                        : 'eye-outline'
+                                }
+                                size={22}
+                                color="white"
+                            />
+                        </Pressable>
+                    </View>
+                    <Controller
+                        control={control}
+                        name="password"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                secureTextEntry={!isVisible}
+                                style={[
+                                    styles.formInput,
+                                    errors.password && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                autoComplete="off"
+                                textContentType="none"
+                                placeholder="Enter password"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.password && (
+                        <Text style={styles.errorText}>
+                            {errors.password.message}
+                        </Text>
+                    )}
+                    <Controller
+                        control={control}
+                        name="confirmPassword"
+                        render={({ field: { value, onChange, onBlur } }) => (
+                            <TextInput
+                                secureTextEntry={!isVisible}
+                                style={[
+                                    styles.formInput,
+                                    errors.confirmPassword && {
+                                        borderColor: theme.colors.error,
+                                    },
+                                ]}
+                                autoComplete="off"
+                                textContentType="none"
+                                placeholder="Confirm password"
+                                placeholderTextColor={
+                                    theme.colors.textSecondary
+                                }
+                                value={value}
+                                onChangeText={onChange}
+                                onBlur={onBlur}
+                            />
+                        )}
+                    />
+                    {errors.confirmPassword && (
+                        <Text style={styles.errorText}>
+                            {errors.confirmPassword.message}
+                        </Text>
+                    )}
+                    <TouchableOpacity
+                        onPress={() => onSubmit()}
+                        style={styles.submitButton}
+                    >
+                        <Text
+                            style={{
+                                color: 'black',
+                                fontWeight: 'bold',
+                            }}
+                        >
+                            Register
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </View>
+        </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    title: {
-        ...theme.typography.h2,
+    formContainer: {
+        padding: theme.spacing.lg,
+        borderRadius: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.secondary,
+        backgroundColor: theme.colors.background,
+    },
+    submitButton: {
+        marginTop: theme.spacing.sm,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
+        backgroundColor: theme.colors.backgroundSecondary,
+        borderRadius: theme.spacing.xs,
+        alignItems: 'center',
+    },
+    formInput: {
+        borderColor: theme.colors.borderSecondary,
+        padding:
+            Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
+        borderWidth: 1,
+        borderRadius: theme.spacing.xs,
         color: theme.colors.text,
-        marginBottom: theme.spacing.lg,
+    },
+    header: {
+        ...theme.typography.h1,
+        fontWeight: 'bold',
+    },
+    inputContainer: {
+        marginTop: theme.spacing.md,
+        rowGap: theme.spacing.sm,
+    },
+    shadow: {
+        //ios
+        shadowColor: theme.colors.secondary,
+        shadowOffset: {
+            width: 0,
+            height: 0,
+        },
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
+        //android
+        elevation: 15,
+    },
+    icon: {
+        marginLeft: theme.spacing.sm,
+    },
+    captionContainer: {
+        minHeight: theme.spacing.lg,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    errorText: {
+        textAlign: 'left',
+        color: theme.colors.error,
+        ...theme.typography.caption,
     },
 });

@@ -14,15 +14,10 @@ import {
 } from '../lib/errors';
 import { z } from 'zod';
 
+import { usernameSchema } from '../lib/validation';
+
 export const authSchema = z.object({
-    username: z
-        .string()
-        .min(3, 'Username must be at least 3 characters')
-        .max(20, 'Username must be at most 20 characters')
-        .regex(
-            /^[a-zA-Z0-9_-]+$/,
-            'Username can only contain letters, numbers, underscores, and hyphens',
-        ),
+    username: usernameSchema,
     password: z
         .string()
         .min(12, 'Password must be at least 12 characters')
