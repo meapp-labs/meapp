@@ -5,9 +5,10 @@ import {
     TextInput,
     TouchableHighlight,
     View,
+    StyleSheet,
+    TouchableOpacity,
 } from 'react-native';
 import { theme } from '@/theme/theme';
-import { StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from '../common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';

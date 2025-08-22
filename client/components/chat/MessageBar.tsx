@@ -10,9 +10,11 @@ import { theme } from '@/theme/theme';
 import Button from '../common/Button';
 import { useMutation } from '@tanstack/react-query';
 import { MessageData, sendMessage } from '@/services/messages';
+import MoreIcon from './MoreIcon';
 
 export default function MessageBar() {
     const [inputData, setInputData] = useState('');
+    const [showModal, setShowModal] = useState(false);
 
     const { mutate } = useMutation({
         mutationFn: (messageData: MessageData) => {
@@ -43,13 +45,21 @@ export default function MessageBar() {
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
             <View style={styles.inputContainer}>
-                <TextInput
-                    style={styles.inputField}
-                    value={inputData}
-                    onChangeText={setInputData}
-                    placeholder="Type a message..."
-                    placeholderTextColor="#9BA1A6"
-                />
+                <View style={styles.borderWrapper}>
+                    <TextInput
+                        style={styles.inputField}
+                        value={inputData}
+                        onChangeText={setInputData}
+                        placeholder="Type a message..."
+                        placeholderTextColor="#9BA1A6"
+                    />
+                    <View style={styles.moreIcon}>
+                        <MoreIcon
+                            showModal={showModal}
+                            setShowModal={setShowModal}
+                        />
+                    </View>
+                </View>
                 <Button variant="secondary" title="Send" onPress={handleSend} />
             </View>
         </KeyboardAvoidingView>
@@ -64,16 +74,28 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     inputField: {
-        backgroundColor: theme.colors.surface,
+        flex: 1,
         padding: theme.spacing.md,
-        borderRadius: theme.spacing.sm,
         color: theme.colors.text,
         width: '100%',
+        borderRadius: theme.spacing.sm,
     },
     sendButton: {
         padding: theme.spacing.md,
         alignSelf: 'center',
         backgroundColor: theme.colors.secondary,
         borderRadius: theme.spacing.sm,
+    },
+    borderWrapper: {
+        flex: 1,
+        flexDirection: 'row',
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.spacing.sm,
+        alignItems: 'center',
+        position: 'relative',
+    },
+    moreIcon: {
+        position: 'absolute',
+        right: theme.spacing.md,
     },
 });

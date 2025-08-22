@@ -4,13 +4,11 @@ import {
     TextInput,
     TouchableHighlight,
     View,
-} from 'react-native';
-import { theme } from '@/theme/theme';
-import {
     StyleSheet,
     TouchableOpacity,
     KeyboardAvoidingView,
 } from 'react-native';
+import { theme } from '@/theme/theme';
 import { Text } from '@/components/common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
