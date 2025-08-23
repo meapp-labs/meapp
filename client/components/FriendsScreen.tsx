@@ -8,6 +8,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
 import { getOthers } from '@/services/others';
 import { useAuthStore } from '@/stores/authStore';
+import AddFriend from './forms/AddFriend';
 
 type Friend = {
     id: string;
@@ -65,6 +66,9 @@ export default function FriendsScreen() {
         <View style={styles.friendList}>
             <View style={styles.headerContainer}>
                 <Text style={styles.contactHeader}>Contacts</Text>
+            </View>
+            <View>
+                <AddFriend />
             </View>
             <FlatList
                 data={items}

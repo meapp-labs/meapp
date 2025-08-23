@@ -11,3 +11,18 @@ export const getOthers = async (from: string) => {
         throw error;
     }
 };
+
+export const addOther = async (other: { other: string }) => {
+    try {
+        const response = await axios.post(
+            'http://localhost:3000/add-other',
+            { other },
+            {
+                withCredentials: true,
+            },
+        );
+        return response.data;
+    } catch (error) {
+        throw error;
+    }
+};
