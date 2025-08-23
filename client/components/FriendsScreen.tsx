@@ -1,16 +1,23 @@
 import React, { useState } from 'react';
-import { FlatList, Image, Pressable, StyleSheet, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, View } from 'react-native';
 import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
 import { logoutUser } from '@/services/auth';
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { mockOthers } from '../misc/mockOthers';
+import { getOthers } from '@/services/others';
+import { useAuthStore } from '@/stores/authStore';
+
+type Friend = {
+    id: string;
+    name: string;
+};
 
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [pressed, setPressed] = useState<string | null>(null);
+    const username = useAuthStore((state: any) => state.username);
 
     const { mutate: logout } = useMutation({
         mutationFn: logoutUser,
@@ -19,11 +26,17 @@ export default function FriendsScreen() {
         },
     });
 
-    const renderFriend = ({
-        item,
-    }: {
-        item: { id: string; name: string; avatar: string };
-    }) => (
+    const { data: others = [] } = useQuery<string[]>({
+        queryKey: ['others'],
+        queryFn: async () => await getOthers(`${username}`),
+    });
+
+    const items: Friend[] = others.map((name, index) => ({
+        id: index.toString(),
+        name,
+    }));
+
+    const renderFriend = ({ item }: { item: Friend }) => (
         <Pressable
             onPressIn={() => setPressed(item.id)}
             onHoverIn={() => setHovered(item.id)}
@@ -41,8 +54,9 @@ export default function FriendsScreen() {
                     flex: 1,
                 }}
             >
-                <Image style={styles.avatar} source={{ uri: item.avatar }} />
-                <Text>{item.name}</Text>
+                <Text style={{ textAlign: 'center', flex: 1 }}>
+                    {item.name}
+                </Text>
             </View>
         </Pressable>
     );
@@ -53,10 +67,11 @@ export default function FriendsScreen() {
                 <Text style={styles.contactHeader}>Contacts</Text>
             </View>
             <FlatList
-                data={mockOthers}
+                data={items}
                 renderItem={renderFriend}
                 keyExtractor={(item) => item.id}
             />
+
             <View style={styles.logoutButton}>
                 <Button variant="secondary" title="Logout" onPress={logout} />
             </View>
