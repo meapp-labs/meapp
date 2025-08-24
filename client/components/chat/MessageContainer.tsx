@@ -20,7 +20,7 @@ export default function MessageList({ username }: TMessageList) {
         isSuccess: messagesSuccess,
     } = useQuery({
         queryKey: ['messages'],
-        queryFn: async () => await getMessages('emil'), // hardcoded
+        queryFn: async () => await getMessages('Emil'), // hardcoded
     });
 
     useEffect(() => {

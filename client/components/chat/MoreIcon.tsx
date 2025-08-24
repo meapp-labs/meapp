@@ -44,6 +44,7 @@ export default function MoreIcon({ showModal, setShowModal }: Props) {
                             <View style={{ gap: theme.spacing.md }}>
                                 {modalOptions.map((item) => (
                                     <TouchableOpacity
+                                        key={item.id}
                                         style={{
                                             borderBottomWidth: 1,
                                             borderColor: theme.colors.secondary,
