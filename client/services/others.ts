@@ -26,3 +26,16 @@ export const addOther = async (other: string) => {
         throw error;
     }
 };
+
+export const removeOther = async (me: string, other: string) => {
+    try {
+        const response = await axios.post(
+            'http://localhost:3000/add-other',
+            { me, other },
+            { withCredentials: true },
+        );
+        return response;
+    } catch (error) {
+        throw error;
+    }
+};

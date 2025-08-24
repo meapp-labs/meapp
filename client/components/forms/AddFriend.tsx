@@ -42,7 +42,7 @@ export default function AddFriend() {
 
             {isError && (
                 <Text style={[styles.response, { color: theme.colors.error }]}>
-                    {`${error}`}
+                    {`${error.message}`}
                 </Text>
             )}
             {isSuccess && (
@@ -61,7 +61,6 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: theme.spacing.sm,
-
         justifyContent: 'center',
         marginVertical: theme.spacing.md,
     },

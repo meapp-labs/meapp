@@ -31,7 +31,7 @@ export default function MessageBar() {
     const handleSend = () => {
         if (inputData.trim().length > 0) {
             const messageData: MessageData = {
-                to: 'Dawid', // hardcoded, later pick from list of others
+                to: 'Emil', // hardcoded, later pick from list of others
                 text: inputData,
             };
             mutate(messageData);
