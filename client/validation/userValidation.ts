@@ -9,10 +9,9 @@ const error = {
     passwordHasUsername: 'Password can not have username inside.',
 };
 
-const passwordValidation = z
-    .string()
-    .min(8, error.passwordShort)
-    .max(128, error.passwordLong);
+const passwordValidation = z.string();
+// .min(8, error.passwordShort)
+// .max(128, error.passwordLong);
 // .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
 // .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
 // .regex(/[0-9]/, 'Password must contain at least one number')
@@ -28,7 +27,7 @@ const passwordValidation = z
 //     (password) =>
 //         !/^(password|123456|qwerty|admin|letmein)$/i.test(password),
 //     'Password cannot be a common weak password',
-// );
+// ); // TODO: Revert for prod
 
 const usernameValidation = z.string().min(3, error.usernameShort);
 

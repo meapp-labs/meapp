@@ -7,17 +7,18 @@ import {
     StyleSheet,
     TouchableOpacity,
     KeyboardAvoidingView,
+    ActivityIndicator,
 } from 'react-native';
 import { theme } from '@/theme/theme';
 import { Text } from '@/components/common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { registerUser } from '@/services/auth';
+import { useRegisterUser } from '@/services/auth';
 import { RegisterType, RegisterSchema } from '@/validation/userValidation';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
 import { Controller, useForm } from 'react-hook-form';
+import { extractErrorMessage } from '@/lib/axios';
 
 export default function RegisterForm() {
     const registerRoute = () => {
@@ -25,14 +26,9 @@ export default function RegisterForm() {
     };
     const [isVisible, setVisible] = useState(false);
 
-    const { mutate, isError, isPending, error } = useMutation({
-        mutationFn: (userData: RegisterType) => {
-            return registerUser(userData);
-        },
-        onSuccess: () => {
-            router.replace('/login');
-        },
-    });
+    const { mutate, isError, isPending, error } = useRegisterUser(() =>
+        router.replace('/login'),
+    );
 
     const {
         control,
@@ -58,9 +54,13 @@ export default function RegisterForm() {
             behavior={Platform.OS === 'android' ? 'padding' : 'height'}
             keyboardVerticalOffset={20}
         >
-            {isPending && <Text>Loading...</Text>}
-            {isError && <Text>Error: {error.message}</Text>}
             <View style={[styles.formContainer, styles.shadow]}>
+                {isError && (
+                    <Text style={styles.errorText}>
+                        {extractErrorMessage(error)}
+                    </Text>
+                )}
+
                 <Text style={styles.header}>Create a new account</Text>
                 <View style={{ flexDirection: 'row' }}>
                     <Text>Already have an account? </Text>
@@ -94,6 +94,7 @@ export default function RegisterForm() {
                                 value={value}
                                 onChangeText={onChange}
                                 onBlur={onBlur}
+                                editable={!isPending}
                             />
                         )}
                     />
@@ -125,6 +126,7 @@ export default function RegisterForm() {
                                 value={value}
                                 onChangeText={onChange}
                                 onBlur={onBlur}
+                                editable={!isPending}
                             />
                         )}
                     />
@@ -171,6 +173,7 @@ export default function RegisterForm() {
                                 value={value}
                                 onChangeText={onChange}
                                 onBlur={onBlur}
+                                editable={!isPending}
                             />
                         )}
                     />
@@ -200,6 +203,7 @@ export default function RegisterForm() {
                                 value={value}
                                 onChangeText={onChange}
                                 onBlur={onBlur}
+                                editable={!isPending}
                             />
                         )}
                     />
@@ -208,18 +212,24 @@ export default function RegisterForm() {
                             {errors.confirmPassword.message}
                         </Text>
                     )}
+
                     <TouchableOpacity
                         onPress={() => onSubmit()}
                         style={styles.submitButton}
+                        disabled={isPending}
                     >
-                        <Text
-                            style={{
-                                color: 'black',
-                                fontWeight: 'bold',
-                            }}
-                        >
-                            Register
-                        </Text>
+                        {isPending ? (
+                            <ActivityIndicator />
+                        ) : (
+                            <Text
+                                style={{
+                                    color: 'black',
+                                    fontWeight: 'bold',
+                                }}
+                            >
+                                Register
+                            </Text>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>

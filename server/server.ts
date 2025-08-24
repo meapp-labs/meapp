@@ -16,7 +16,16 @@ import {
 } from 'fastify-type-provider-zod';
 
 const server = Fastify({
-    logger: true,
+    logger: {
+        transport: {
+            target: 'pino-pretty',
+            options: {
+                colorize: true,
+                translateTime: 'HH:MM:ss Z',
+                ignore: 'pid,hostname',
+            },
+        },
+    },
 });
 
 server.setValidatorCompiler(validatorCompiler);

@@ -1,19 +1,20 @@
 import React, { useState } from 'react';
 import {
+    ActivityIndicator,
     FlatList,
     Pressable,
     StyleSheet,
-    TouchableOpacity,
     View,
+    TouchableOpacity,
 } from 'react-native';
+
 import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
 import { logoutUser } from '@/services/auth';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
-import { getOthers } from '@/services/others';
-import { useAuthStore } from '@/stores/authStore';
+import { useGetOthers } from '@/services/others';
 import AddFriend from './forms/AddFriend';
 import DeleteFriend from './DeleteFriend';
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -28,8 +29,6 @@ export default function FriendsScreen() {
     const [pressed, setPressed] = useState<string | null>(null);
     const [removeId, setRemoveId] = useState<string | null>(null);
 
-    const username = useAuthStore((state: any) => state.username);
-
     const { mutate: logout } = useMutation({
         mutationFn: logoutUser,
         onSuccess: () => {
@@ -37,10 +36,7 @@ export default function FriendsScreen() {
         },
     });
 
-    const { data: others = [] } = useQuery<string[]>({
-        queryKey: ['others'],
-        queryFn: async () => await getOthers(`${username}`),
-    });
+    const { data: others = [], isPending } = useGetOthers();
 
     const items: Friend[] = others.map((name, index) => ({
         id: index.toString(),
@@ -103,11 +99,15 @@ export default function FriendsScreen() {
             <View>
                 <AddFriend />
             </View>
-            <FlatList
-                data={items}
-                renderItem={renderFriend}
-                keyExtractor={(item) => item.id}
-            />
+            {isPending ? (
+                <ActivityIndicator />
+            ) : (
+                <FlatList
+                    data={items}
+                    renderItem={renderFriend}
+                    keyExtractor={(item) => item.id}
+                />
+            )}
 
             <View style={styles.logoutButton}>
                 <Button variant="secondary" title="Logout" onPress={logout} />
