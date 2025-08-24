@@ -41,16 +41,3 @@ export const logoutUser = async () => {
         throw error;
     }
 };
-
-// // components/Posts.jsx
-// import { useQuery } from '@tanstack/react-query';
-// import { fetchPosts } from '../api/posts';
-
-// function Posts() {
-//   const { data, error, isLoading } = useQuery({
-//     queryKey: ['posts'],
-//     queryFn: fetchPosts,
-//   });
-
-//   if (isLoading) return 'Loading...';
-//   if (error) return 'An error has occurred: ' + error.message;

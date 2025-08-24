@@ -1,5 +1,11 @@
 import React, { useState } from 'react';
-import { FlatList, Pressable, StyleSheet, View } from 'react-native';
+import {
+    FlatList,
+    Pressable,
+    StyleSheet,
+    TouchableOpacity,
+    View,
+} from 'react-native';
 import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
@@ -9,6 +15,8 @@ import { router } from 'expo-router';
 import { getOthers } from '@/services/others';
 import { useAuthStore } from '@/stores/authStore';
 import AddFriend from './forms/AddFriend';
+import DeleteFriend from './DeleteFriend';
+import Ionicons from '@expo/vector-icons/Ionicons';
 
 type Friend = {
     id: string;
@@ -18,6 +26,8 @@ type Friend = {
 export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [pressed, setPressed] = useState<string | null>(null);
+    const [removeId, setRemoveId] = useState<string | null>(null);
+
     const username = useAuthStore((state: any) => state.username);
 
     const { mutate: logout } = useMutation({
@@ -38,28 +48,41 @@ export default function FriendsScreen() {
     }));
 
     const renderFriend = ({ item }: { item: Friend }) => (
-        <Pressable
-            onPressIn={() => setPressed(item.id)}
-            onHoverIn={() => setHovered(item.id)}
-            onHoverOut={() => setHovered(null)}
-            style={[
-                styles.friendItem,
-                hovered === item.id && styles.friendItemHovered,
-                pressed === item.id && styles.friendItemPressed,
-            ]}
-        >
-            <View
-                style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    flex: 1,
-                }}
+        <>
+            <Pressable
+                onPressIn={() => setPressed(item.id)}
+                onHoverIn={() => setHovered(item.id)}
+                onHoverOut={() => setHovered(null)}
+                style={[
+                    styles.friendItem,
+                    hovered === item.id && styles.friendItemHovered,
+                    pressed === item.id && styles.friendItemPressed,
+                ]}
             >
-                <Text style={{ textAlign: 'center', flex: 1 }}>
-                    {item.name}
-                </Text>
-            </View>
-        </Pressable>
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        flex: 1,
+                        paddingHorizontal: theme.spacing.md,
+                    }}
+                >
+                    <Text style={{ flex: 1 }}>{item.name}</Text>
+                    {pressed === item.id && (
+                        <TouchableOpacity onPress={() => setRemoveId(item.id)}>
+                            <Ionicons
+                                name="person-remove"
+                                size={24}
+                                color="white"
+                            />
+                        </TouchableOpacity>
+                    )}
+                </View>
+            </Pressable>
+            {removeId === item.id && (
+                <DeleteFriend onClose={() => setRemoveId(null)} />
+            )}
+        </>
     );
 
     return (
