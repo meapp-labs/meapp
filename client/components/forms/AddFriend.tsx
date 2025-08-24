@@ -14,6 +14,7 @@ export default function AddFriend() {
         isError,
         isSuccess,
         error,
+        data,
     } = useMutation({
         mutationFn: addOther,
         onSuccess: (data) => {
