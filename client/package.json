@@ -11,7 +11,8 @@
         "export:web": "expo export -p web --source-maps",
         "lint": "expo lint",
         "lint:fix": "expo lint --fix",
-        "format": "prettier --write . --ignore-path .gitignore"
+        "format": "prettier --check . --ignore-path .gitignore",
+        "format:fix": "prettier --write . --ignore-path .gitignore"
     },
     "dependencies": {
         "@expo/vector-icons": "^14.1.0",

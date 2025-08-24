@@ -1,0 +1,44 @@
+# Dependencies
+**/node_modules
+
+# Expo / React Native
+**/.expo
+**/.expo-shared
+**/android
+**/ios
+
+# Build outputs (anywhere in repo)
+**/dist
+**/build
+**/coverage
+
+# Server logs
+**/log
+**/logs
+
+# Caches
+**/**/.cache
+.next
+
+# Logs
+**/npm-debug.log
+**/yarn-debug.log
+**/yarn-error.log
+
+# Environment / local configs
+**/.env
+**/*.local
+
+# Lock files
+**/package-lock.json
+**/yarn.lock
+**/bun.lock
+
+# Redis persistence files
+**/dump.rdb
+**/appendonly.aof
+
+# Compiled / generated files
+**/*.min.js
+**/*.bundle.js
+**/*.map
