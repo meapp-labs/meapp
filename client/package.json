@@ -11,7 +11,8 @@
         "export:web": "expo export -p web --source-maps",
         "lint": "expo lint",
         "lint:fix": "expo lint --fix",
-        "format": "prettier --write . --ignore-path .gitignore"
+        "format": "prettier --check . --ignore-path .gitignore",
+        "format:fix": "prettier --write . --ignore-path .gitignore"
     },
     "dependencies": {
         "@expo/vector-icons": "^14.1.0",
@@ -21,6 +22,7 @@
         "@react-navigation/native": "^7.1.6",
         "@tanstack/react-query": "^5.83.0",
         "axios": "^1.11.0",
+        "dotenv": "^17.2.1",
         "expo": "53.0.22",
         "expo-blur": "~14.1.5",
         "expo-constants": "~17.1.7",
