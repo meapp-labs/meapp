@@ -4,8 +4,8 @@ This is the server for the MeApp application. It is built with Fastify and uses 
 
 ## Prerequisites
 
--   [Bun](https://bun.sh/)
--   [Redis](https://redis.io/)
+- [Bun](https://bun.sh/)
+- [Redis](https://redis.io/)
 
 ## Available Scripts
 
@@ -13,7 +13,10 @@ This is the server for the MeApp application. It is built with Fastify and uses 
 - `bun start`: Start the production server.
 - `bun test`: Run tests with Vitest.
 - `bun test:watch`: Run tests in watch mode.
-- `bun format`: Format the code with Prettier.
+- `bun format`: Check formatting the code with Prettier.
+- `bun format:fix`: Format the code with Prettier.
+- `bun lint`: Check linting errors with ESLint.
+- `bun lint:fix`: Fix linting errors with ESLint.
 
 ## Setup
 

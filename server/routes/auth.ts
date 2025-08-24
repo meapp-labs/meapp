@@ -15,6 +15,7 @@ import {
 import { z } from 'zod';
 
 import { usernameSchema } from '../lib/validation';
+import type { FastifyRedis } from '@fastify/redis';
 
 export const authSchema = z.object({
     username: usernameSchema,
@@ -22,12 +23,15 @@ export const authSchema = z.object({
         .string()
         .min(12, 'Password must be at least 12 characters')
         .regex(
-            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).*$/,
+            /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).*$/,
             'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
         ),
 });
 
-async function checkRateLimit(redis: any, username: string): Promise<boolean> {
+async function checkRateLimit(
+    redis: FastifyRedis,
+    username: string,
+): Promise<boolean> {
     try {
         const key = `login_attempts:${username}`;
         const attempts = await redis.get(key);
@@ -40,7 +44,7 @@ async function checkRateLimit(redis: any, username: string): Promise<boolean> {
 }
 
 async function incrementLoginAttempts(
-    redis: any,
+    redis: FastifyRedis,
     username: string,
 ): Promise<void> {
     try {
@@ -54,7 +58,10 @@ async function incrementLoginAttempts(
     }
 }
 
-async function clearLoginAttempts(redis: any, username: string): Promise<void> {
+async function clearLoginAttempts(
+    redis: FastifyRedis,
+    username: string,
+): Promise<void> {
     try {
         await redis.del(`login_attempts:${username}`);
     } catch (error) {
@@ -117,8 +124,7 @@ export default async function (server: FastifyInstance) {
                     const response = handleError(error, server);
                     reply
                         .code(
-                            response.error?.code ===
-                                ErrorCode.USER_ALREADY_EXISTS
+                            response.code === ErrorCode.USER_ALREADY_EXISTS
                                 ? 409
                                 : 500,
                         )
@@ -200,9 +206,9 @@ export default async function (server: FastifyInstance) {
                 } catch (error) {
                     const response = handleError(error, server);
                     const statusCode =
-                        response.error?.code === ErrorCode.TOO_MANY_ATTEMPTS
+                        response.code === ErrorCode.TOO_MANY_ATTEMPTS
                             ? 429
-                            : response.error?.code === ErrorCode.UNAUTHORIZED
+                            : response.code === ErrorCode.UNAUTHORIZED
                               ? 401
                               : 500;
                     reply.code(statusCode).send(response);

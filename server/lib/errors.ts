@@ -43,14 +43,14 @@ export enum ErrorCode {
 export class ApiError extends Error {
     public readonly code: ErrorCode;
     public readonly statusCode: number;
-    public readonly details?: Record<string, any>;
+    public readonly details?: Record<string, unknown>;
     public readonly timestamp: string;
 
     constructor(
         code: ErrorCode,
         message: string,
         statusCode: number = 500,
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(message);
         this.name = 'ApiError';
@@ -80,7 +80,7 @@ export class ApiError extends Error {
 export class AuthenticationError extends ApiError {
     constructor(
         message: string = 'Authentication failed',
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(ErrorCode.UNAUTHORIZED, message, 401, details);
     }
@@ -89,7 +89,7 @@ export class AuthenticationError extends ApiError {
 export class ValidationError extends ApiError {
     constructor(
         message: string = 'Validation failed',
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(ErrorCode.VALIDATION_ERROR, message, 400, details);
     }
@@ -98,7 +98,7 @@ export class ValidationError extends ApiError {
 export class RateLimitError extends ApiError {
     constructor(
         message: string = 'Too many requests',
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(ErrorCode.TOO_MANY_ATTEMPTS, message, 429, details);
     }
@@ -109,7 +109,7 @@ export class UserError extends ApiError {
         code: ErrorCode,
         message: string,
         statusCode: number = 400,
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(code, message, statusCode, details);
     }
@@ -118,14 +118,17 @@ export class UserError extends ApiError {
 export class DatabaseError extends ApiError {
     constructor(
         message: string = 'Database operation failed',
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(ErrorCode.DATABASE_ERROR, message, 500, details);
     }
 }
 
 export class NotFoundError extends ApiError {
-    constructor(resource: string = 'Resource', details?: Record<string, any>) {
+    constructor(
+        resource: string = 'Resource',
+        details?: Record<string, unknown>,
+    ) {
         super(ErrorCode.ITEM_NOT_FOUND, `${resource} not found`, 404, details);
     }
 }
@@ -133,7 +136,7 @@ export class NotFoundError extends ApiError {
 export class SessionError extends ApiError {
     constructor(
         message: string = 'Session operation failed',
-        details?: Record<string, any>,
+        details?: Record<string, unknown>,
     ) {
         super(ErrorCode.SESSION_ERROR, message, 500, details);
     }
@@ -142,17 +145,17 @@ export class SessionError extends ApiError {
 // Error factory functions
 export const createAuthError = (
     message?: string,
-    details?: Record<string, any>,
+    details?: Record<string, unknown>,
 ) => new AuthenticationError(message, details);
 
 export const createValidationError = (
     message?: string,
-    details?: Record<string, any>,
+    details?: Record<string, unknown>,
 ) => new ValidationError(message, details);
 
 export const createRateLimitError = (
     message?: string,
-    details?: Record<string, any>,
+    details?: Record<string, unknown>,
 ) => new RateLimitError(message, details);
 
 export const createUserExistsError = (username: string) =>
@@ -178,7 +181,7 @@ export const createSessionError = (operation: string, originalError?: Error) =>
     });
 
 // Global error handler
-export function handleError(error: unknown, server: FastifyInstance): any {
+export function handleError(error: unknown, server: FastifyInstance): ApiError {
     if (error instanceof ApiError) {
         server.log.error(
             `API Error [${error.code}]:`,

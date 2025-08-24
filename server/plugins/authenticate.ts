@@ -24,11 +24,7 @@ export default fp(async function (server: FastifyInstance) {
             } catch (error) {
                 const response = handleError(error, server);
                 return reply
-                    .code(
-                        response.error?.code === ErrorCode.SESSION_ERROR
-                            ? 500
-                            : 401,
-                    )
+                    .code(response.code === ErrorCode.SESSION_ERROR ? 500 : 401)
                     .send(response);
             }
         },

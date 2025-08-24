@@ -1,7 +1,5 @@
 import type { FastifyInstance } from 'fastify';
-import { randomBytes } from 'crypto';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { LOGIN_CONFIG } from '../lib/config';
 import { handleAsyncOperation } from '../lib/helpers';
 import {
     ErrorCode,
@@ -87,9 +85,9 @@ export default async function (server: FastifyInstance) {
             } catch (error) {
                 const response = handleError(error, server);
                 const statusCode =
-                    response.error?.code === ErrorCode.UNAUTHORIZED
+                    response.code === ErrorCode.UNAUTHORIZED
                         ? 401
-                        : response.error?.code === ErrorCode.USER_NOT_FOUND
+                        : response.code === ErrorCode.USER_NOT_FOUND
                           ? 404
                           : 500;
                 reply.code(statusCode).send(response);

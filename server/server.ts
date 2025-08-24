@@ -41,7 +41,7 @@ await server.register(fastifyCors, {
             } else {
                 cb(new Error('Not allowed by CORS'), false);
             }
-        } catch (error) {
+        } catch {
             cb(new Error('Invalid origin'), false);
         }
     },

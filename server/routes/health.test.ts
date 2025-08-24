@@ -1,4 +1,3 @@
-
 import { test, expect } from 'vitest';
 import Fastify from 'fastify';
 import healthRoute from './health';
@@ -15,8 +14,8 @@ test('GET /', async () => {
 
     expect(response.statusCode).toBe(200);
     const body = JSON.parse(response.body);
-    expect(body.status).toBe('healthy');
-    expect(body.data.name).toBe(name);
-    expect(body.data.version).toBe(version);
-    expect(body.data.uptime).toBeGreaterThan(0);
+
+    expect(body.name).toBe(name);
+    expect(body.version).toBe(version);
+    expect(body.uptime).toBeGreaterThan(0);
 });
