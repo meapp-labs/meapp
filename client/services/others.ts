@@ -1,16 +1,14 @@
 import axios from 'axios';
+import { useQuery } from '@tanstack/react-query';
+import { ApiError, getFetcher } from '@/lib/axios';
 
-export const getOthers = async (from: string) => {
-    try {
-        const response = await axios.get('http://localhost:3000/get-others', {
-            params: { from },
-            withCredentials: true,
-        });
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useGetOthers() {
+    const getOthersKey = 'get-others';
+    return useQuery<string[], ApiError>({
+        queryKey: [getOthersKey],
+        queryFn: () => getFetcher<string[]>(`/${getOthersKey}`),
+    });
+}
 
 export const addOther = async (other: string) => {
     try {

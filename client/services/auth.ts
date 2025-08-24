@@ -1,22 +1,14 @@
+import { ApiError, postFetcher } from '@/lib/axios';
 import { LoginType, RegisterType } from '@/validation/userValidation';
+import { useMutation } from '@tanstack/react-query';
 import axios from 'axios';
 
-export const registerUser = async (userData: RegisterType) => {
-    try {
-        const response = await axios.post(
-            'http://localhost:3000/register',
-            userData,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            },
-        );
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useRegisterUser(onSuccess: () => void) {
+    return useMutation<string, ApiError, RegisterType>({
+        mutationFn: (body) => postFetcher('/register', body),
+        onSuccess: onSuccess,
+    });
+}
 
 export const loginUser = async (userData: LoginType) => {
     try {
