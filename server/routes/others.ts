@@ -110,9 +110,7 @@ export default async function (server: FastifyInstance) {
             } catch (error) {
                 const response = handleError(error, server);
                 const statusCode =
-                    response.error?.code === ErrorCode.ITEM_NOT_FOUND
-                        ? 404
-                        : 500;
+                    response.code === ErrorCode.ITEM_NOT_FOUND ? 404 : 500;
                 reply.code(statusCode).send(response);
             }
         },
