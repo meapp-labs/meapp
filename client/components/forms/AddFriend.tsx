@@ -36,7 +36,7 @@ export default function AddFriend() {
                     style={{ borderRadius: theme.spacing.lg }}
                     variant="secondary"
                     title="Add friend"
-                    onPress={() => handlePress({ other: inputData })}
+                    onPress={() => handlePress(inputData)}
                 />
             </View>
 

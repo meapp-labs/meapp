@@ -12,7 +12,7 @@ export const getOthers = async (from: string) => {
     }
 };
 
-export const addOther = async (other: { other: string }) => {
+export const addOther = async (other: string) => {
     try {
         const response = await axios.post(
             'http://localhost:3000/add-other',
