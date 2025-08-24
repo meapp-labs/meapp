@@ -4,6 +4,8 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { removeOther } from '@/services/others';
 import { useMutation } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryInit';
+import { QueryKeys } from '@/lib/queryKeys';
 
 type DeleteFriendProps = {
     friend: string;
@@ -15,6 +17,11 @@ export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
         mutationFn: () => {
             return removeOther(friend);
         },
+        onSuccess: () => {
+            queryClient.refetchQueries({
+                queryKey: [QueryKeys.GET_OTHERS],
+            });
+        },
     });
 
     return (
@@ -23,7 +30,6 @@ export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
             <View style={styles.icons}>
                 <Pressable
                     onPress={() => {
-                        console.log(friend);
                         mutate();
                     }}
                 >

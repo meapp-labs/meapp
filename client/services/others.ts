@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, getFetcher } from '@/lib/axios';
+import { QueryKeys } from '@/lib/queryKeys';
 
 export function useGetOthers() {
-    const getOthersKey = 'get-others';
     return useQuery<string[], ApiError>({
-        queryKey: [getOthersKey],
-        queryFn: () => getFetcher<string[]>(`/${getOthersKey}`),
+        queryKey: [QueryKeys.GET_OTHERS],
+        queryFn: () => getFetcher<string[]>(`/${QueryKeys.GET_OTHERS}`),
     });
 }
 
