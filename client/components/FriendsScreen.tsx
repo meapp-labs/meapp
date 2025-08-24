@@ -17,7 +17,6 @@ import { useAuthStore } from '@/stores/authStore';
 import AddFriend from './forms/AddFriend';
 import DeleteFriend from './DeleteFriend';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { _isoTime } from 'zod/v4/core';
 
 export type Friend = {
     id: string;
@@ -52,7 +51,8 @@ export default function FriendsScreen() {
         <>
             <Pressable
                 onPressIn={() => {
-                    (setPressed(item.id), setRemoveId(null));
+                    setPressed(item.id);
+                    setRemoveId(null);
                 }}
                 onHoverIn={() => setHovered(item.id)}
                 onHoverOut={() => setHovered(null)}
