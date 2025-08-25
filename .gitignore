@@ -9,6 +9,7 @@
 
 # local env files
 **/.env*.local
+**/.env
 
 # Redis
 **/dump.rdb
