@@ -4,15 +4,35 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { removeOther } from '@/services/others';
 import { useMutation } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryInit';
+import { QueryKeys } from '@/lib/queryKeys';
 
-export default function DeleteFriend({ onClose }: { onClose: () => void }) {
-    const { mutate, error, isError } = useMutation({});
+type DeleteFriendProps = {
+    friend: string;
+    onClose: () => void;
+};
+
+export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
+    const { mutate, error, isError } = useMutation({
+        mutationFn: () => {
+            return removeOther(friend);
+        },
+        onSuccess: () => {
+            queryClient.refetchQueries({
+                queryKey: [QueryKeys.GET_OTHERS],
+            });
+        },
+    });
 
     return (
         <View style={styles.container}>
             <Text style={styles.text}>Are you sure?</Text>
             <View style={styles.icons}>
-                <Pressable>
+                <Pressable
+                    onPress={() => {
+                        mutate();
+                    }}
+                >
                     <FontAwesome6
                         name="check-circle"
                         size={24}
@@ -43,8 +63,6 @@ const styles = StyleSheet.create({
     icons: {
         alignItems: 'center',
         margin: theme.spacing.sm,
-        padding: theme.spacing.xs,
-        paddingHorizontal: theme.spacing.sm,
         flexDirection: 'row',
         gap: theme.spacing.md,
         backgroundColor: theme.colors.card,

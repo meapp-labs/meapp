@@ -1,24 +1,10 @@
 import { useAuthStore } from '@/stores/authStore';
-
 import { Stack } from 'expo-router';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient } from '@/lib/queryInit';
 
 export default function RootLayout() {
     const username = useAuthStore((state: any) => state.username);
-    const queryClient = new QueryClient({
-        defaultOptions: {
-            queries: {
-                staleTime: 1000 * 60,
-                retry: 3,
-                retryDelay: (attemptIndex) =>
-                    Math.min(1000 * 2 ** attemptIndex, 30000),
-                refetchOnWindowFocus: false,
-            },
-            mutations: {
-                retry: 1,
-            },
-        },
-    });
 
     return (
         <QueryClientProvider client={queryClient}>

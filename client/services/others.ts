@@ -1,12 +1,12 @@
 import axios from 'axios';
 import { useQuery } from '@tanstack/react-query';
 import { ApiError, getFetcher } from '@/lib/axios';
+import { QueryKeys } from '@/lib/queryKeys';
 
 export function useGetOthers() {
-    const getOthersKey = 'get-others';
     return useQuery<string[], ApiError>({
-        queryKey: [getOthersKey],
-        queryFn: () => getFetcher<string[]>(`/${getOthersKey}`),
+        queryKey: [QueryKeys.GET_OTHERS],
+        queryFn: () => getFetcher<string[]>(`/${QueryKeys.GET_OTHERS}`),
     });
 }
 
@@ -15,9 +15,7 @@ export const addOther = async (other: string) => {
         const response = await axios.post(
             'http://localhost:3000/add-other',
             { other },
-            {
-                withCredentials: true,
-            },
+            { withCredentials: true },
         );
         return response.data;
     } catch (error) {
@@ -25,14 +23,14 @@ export const addOther = async (other: string) => {
     }
 };
 
-export const removeOther = async (me: string, other: string) => {
+export const removeOther = async (other: string) => {
     try {
         const response = await axios.post(
-            'http://localhost:3000/add-other',
-            { me, other },
+            'http://localhost:3000/remove-other',
+            { other },
             { withCredentials: true },
         );
-        return response;
+        return response.data;
     } catch (error) {
         throw error;
     }

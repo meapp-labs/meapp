@@ -18,7 +18,7 @@ import AddFriend from './forms/AddFriend';
 import DeleteFriend from './DeleteFriend';
 import Ionicons from '@expo/vector-icons/Ionicons';
 
-type Friend = {
+export type Friend = {
     id: string;
     name: string;
 };
@@ -45,7 +45,10 @@ export default function FriendsScreen() {
     const renderFriend = ({ item }: { item: Friend }) => (
         <>
             <Pressable
-                onPressIn={() => setPressed(item.id)}
+                onPressIn={() => {
+                    setPressed(item.id);
+                    setRemoveId(null);
+                }}
                 onHoverIn={() => setHovered(item.id)}
                 onHoverOut={() => setHovered(null)}
                 style={[
@@ -62,12 +65,16 @@ export default function FriendsScreen() {
                         paddingHorizontal: theme.spacing.md,
                     }}
                 >
-                    <Text style={{ flex: 1 }}>{item.name}</Text>
+                    <Text
+                        style={{ flex: 1, paddingVertical: theme.spacing.xs }}
+                    >
+                        {item.name}
+                    </Text>
                     {pressed === item.id && (
                         <TouchableOpacity onPress={() => setRemoveId(item.id)}>
                             <Ionicons
                                 name="person-remove"
-                                size={24}
+                                size={22}
                                 color="white"
                             />
                         </TouchableOpacity>
@@ -75,7 +82,10 @@ export default function FriendsScreen() {
                 </View>
             </Pressable>
             {removeId === item.id && (
-                <DeleteFriend onClose={() => setRemoveId(null)} />
+                <DeleteFriend
+                    friend={item.name}
+                    onClose={() => setRemoveId(null)}
+                />
             )}
         </>
     );
@@ -127,18 +137,12 @@ const styles = StyleSheet.create({
     friendItem: {
         alignItems: 'center',
         flexDirection: 'row',
-        margin: theme.spacing.xs,
+        margin: theme.spacing.sm,
         marginHorizontal: theme.spacing.sm,
         borderRadius: theme.spacing.sm,
         borderColor: theme.colors.surface,
         borderWidth: 1,
-        paddingVertical: theme.spacing.sm,
-    },
-    avatar: {
-        width: 50,
-        height: 50,
-        borderRadius: 25,
-        marginHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.md,
     },
 
     friendItemHovered: {
