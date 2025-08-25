@@ -7,6 +7,7 @@ import swagger from '@fastify/swagger';
 import swaggerUI from '@fastify/swagger-ui';
 
 import { env } from './lib/config';
+import { handleError } from './lib/errors';
 
 import healthRoute from './routes/health';
 import authRoutes from './routes/auth';
@@ -14,6 +15,7 @@ import messageRoutes from './routes/messages';
 import otherRoutes from './routes/others';
 
 import {
+    jsonSchemaTransform,
     serializerCompiler,
     validatorCompiler,
 } from 'fastify-type-provider-zod';
@@ -28,6 +30,11 @@ const server = Fastify({
             },
         },
     },
+});
+
+server.setErrorHandler((error, _, reply) => {
+    const apiError = handleError(error, server);
+    reply.status(apiError.statusCode).send(apiError);
 });
 
 server.setValidatorCompiler(validatorCompiler);
@@ -45,6 +52,7 @@ await server.register(swagger, {
             version: '1.0.0',
         },
     },
+    transform: jsonSchemaTransform,
 });
 
 await server.register(swaggerUI, {

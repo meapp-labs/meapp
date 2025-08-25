@@ -2,7 +2,6 @@ import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
 import { handleSyncOperation } from '../lib/helpers';
 import { ErrorCode, createAuthError, handleError } from '../lib/errors';
-import type { AuthenticatedRequest } from '../lib/types';
 
 export default fp(async function (server: FastifyInstance) {
     server.decorate(
@@ -20,7 +19,7 @@ export default fp(async function (server: FastifyInstance) {
                     return reply.code(error.statusCode).send(error);
                 }
 
-                (request as AuthenticatedRequest).username = username;
+                request.username = username;
             } catch (error) {
                 const response = handleError(error, server);
                 return reply
