@@ -1,24 +1,22 @@
 import Fastify from 'fastify';
-import authenticate from './plugins/authenticate';
-import fastifyRedis from '@fastify/redis';
-import fastifySecureSession from '@fastify/secure-session';
-import fastifyCors from '@fastify/cors';
-import swagger from '@fastify/swagger';
-import swaggerUI from '@fastify/swagger-ui';
-
-import { env } from './lib/config';
-import { handleError } from './lib/errors';
-
-import healthRoute from './routes/health';
-import authRoutes from './routes/auth';
-import messageRoutes from './routes/messages';
-import otherRoutes from './routes/others';
-
 import {
     jsonSchemaTransform,
     serializerCompiler,
     validatorCompiler,
 } from 'fastify-type-provider-zod';
+
+import fastifyCors from '@fastify/cors';
+import fastifyRedis from '@fastify/redis';
+import fastifySecureSession from '@fastify/secure-session';
+import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
+
+import { env } from './lib/config';
+import authenticate from './plugins/authenticate';
+import { authRoutes } from './routes/auth';
+import { healthRoutes } from './routes/health';
+import { messageRoutes } from './routes/messages';
+import { otherRoutes } from './routes/others';
 
 const server = Fastify({
     logger: {
@@ -30,11 +28,6 @@ const server = Fastify({
             },
         },
     },
-});
-
-server.setErrorHandler((error, _, reply) => {
-    const apiError = handleError(error, server);
-    reply.status(apiError.statusCode).send(apiError);
 });
 
 server.setValidatorCompiler(validatorCompiler);
@@ -96,7 +89,7 @@ await server.register(fastifySecureSession, {
 
 server.register(authenticate);
 
-server.register(healthRoute);
+server.register(healthRoutes);
 server.register(authRoutes);
 server.register(messageRoutes);
 server.register(otherRoutes);

@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
-import { name, version } from '../package.json';
 import { handleError } from '../lib/errors';
+import { name, version } from '../package.json';
 
-export default async function (server: FastifyInstance) {
+export async function healthRoutes(server: FastifyInstance) {
     // Health check endpoint
     server.get('/', async (_, reply) => {
         try {

@@ -1,30 +1,26 @@
 import type { FastifyInstance } from 'fastify';
-import { scryptSync, randomBytes, timingSafeEqual } from 'crypto';
-import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
+import { z } from 'zod';
+
 import { LOGIN_CONFIG } from '../lib/config';
-import { handleAsyncOperation, handleSyncOperation } from '../lib/helpers';
 import {
     ApiError,
-    ErrorCode,
     createAuthError,
     createDatabaseError,
     createRateLimitError,
     createUserExistsError,
+    ErrorCode,
     handleError,
 } from '../lib/errors';
-import { z } from 'zod';
+import { handleAsyncOperation, handleSyncOperation } from '../lib/helpers';
+import { passwordSchema, usernameSchema } from '../validation/validation';
 
-import { usernameSchema } from '../lib/validation';
+import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import type { FastifyRedis } from '@fastify/redis';
 
 export const authSchema = z.object({
     username: usernameSchema,
-    password: z.string(),
-    // .min(12, 'Password must be at least 12 characters'),
-    // .regex(
-    //     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).*$/,
-    //     'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',
-    // ), // TODO: revert for prod and share with client
+    password: passwordSchema,
 });
 
 async function checkRateLimit(
@@ -68,7 +64,7 @@ async function clearLoginAttempts(
     }
 }
 
-export default async function (server: FastifyInstance) {
+export async function authRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     // Registration endpoint

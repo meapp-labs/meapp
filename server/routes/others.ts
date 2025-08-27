@@ -1,23 +1,23 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
+import z from 'zod';
+
 import { LOGIN_CONFIG } from '../lib/config';
-import { handleAsyncOperation } from '../lib/helpers';
 import {
+    ApiError,
+    createUserNotFoundError,
     ErrorCode,
     handleError,
     NotFoundError,
-    createUserNotFoundError,
-    ApiError,
 } from '../lib/errors';
-import z from 'zod';
+import { handleAsyncOperation } from '../lib/helpers';
+import { usernameSchema } from '../validation/validation';
 
-import { usernameSchema } from '../lib/validation';
-
-export const otherSchema = z.object({
+const otherSchema = z.object({
     other: usernameSchema,
 });
 
-export default async function (server: FastifyInstance) {
+export async function otherRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     // Add other endpoint

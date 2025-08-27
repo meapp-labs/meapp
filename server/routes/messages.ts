@@ -1,15 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import { handleAsyncOperation } from '../lib/helpers';
+import z from 'zod';
+
 import {
-    ErrorCode,
     createAuthError,
     createUserNotFoundError,
+    ErrorCode,
 } from '../lib/errors';
-import z from 'zod';
-import { usernameSchema } from '../lib/validation';
+import { handleAsyncOperation } from '../lib/helpers';
+import { usernameSchema } from '../validation/validation';
 
-export const sendMessageSchema = z.object({
+const sendMessageSchema = z.object({
     to: usernameSchema,
     text: z
         .string()
@@ -17,15 +18,27 @@ export const sendMessageSchema = z.object({
         .max(2000, 'Message too long'),
 });
 
-export const getMessagesSchema = z.object({
+const getMessagesSchema = z.object({
     from: usernameSchema,
+    index: z
+        .string()
+        .regex(/^[1-9]\d*$/, 'Must be a positive integer string')
+        .transform((val) => parseInt(val, 10))
+        .optional(),
 });
 
-const getMessageKey = (user1: string, user2: string) => {
-    return user1 > user2 ? `${user1}:${user2}` : `${user2}:${user1}`;
+type Message = {
+    from: string;
+    to: string;
+    text: string;
+    timestamp: string;
 };
 
-export default async function (server: FastifyInstance) {
+const getMessageKey = (user1: string, user2: string) => {
+    return user1 > user2 ? `${user1}+${user2}` : `${user2}+${user1}`;
+};
+
+export async function messageRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     server.withTypeProvider<ZodTypeProvider>().post(
@@ -63,7 +76,7 @@ export default async function (server: FastifyInstance) {
 
             const key = getMessageKey(username, recipientUsername);
 
-            const message = {
+            const message: Message = {
                 from: username,
                 to: recipientUsername,
                 text,
@@ -88,17 +101,22 @@ export default async function (server: FastifyInstance) {
         },
         async (request, reply) => {
             const { username } = request;
-            const { from } = request.query;
+            const { from, index: lastMessageIndex = 0 } = request.query;
 
             const key = getMessageKey(username, from);
 
             const messagesRaw = await handleAsyncOperation(
-                () => redis.lrange(key, 0, -1),
+                () => redis.lrange(key, lastMessageIndex ?? 0, -1),
                 'Failed to retrieve messages',
                 ErrorCode.DATABASE_ERROR,
             );
 
-            const messages = messagesRaw.map((message) => JSON.parse(message));
+            const messages = messagesRaw.map((message, index) => {
+                return {
+                    index: index + lastMessageIndex,
+                    ...(JSON.parse(message) as Message),
+                };
+            });
 
             reply.send(messages);
         },

@@ -1,11 +1,12 @@
-import { test, expect } from 'vitest';
 import Fastify from 'fastify';
-import healthRoute from './health';
+import { expect, test } from 'vitest';
+
 import { name, version } from '../package.json';
+import { healthRoutes } from './health';
 
 test('GET /', async () => {
     const server = Fastify();
-    server.register(healthRoute);
+    server.register(healthRoutes);
 
     const response = await server.inject({
         method: 'GET',

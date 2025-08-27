@@ -1,7 +1,8 @@
 import type { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import fp from 'fastify-plugin';
+
+import { createAuthError, ErrorCode, handleError } from '../lib/errors';
 import { handleSyncOperation } from '../lib/helpers';
-import { ErrorCode, createAuthError, handleError } from '../lib/errors';
 
 export default fp(async function (server: FastifyInstance) {
     server.decorate(

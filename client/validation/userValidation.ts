@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 const error = {
     usernameShort: 'Username must be at least 3 characters long.',
+    usernameLong: 'Username must be at most 24 characters',
+    usernameCharacters: 'Username can only contain letters and numbers',
     emailNotValid: 'Please enter a valid email address.',
     passwordShort: 'Password must be at least 8 characters long.',
     passwordLong: 'Password must be less than 128 characters.',
@@ -29,7 +31,11 @@ const passwordValidation = z.string();
 //     'Password cannot be a common weak password',
 // ); // TODO: Revert for prod
 
-const usernameValidation = z.string().min(3, error.usernameShort);
+const usernameValidation = z
+    .string()
+    .min(3, error.usernameShort)
+    .max(24, error.usernameLong)
+    .regex(/^[a-zA-Z0-9]+$/, error.usernameCharacters);
 
 export const LoginSchema = z
     .object({
