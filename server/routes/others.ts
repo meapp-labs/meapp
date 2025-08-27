@@ -9,7 +9,6 @@ import {
     createUserNotFoundError,
     ApiError,
 } from '../lib/errors';
-import type { AuthenticatedRequest } from '../lib/types';
 import z from 'zod';
 
 import { usernameSchema } from '../lib/validation';
@@ -31,7 +30,7 @@ export default async function (server: FastifyInstance) {
         async (request, reply) => {
             try {
                 const { other } = request.body;
-                const username = (request as AuthenticatedRequest).username;
+                const username = request.username;
 
                 if (other === username) {
                     throw new ApiError(
@@ -90,7 +89,7 @@ export default async function (server: FastifyInstance) {
         async (request, reply) => {
             try {
                 const { other } = request.body;
-                const username = (request as AuthenticatedRequest).username;
+                const username = request.username;
                 const key = `${username}:others`;
 
                 const removedCount = await handleAsyncOperation(
@@ -122,7 +121,7 @@ export default async function (server: FastifyInstance) {
         { preHandler: [server.authenticate] },
         async (request, reply) => {
             try {
-                const username = (request as AuthenticatedRequest).username;
+                const username = request.username;
                 const key = `${username}:others`;
 
                 const others = await handleAsyncOperation(

@@ -6,7 +6,7 @@
     yarn install
     ```
 
-2.  **Set up environment variables**
+2. **Set up environment variables**
 
     Create a `.env` file by copying the `.env.example` file.
 

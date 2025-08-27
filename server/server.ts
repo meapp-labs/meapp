@@ -3,7 +3,11 @@ import authenticate from './plugins/authenticate';
 import fastifyRedis from '@fastify/redis';
 import fastifySecureSession from '@fastify/secure-session';
 import fastifyCors from '@fastify/cors';
+import swagger from '@fastify/swagger';
+import swaggerUI from '@fastify/swagger-ui';
+
 import { env } from './lib/config';
+import { handleError } from './lib/errors';
 
 import healthRoute from './routes/health';
 import authRoutes from './routes/auth';
@@ -11,6 +15,7 @@ import messageRoutes from './routes/messages';
 import otherRoutes from './routes/others';
 
 import {
+    jsonSchemaTransform,
     serializerCompiler,
     validatorCompiler,
 } from 'fastify-type-provider-zod';
@@ -21,11 +26,15 @@ const server = Fastify({
             target: 'pino-pretty',
             options: {
                 colorize: true,
-                translateTime: 'HH:MM:ss Z',
                 ignore: 'pid,hostname',
             },
         },
     },
+});
+
+server.setErrorHandler((error, _, reply) => {
+    const apiError = handleError(error, server);
+    reply.status(apiError.statusCode).send(apiError);
 });
 
 server.setValidatorCompiler(validatorCompiler);
@@ -34,6 +43,20 @@ server.setSerializerCompiler(serializerCompiler);
 await server.register(fastifyRedis, {
     host: env.REDIS_HOST,
     port: env.REDIS_PORT,
+});
+
+await server.register(swagger, {
+    openapi: {
+        info: {
+            title: 'MeApp API',
+            version: '1.0.0',
+        },
+    },
+    transform: jsonSchemaTransform,
+});
+
+await server.register(swaggerUI, {
+    routePrefix: '/docs',
 });
 
 await server.register(fastifyCors, {
