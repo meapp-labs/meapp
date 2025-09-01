@@ -2,7 +2,6 @@ import FriendsScreen from '@/components/FriendsScreen';
 import { useAuthStore } from '@/stores/authStore';
 import { SafeAreaView, StyleSheet } from 'react-native';
 import MessageContainer from '@/components/chat/MessageContainer';
-import Toolbar from '@/components/Toolbar';
 import { theme } from '@/theme/theme';
 
 export default function ChatScreen() {
