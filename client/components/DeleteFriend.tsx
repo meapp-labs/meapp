@@ -9,10 +9,10 @@ import { QueryKeys } from '@/lib/queryKeys';
 
 type DeleteFriendProps = {
     friend: string;
-    onClose: () => void;
+    onChange: (pressed: string | null, removed: string | null) => void;
 };
 
-export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
+export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
     const { mutate, error, isError } = useMutation({
         mutationFn: () => {
             return removeOther(friend);
@@ -31,6 +31,7 @@ export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
                 <Pressable
                     onPress={() => {
                         mutate();
+                        onChange(null, null);
                     }}
                 >
                     <FontAwesome6
@@ -39,7 +40,7 @@ export default function DeleteFriend({ friend, onClose }: DeleteFriendProps) {
                         color={theme.colors.success}
                     />
                 </Pressable>
-                <Pressable onPress={onClose}>
+                <Pressable onPress={() => onChange(null, null)}>
                     <FontAwesome6
                         name="xmark-circle"
                         size={24}

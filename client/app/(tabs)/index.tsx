@@ -12,7 +12,6 @@ export default function ChatScreen() {
         <SafeAreaView style={styles.container}>
             <FriendsScreen />
             <MessageContainer username={username} messages={[]} />
-            <Toolbar />
         </SafeAreaView>
     );
 }

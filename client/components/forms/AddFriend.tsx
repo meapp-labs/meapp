@@ -5,6 +5,8 @@ import { Text } from '../common/Text';
 import { useMutation } from '@tanstack/react-query';
 import { addOther } from '@/services/others';
 import { useState } from 'react';
+import { queryClient } from '@/lib/queryInit';
+import { QueryKeys } from '@/lib/queryKeys';
 
 export default function AddFriend() {
     const [inputData, setInputData] = useState('');
@@ -14,11 +16,17 @@ export default function AddFriend() {
         isError,
         isSuccess,
         error,
+        reset,
     } = useMutation({
         mutationFn: addOther,
-        onSuccess: (data) => {
-            console.log('Success: ', data);
+        onSuccess: () => {
+            queryClient.refetchQueries({
+                queryKey: [QueryKeys.GET_OTHERS],
+            });
             setInputData('');
+        },
+        onSettled: () => {
+            setTimeout(() => reset(), 5000);
         },
     });
 
@@ -33,10 +41,12 @@ export default function AddFriend() {
                     onChangeText={setInputData}
                 />
                 <Button
-                    style={{ borderRadius: theme.spacing.lg }}
+                    style={styles.addButton}
                     variant="secondary"
                     title="Add friend"
-                    onPress={() => handlePress(inputData)}
+                    onPress={() => {
+                        handlePress(inputData);
+                    }}
                 />
             </View>
 
@@ -63,6 +73,7 @@ const styles = StyleSheet.create({
         gap: theme.spacing.sm,
         justifyContent: 'center',
         marginVertical: theme.spacing.md,
+        marginHorizontal: theme.spacing.sm,
     },
     responseContainer: {
         justifyContent: 'center',
@@ -72,12 +83,18 @@ const styles = StyleSheet.create({
     textInput: {
         color: theme.colors.text,
         backgroundColor: theme.colors.card,
-        padding: theme.spacing.md,
-        borderRadius: theme.spacing.lg,
+        padding: theme.spacing.sm,
+        borderRadius: theme.spacing.sm,
+        flexGrow: 1,
     },
     response: {
         color: theme.colors.success,
         textAlign: 'center',
         ...theme.typography.caption,
+        paddingBottom: theme.spacing.xs,
+    },
+    addButton: {
+        borderRadius: theme.spacing.sm,
+        padding: theme.spacing.sm,
     },
 });
