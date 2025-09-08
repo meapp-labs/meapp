@@ -75,6 +75,7 @@ const styles = StyleSheet.create({
         marginVertical: theme.spacing.sm,
         borderRadius: theme.spacing.sm,
         padding: theme.spacing.sm,
+        marginRight: theme.spacing.sm,
         backgroundColor: theme.colors.surface,
         alignItems: 'center',
     },

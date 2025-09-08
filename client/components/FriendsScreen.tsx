@@ -35,6 +35,11 @@ export default function FriendsScreen() {
         },
     });
 
+    const handleChange = (pressed: string | null, removed: string | null) => {
+        setPressed(pressed);
+        setRemoveId(removed);
+    };
+
     const { data: others = [], isPending } = useGetOthers();
 
     const items: Friend[] = others.map((name, index) => ({
@@ -82,10 +87,7 @@ export default function FriendsScreen() {
                 </View>
             </Pressable>
             {removeId === item.id && (
-                <DeleteFriend
-                    friend={item.name}
-                    onClose={() => setRemoveId(null)}
-                />
+                <DeleteFriend friend={item.name} onChange={handleChange} />
             )}
         </>
     );

@@ -70,6 +70,7 @@ const styles = StyleSheet.create({
     inputContainer: {
         gap: theme.spacing.sm,
         marginVertical: theme.spacing.sm,
+        marginRight: theme.spacing.sm,
         flexDirection: 'row',
         justifyContent: 'space-between',
     },
