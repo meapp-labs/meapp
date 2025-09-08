@@ -6,6 +6,7 @@ import { theme } from '@/theme/theme';
 import MessageBar from './MessageBar';
 import { useQuery } from '@tanstack/react-query';
 import { getMessages } from '@/services/messages';
+import { usePressedStore } from '@/stores/pressedFriendStore';
 
 type TMessageList = {
     username: string;
@@ -13,6 +14,7 @@ type TMessageList = {
 };
 
 export default function MessageList({ username }: TMessageList) {
+    const { pressed } = usePressedStore();
     const flatListRef = useRef<FlatList>(null);
     const {
         data: messages,
@@ -20,7 +22,7 @@ export default function MessageList({ username }: TMessageList) {
         isSuccess: messagesSuccess,
     } = useQuery({
         queryKey: ['messages'],
-        queryFn: async () => await getMessages('Dawid'), // hardcoded
+        queryFn: async () => await getMessages(`${pressed?.name}`),
     });
 
     useEffect(() => {
@@ -37,6 +39,7 @@ export default function MessageList({ username }: TMessageList) {
             {messagesPending ? (
                 <Text>Loading...</Text>
             ) : (
+                pressed &&
                 messagesSuccess && (
                     <>
                         <FlatList
@@ -62,7 +65,7 @@ export default function MessageList({ username }: TMessageList) {
                                 })
                             }
                         />
-                        <MessageBar />
+                        {pressed && <MessageBar />}
                     </>
                 )
             )}
