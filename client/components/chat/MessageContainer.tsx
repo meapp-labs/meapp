@@ -1,26 +1,32 @@
 import { FlatList, StyleSheet, View } from 'react-native';
 import { Text } from '../common/Text';
 import { useEffect, useRef } from 'react';
-import Message, { type TMessage } from './Message';
+import Message from './Message';
 import { theme } from '@/theme/theme';
 import MessageBar from './MessageBar';
 import { useQuery } from '@tanstack/react-query';
 import { getMessages } from '@/services/messages';
+import { usePressedStore } from '@/stores/pressedFriendStore';
 
-type TMessageList = {
-    username: string;
-    messages: TMessage[];
+export type TMessage = {
+    index: string;
+    from: string;
+    to: string;
+    text: string;
 };
 
-export default function MessageList({ username }: TMessageList) {
+export default function MessageList({ username }: { username: string }) {
+    const { pressed } = usePressedStore();
     const flatListRef = useRef<FlatList>(null);
     const {
         data: messages,
         isPending: messagesPending,
         isSuccess: messagesSuccess,
+        refetch,
     } = useQuery({
         queryKey: ['messages'],
-        queryFn: async () => await getMessages('Dawid'), // hardcoded
+        queryFn: async () => await getMessages(`${pressed?.name}`),
+        refetchInterval: 5000,
     });
 
     useEffect(() => {
@@ -37,6 +43,7 @@ export default function MessageList({ username }: TMessageList) {
             {messagesPending ? (
                 <Text>Loading...</Text>
             ) : (
+                pressed &&
                 messagesSuccess && (
                     <>
                         <FlatList
@@ -44,12 +51,12 @@ export default function MessageList({ username }: TMessageList) {
                             data={messages}
                             renderItem={({ item }) => (
                                 <Message
-                                    id={item.id}
+                                    index={item.index}
+                                    fromOther={username === item.from}
                                     text={item.text}
-                                    sender={item.sender}
                                 />
                             )}
-                            keyExtractor={(item) => item.id}
+                            keyExtractor={(item) => item.index}
                             showsVerticalScrollIndicator={false}
                             onContentSizeChange={() =>
                                 flatListRef.current?.scrollToEnd({
@@ -62,7 +69,7 @@ export default function MessageList({ username }: TMessageList) {
                                 })
                             }
                         />
-                        <MessageBar />
+                        {pressed && <MessageBar refetch={refetch} />}
                     </>
                 )
             )}

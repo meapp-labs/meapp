@@ -11,8 +11,10 @@ import Button from '../common/Button';
 import { useMutation } from '@tanstack/react-query';
 import { MessageData, sendMessage } from '@/services/messages';
 import MoreIcon from './MoreIcon';
+import { usePressedStore } from '@/stores/pressedFriendStore';
 
-export default function MessageBar() {
+export default function MessageBar({ refetch }: { refetch: () => void }) {
+    const { pressed } = usePressedStore();
     const [inputData, setInputData] = useState('');
     const [showModal, setShowModal] = useState(false);
 
@@ -22,6 +24,7 @@ export default function MessageBar() {
         },
         onSuccess: (data) => {
             console.log('Success:', data);
+            refetch();
         },
         onError: (error: any) => {
             console.log('Error:', error.message);
@@ -31,7 +34,7 @@ export default function MessageBar() {
     const handleSend = () => {
         if (inputData.trim().length > 0) {
             const messageData: MessageData = {
-                to: 'Emil', // hardcoded, later pick from list of others
+                to: `${pressed?.name}`,
                 text: inputData,
             };
             mutate(messageData);

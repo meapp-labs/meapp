@@ -1,4 +1,4 @@
-import { TMessage } from '@/components/chat/Message';
+import { TMessage } from '@/components/chat/MessageContainer';
 import axios from 'axios';
 
 export interface MessageData {
