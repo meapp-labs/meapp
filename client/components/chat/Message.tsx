@@ -1,25 +1,23 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../common/Text';
 
-export type TMessage = {
-    id: string;
+export default function Message(message: {
+    index: string;
+    fromOther: boolean;
     text: string;
-    sender: string;
-};
-
-export default function Message({ id, text, sender }: TMessage) {
+}) {
     return (
         <View
             style={[
                 styles.messageContainer,
-                sender === 'me'
+                message.fromOther
                     ? styles.myMessageContainer
                     : styles.theirMessageContainer,
             ]}
-            id={id}
+            key={message.index}
         >
-            <Text style={sender === 'me' ? styles.myMessageText : undefined}>
-                {text}
+            <Text style={message.fromOther ? styles.myMessageText : undefined}>
+                {message.text}
             </Text>
         </View>
     );
