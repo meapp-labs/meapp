@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '../common/Text';
+import { theme } from '@/theme/theme';
 
 export default function Message(message: {
     index: string;
@@ -24,10 +25,6 @@ export default function Message(message: {
 }
 
 const styles = StyleSheet.create({
-    messageList: {
-        paddingHorizontal: 10,
-        paddingBottom: 10,
-    },
     messageContainer: {
         borderRadius: 20,
         padding: 15,
@@ -35,14 +32,15 @@ const styles = StyleSheet.create({
         maxWidth: '80%',
     },
     myMessageContainer: {
-        backgroundColor: '#007AFF',
+        backgroundColor: theme.colors.primary,
         alignSelf: 'flex-end',
-        borderBottomRightRadius: 5,
+        borderBottomRightRadius: theme.spacing.xs,
+        marginRight: theme.spacing.sm,
     },
     theirMessageContainer: {
-        backgroundColor: '#2C2C2E',
+        backgroundColor: theme.colors.card,
         alignSelf: 'flex-start',
-        borderBottomLeftRadius: 5,
+        borderBottomLeftRadius: theme.spacing.xs,
     },
     myMessageText: {
         color: '#fff',

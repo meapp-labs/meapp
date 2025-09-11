@@ -8,8 +8,7 @@ import {
 import { useState } from 'react';
 import { theme } from '@/theme/theme';
 import Button from '../common/Button';
-import { useMutation } from '@tanstack/react-query';
-import { MessageData, sendMessage } from '@/services/messages';
+import { MessageData, useSendMessage } from '@/services/messages';
 import MoreIcon from './MoreIcon';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 
@@ -18,18 +17,7 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
     const [inputData, setInputData] = useState('');
     const [showModal, setShowModal] = useState(false);
 
-    const { mutate } = useMutation({
-        mutationFn: (messageData: MessageData) => {
-            return sendMessage(messageData);
-        },
-        onSuccess: (data) => {
-            console.log('Success:', data);
-            refetch();
-        },
-        onError: (error: any) => {
-            console.log('Error:', error.message);
-        },
-    });
+    const { mutate } = useSendMessage(() => refetch());
 
     const handleSend = () => {
         if (inputData.trim().length > 0) {
@@ -55,6 +43,7 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
                         onChangeText={setInputData}
                         placeholder="Type a message..."
                         placeholderTextColor="#9BA1A6"
+                        onSubmitEditing={handleSend}
                     />
                     <View style={styles.moreIcon}>
                         <MoreIcon

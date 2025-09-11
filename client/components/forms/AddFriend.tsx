@@ -2,11 +2,10 @@ import { theme } from '@/theme/theme';
 import { TextInput, View, StyleSheet } from 'react-native';
 import Button from '../common/Button';
 import { Text } from '../common/Text';
-import { useMutation } from '@tanstack/react-query';
-import { addOther } from '@/services/others';
+import { useAddFriend } from '@/services/others';
 import { useState } from 'react';
 import { queryClient } from '@/lib/queryInit';
-import { QueryKeys } from '@/lib/queryKeys';
+import { Keys } from '@/lib/keys';
 
 export default function AddFriend() {
     const [inputData, setInputData] = useState('');
@@ -17,17 +16,8 @@ export default function AddFriend() {
         isSuccess,
         error,
         reset,
-    } = useMutation({
-        mutationFn: addOther,
-        onSuccess: () => {
-            queryClient.refetchQueries({
-                queryKey: [QueryKeys.GET_OTHERS],
-            });
-            setInputData('');
-        },
-        onSettled: () => {
-            setTimeout(() => reset(), 5000);
-        },
+    } = useAddFriend(() => {
+        queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] });
     });
 
     return (
@@ -45,7 +35,11 @@ export default function AddFriend() {
                     variant="secondary"
                     title="Add friend"
                     onPress={() => {
-                        handlePress(inputData);
+                        handlePress(inputData, {
+                            onSettled: () => {
+                                setTimeout(() => reset(), 5000);
+                            },
+                        });
                     }}
                 />
             </View>

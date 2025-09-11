@@ -13,12 +13,11 @@ import { Text } from '../common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { loginUser } from '@/services/auth';
 import { useAuthStore } from '@/stores/authStore';
 import { LoginType, LoginSchema } from '@/validation/userValidation';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useMutation } from '@tanstack/react-query';
 import { useForm, Controller } from 'react-hook-form';
+import { useLoginUser } from '@/services/auth';
 
 export default function LoginForm() {
     const [isVisible, setVisible] = useState(false);
@@ -28,15 +27,7 @@ export default function LoginForm() {
         router.replace('/register');
     };
 
-    const { mutate, isError, isPending, error } = useMutation({
-        mutationFn: (userData: LoginType) => {
-            return loginUser(userData);
-        },
-        onSuccess: (_, variables) => {
-            router.replace('/');
-            setUsername(variables.username);
-        },
-    });
+    const { mutate, isError, isPending, error } = useLoginUser();
 
     const {
         control,
@@ -51,7 +42,12 @@ export default function LoginForm() {
     });
 
     const onSubmit = handleSubmit((data: LoginType) => {
-        mutate(data);
+        mutate(data, {
+            onSuccess: () => {
+                setUsername(data.username);
+                router.replace('/');
+            },
+        });
     });
 
     return (
@@ -89,6 +85,7 @@ export default function LoginForm() {
                         name="username"
                         render={({ field: { value, onChange, onBlur } }) => (
                             <TextInput
+                                onSubmitEditing={onSubmit}
                                 style={[
                                     styles.formInput,
                                     errors.username && {
@@ -132,6 +129,7 @@ export default function LoginForm() {
                         name="password"
                         render={({ field: { value, onChange, onBlur } }) => (
                             <TextInput
+                                onSubmitEditing={onSubmit}
                                 secureTextEntry={!isVisible}
                                 style={[
                                     styles.formInput,

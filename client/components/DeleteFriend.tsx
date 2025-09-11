@@ -2,10 +2,9 @@ import { theme } from '@/theme/theme';
 import { Text } from './common/Text';
 import { View, StyleSheet, Pressable } from 'react-native';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { removeOther } from '@/services/others';
-import { useMutation } from '@tanstack/react-query';
+import { useRemoveFriend } from '@/services/others';
 import { queryClient } from '@/lib/queryInit';
-import { QueryKeys } from '@/lib/queryKeys';
+import { Keys } from '@/lib/keys';
 
 type DeleteFriendProps = {
     friend: string;
@@ -13,15 +12,10 @@ type DeleteFriendProps = {
 };
 
 export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
-    const { mutate, error, isError } = useMutation({
-        mutationFn: () => {
-            return removeOther(friend);
-        },
-        onSuccess: () => {
-            queryClient.refetchQueries({
-                queryKey: [QueryKeys.GET_OTHERS],
-            });
-        },
+    const { mutate, error, isError } = useRemoveFriend(() => {
+        queryClient.refetchQueries({
+            queryKey: [Keys.Query.GET_FRIENDS],
+        });
     });
 
     return (
@@ -30,7 +24,7 @@ export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
             <View style={styles.icons}>
                 <Pressable
                     onPress={() => {
-                        mutate();
+                        mutate(friend);
                         onChange(null, null);
                     }}
                 >

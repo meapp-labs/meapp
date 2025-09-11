@@ -10,16 +10,15 @@ import {
 import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
-import { logoutUser } from '@/services/auth';
-import { useMutation } from '@tanstack/react-query';
-import { router } from 'expo-router';
-import { useGetOthers } from '@/services/others';
+import { useLogoutUser } from '@/services/auth';
+import { useGetFriends } from '@/services/others';
 import AddFriend from './forms/AddFriend';
 import DeleteFriend from './DeleteFriend';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 import { queryClient } from '@/lib/queryInit';
-import { QueryKeys } from '@/lib/queryKeys';
+import { Keys } from '@/lib/keys';
+import { router } from 'expo-router';
 
 export type Friend = {
     id: string;
@@ -31,13 +30,10 @@ export default function FriendsScreen() {
     const { pressed, setPressed } = usePressedStore();
     const [removeId, setRemoveId] = useState<string | null>(null);
 
-    const { mutate: logout } = useMutation({
-        mutationFn: logoutUser,
-        onSuccess: () => {
-            router.replace('/login');
-            queryClient.removeQueries({ queryKey: [QueryKeys.GET_OTHERS] });
-            queryClient.removeQueries({ queryKey: ['messages'] });
-        },
+    const { mutate: logout } = useLogoutUser(() => {
+        queryClient.removeQueries({ queryKey: [Keys.Query.GET_FRIENDS] });
+        queryClient.removeQueries({ queryKey: [Keys.Query.GET_MESSAGES] });
+        router.replace('/login');
     });
 
     const handleChange = (pressed: string | null, removed: string | null) => {
@@ -45,7 +41,7 @@ export default function FriendsScreen() {
         setRemoveId(removed);
     };
 
-    const { data: others = [], isPending } = useGetOthers();
+    const { data: others = [], isPending } = useGetFriends();
 
     const items: Friend[] = others.map((name, index) => ({
         id: index.toString(),
@@ -56,7 +52,9 @@ export default function FriendsScreen() {
         <>
             <Pressable
                 onPress={() =>
-                    queryClient.refetchQueries({ queryKey: ['messages'] })
+                    queryClient.refetchQueries({
+                        queryKey: [Keys.Query.GET_MESSAGES],
+                    })
                 }
                 onPressIn={() => {
                     setPressed(item);

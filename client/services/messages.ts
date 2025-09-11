@@ -1,37 +1,30 @@
 import { TMessage } from '@/components/chat/MessageContainer';
-import axios from 'axios';
+import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
+import { Keys } from '@/lib/keys';
+import { useMutation, useQuery } from '@tanstack/react-query';
 
 export interface MessageData {
     to: string;
     text: string;
 }
 
-export const sendMessage = async (messageData: MessageData) => {
-    try {
-        const response = await axios.post(
-            'http://localhost:3000/send-message',
-            messageData,
-            {
-                withCredentials: true,
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-            },
-        );
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useSendMessage(onSuccess: () => void) {
+    return useMutation<TMessage, ApiError, MessageData>({
+        mutationFn: (messageData) =>
+            postFetcher<TMessage, MessageData>(
+                `/${Keys.Mutation.SEND_MESSAGE}`,
+                messageData,
+            ),
+        onSuccess,
+    });
+}
 
-export async function getMessages(from: string): Promise<TMessage[]> {
-    try {
-        const response = await axios.get('http://localhost:3000/get-messages', {
-            params: { from },
-            withCredentials: true,
-        });
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
+export function useGetMessages(from: string) {
+    return useQuery<TMessage[], ApiError>({
+        queryKey: [Keys.Query.GET_MESSAGES, from],
+        queryFn: () =>
+            getFetcher<TMessage[]>(`/${Keys.Query.GET_MESSAGES}`, { from }),
+        enabled: !!from,
+        refetchInterval: 5000,
+    });
 }

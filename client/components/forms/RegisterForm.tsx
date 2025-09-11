@@ -95,6 +95,7 @@ export default function RegisterForm() {
                                 onChangeText={onChange}
                                 onBlur={onBlur}
                                 editable={!isPending}
+                                onSubmitEditing={onSubmit}
                             />
                         )}
                     />
@@ -127,6 +128,7 @@ export default function RegisterForm() {
                                 onChangeText={onChange}
                                 onBlur={onBlur}
                                 editable={!isPending}
+                                onSubmitEditing={onSubmit}
                             />
                         )}
                     />
@@ -174,6 +176,7 @@ export default function RegisterForm() {
                                 onChangeText={onChange}
                                 onBlur={onBlur}
                                 editable={!isPending}
+                                onSubmitEditing={onSubmit}
                             />
                         )}
                     />
@@ -204,6 +207,7 @@ export default function RegisterForm() {
                                 onChangeText={onChange}
                                 onBlur={onBlur}
                                 editable={!isPending}
+                                onSubmitEditing={onSubmit}
                             />
                         )}
                     />

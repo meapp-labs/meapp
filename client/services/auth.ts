@@ -1,35 +1,25 @@
 import { ApiError, postFetcher } from '@/lib/axios';
+import { Keys } from '@/lib/keys';
 import { LoginType, RegisterType } from '@/validation/userValidation';
 import { useMutation } from '@tanstack/react-query';
-import axios from 'axios';
 
 export function useRegisterUser(onSuccess: () => void) {
     return useMutation<string, ApiError, RegisterType>({
-        mutationFn: (body) => postFetcher('/register', body),
-        onSuccess: onSuccess,
+        mutationFn: (body) => postFetcher(`/${Keys.Mutation.REGISTER}`, body),
+        onSuccess,
     });
 }
 
-export const loginUser = async (userData: LoginType) => {
-    try {
-        const response = await axios.post(
-            'http://localhost:3000/login',
-            userData,
-            {
-                withCredentials: true,
-            },
-        );
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useLoginUser() {
+    return useMutation<string, ApiError, LoginType>({
+        mutationFn: (body) => postFetcher(`/${Keys.Mutation.LOGIN}`, body),
+    });
+}
 
-export const logoutUser = async () => {
-    try {
-        const response = await axios.post('http://localhost:3000/logout');
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useLogoutUser(onSuccess: () => void) {
+    return useMutation<string, ApiError>({
+        mutationFn: () =>
+            postFetcher<string, void>(`/${Keys.Mutation.LOGOUT}`, undefined),
+        onSuccess,
+    });
+}

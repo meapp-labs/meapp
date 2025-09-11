@@ -4,8 +4,7 @@ import { useEffect, useRef } from 'react';
 import Message from './Message';
 import { theme } from '@/theme/theme';
 import MessageBar from './MessageBar';
-import { useQuery } from '@tanstack/react-query';
-import { getMessages } from '@/services/messages';
+import { useGetMessages } from '@/services/messages';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 
 export type TMessage = {
@@ -18,16 +17,13 @@ export type TMessage = {
 export default function MessageList({ username }: { username: string }) {
     const { pressed } = usePressedStore();
     const flatListRef = useRef<FlatList>(null);
+
     const {
         data: messages,
         isPending: messagesPending,
         isSuccess: messagesSuccess,
         refetch,
-    } = useQuery({
-        queryKey: ['messages'],
-        queryFn: async () => await getMessages(`${pressed?.name}`),
-        refetchInterval: 5000,
-    });
+    } = useGetMessages(`${pressed?.name}`);
 
     useEffect(() => {
         if (flatListRef.current) {
