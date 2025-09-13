@@ -21,7 +21,6 @@ import { Keys } from '@/lib/keys';
 import { router } from 'expo-router';
 
 export type Friend = {
-    id: string;
     name: string;
 };
 
@@ -31,41 +30,40 @@ export default function FriendsScreen() {
     const [removeId, setRemoveId] = useState<string | null>(null);
 
     const { mutate: logout } = useLogoutUser(() => {
-        queryClient.removeQueries({ queryKey: [Keys.Query.GET_FRIENDS] });
-        queryClient.removeQueries({ queryKey: [Keys.Query.GET_MESSAGES] });
+        setPressed(null);
+        queryClient.clear();
         router.replace('/login');
     });
 
     const handleChange = (pressed: string | null, removed: string | null) => {
-        setPressed(pressed ? { id: '', name: pressed } : null);
+        setPressed(pressed ? { name: pressed } : null);
         setRemoveId(removed);
     };
 
     const { data: others = [], isPending } = useGetFriends();
 
-    const items: Friend[] = others.map((name, index) => ({
-        id: index.toString(),
+    const items: Friend[] = others.map((name) => ({
         name,
     }));
 
     const renderFriend = ({ item }: { item: Friend }) => (
         <>
             <Pressable
-                onPress={() =>
+                onPress={() => {
                     queryClient.refetchQueries({
                         queryKey: [Keys.Query.GET_MESSAGES],
-                    })
-                }
+                    });
+                }}
                 onPressIn={() => {
                     setPressed(item);
                     setRemoveId(null);
                 }}
-                onHoverIn={() => setHovered(item.id)}
+                onHoverIn={() => setHovered(item.name)}
                 onHoverOut={() => setHovered(null)}
                 style={[
                     styles.friendItem,
-                    hovered === item.id && styles.friendItemHovered,
-                    pressed?.id === item.id && styles.friendItemPressed,
+                    hovered === item.name && styles.friendItemHovered,
+                    pressed?.name === item.name && styles.friendItemPressed,
                 ]}
             >
                 <View
@@ -81,8 +79,10 @@ export default function FriendsScreen() {
                     >
                         {item.name}
                     </Text>
-                    {pressed?.id === item.id && (
-                        <TouchableOpacity onPress={() => setRemoveId(item.id)}>
+                    {pressed?.name === item.name && (
+                        <TouchableOpacity
+                            onPress={() => setRemoveId(item.name)}
+                        >
                             <Ionicons
                                 name="person-remove"
                                 size={22}
@@ -92,7 +92,7 @@ export default function FriendsScreen() {
                     )}
                 </View>
             </Pressable>
-            {removeId === item.id && (
+            {removeId === item.name && (
                 <DeleteFriend friend={item.name} onChange={handleChange} />
             )}
         </>
@@ -112,7 +112,7 @@ export default function FriendsScreen() {
                 <FlatList
                     data={items}
                     renderItem={renderFriend}
-                    keyExtractor={(item) => item.id}
+                    keyExtractor={(item) => item.name}
                 />
             )}
 

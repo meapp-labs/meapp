@@ -17,7 +17,7 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
     const [inputData, setInputData] = useState('');
     const [showModal, setShowModal] = useState(false);
 
-    const { mutate } = useSendMessage(() => refetch());
+    const { mutate } = useSendMessage(refetch);
 
     const handleSend = () => {
         if (inputData.trim().length > 0) {

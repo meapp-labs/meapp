@@ -23,7 +23,7 @@ export default function MessageList({ username }: { username: string }) {
         isPending: messagesPending,
         isSuccess: messagesSuccess,
         refetch,
-    } = useGetMessages(`${pressed?.name}`);
+    } = useGetMessages({ from: `${pressed?.name}` });
 
     useEffect(() => {
         if (flatListRef.current) {

@@ -1,9 +1,5 @@
+import { Friend } from '@/components/FriendsScreen';
 import { create } from 'zustand';
-
-export type Friend = {
-    id: string;
-    name: string;
-};
 
 type PressedState = {
     pressed: Friend | null;
