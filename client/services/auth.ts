@@ -1,9 +1,11 @@
 import { ApiError, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
+import { queryClient } from '@/lib/queryInit';
 import { LoginType, RegisterType } from '@/validation/userValidation';
 import { useMutation } from '@tanstack/react-query';
+import { router } from 'expo-router';
 
-export function useRegisterUser(onSuccess: () => void) {
+export function useRegisterUser({ onSuccess }: { onSuccess: () => void }) {
     return useMutation<string, ApiError, RegisterType>({
         mutationFn: (body) => postFetcher(Keys.Mutation.REGISTER, body),
         onSuccess,
@@ -16,9 +18,13 @@ export function useLoginUser() {
     });
 }
 
-export function useLogoutUser(onSuccess: () => void) {
+export function useLogoutUser({ onSuccess }: { onSuccess: () => void }) {
     return useMutation<string, ApiError>({
         mutationFn: () => postFetcher<string, void>(Keys.Mutation.LOGOUT),
-        onSuccess,
+        onSuccess: () => {
+            queryClient.clear();
+            router.replace('/login');
+            onSuccess();
+        },
     });
 }

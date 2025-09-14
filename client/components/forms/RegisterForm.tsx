@@ -26,9 +26,9 @@ export default function RegisterForm() {
     };
     const [isVisible, setVisible] = useState(false);
 
-    const { mutate, isError, isPending, error } = useRegisterUser(() =>
-        router.replace('/login'),
-    );
+    const { mutate, isError, isPending, error } = useRegisterUser({
+        onSuccess: () => router.replace('/login'),
+    });
 
     const {
         control,

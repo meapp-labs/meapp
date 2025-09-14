@@ -12,10 +12,11 @@ type DeleteFriendProps = {
 };
 
 export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
-    const { mutate, error, isError } = useRemoveFriend(() => {
-        queryClient.refetchQueries({
-            queryKey: [Keys.Query.GET_FRIENDS],
-        });
+    const { mutate, error, isError } = useRemoveFriend({
+        onSuccess: () =>
+            queryClient.refetchQueries({
+                queryKey: [Keys.Query.GET_FRIENDS],
+            }),
     });
 
     return (

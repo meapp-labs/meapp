@@ -18,7 +18,6 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 import { queryClient } from '@/lib/queryInit';
 import { Keys } from '@/lib/keys';
-import { router } from 'expo-router';
 
 export type Friend = {
     name: string;
@@ -29,10 +28,10 @@ export default function FriendsScreen() {
     const { pressed, setPressed } = usePressedStore();
     const [removeId, setRemoveId] = useState<string | null>(null);
 
-    const { mutate: logout } = useLogoutUser(() => {
-        setPressed(null);
-        queryClient.clear();
-        router.replace('/login');
+    const { mutate: logout } = useLogoutUser({
+        onSuccess: () => {
+            setPressed(null);
+        },
     });
 
     const handleChange = (pressed: string | null, removed: string | null) => {

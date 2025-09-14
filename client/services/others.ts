@@ -9,7 +9,7 @@ export function useGetFriends() {
     });
 }
 
-export function useAddFriend(onSuccess: () => void) {
+export function useAddFriend({ onSuccess }: { onSuccess: () => void }) {
     return useMutation<string, ApiError, string>({
         mutationFn: (friend) =>
             postFetcher<string, { other: string }>(Keys.Mutation.ADD_FRIEND, {
@@ -19,7 +19,7 @@ export function useAddFriend(onSuccess: () => void) {
     });
 }
 
-export function useRemoveFriend(onSuccess: () => void) {
+export function useRemoveFriend({ onSuccess }: { onSuccess: () => void }) {
     return useMutation<string, ApiError, string>({
         mutationFn: (friend) =>
             postFetcher<string, { other: string }>(

@@ -16,8 +16,9 @@ export default function AddFriend() {
         isSuccess,
         error,
         reset,
-    } = useAddFriend(() => {
-        queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] });
+    } = useAddFriend({
+        onSuccess: () =>
+            queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] }),
     });
 
     return (

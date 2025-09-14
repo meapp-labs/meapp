@@ -23,7 +23,7 @@ export default function MessageList({ username }: { username: string }) {
         isPending: messagesPending,
         isSuccess: messagesSuccess,
         refetch,
-    } = useGetMessages({ from: `${pressed?.name}` });
+    } = useGetMessages({ from: pressed?.name });
 
     useEffect(() => {
         if (flatListRef.current) {
@@ -37,9 +37,12 @@ export default function MessageList({ username }: { username: string }) {
                 <Text>{username + ' connected'}</Text>
             </View>
             {messagesPending ? (
-                <Text>Loading...</Text>
+                pressed ? (
+                    <Text>Loading...</Text>
+                ) : (
+                    <Text>Select a friend.</Text>
+                )
             ) : (
-                pressed &&
                 messagesSuccess && (
                     <>
                         <FlatList
