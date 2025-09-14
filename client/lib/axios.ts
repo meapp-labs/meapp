@@ -17,7 +17,7 @@ export async function getFetcher<T, P = Record<string, any>>(
 
 export async function postFetcher<TResponse, TRequest>(
     url: string,
-    body: TRequest,
+    body?: TRequest,
 ): Promise<TResponse> {
     const res = await api.post<TResponse>(url, body);
     return res.data;

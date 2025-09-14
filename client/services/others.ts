@@ -1,37 +1,31 @@
-import axios from 'axios';
-import { useQuery } from '@tanstack/react-query';
-import { ApiError, getFetcher } from '@/lib/axios';
-import { QueryKeys } from '@/lib/queryKeys';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
+import { Keys } from '@/lib/keys';
 
-export function useGetOthers() {
+export function useGetFriends() {
     return useQuery<string[], ApiError>({
-        queryKey: [QueryKeys.GET_OTHERS],
-        queryFn: () => getFetcher<string[]>(`/${QueryKeys.GET_OTHERS}`),
+        queryKey: [Keys.Query.GET_FRIENDS],
+        queryFn: () => getFetcher<string[]>(Keys.Query.GET_FRIENDS),
     });
 }
 
-export const addOther = async (other: string) => {
-    try {
-        const response = await axios.post(
-            'http://localhost:3000/add-other',
-            { other },
-            { withCredentials: true },
-        );
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useAddFriend({ onSuccess }: { onSuccess: () => void }) {
+    return useMutation<string, ApiError, string>({
+        mutationFn: (friend) =>
+            postFetcher<string, { other: string }>(Keys.Mutation.ADD_FRIEND, {
+                other: friend,
+            }),
+        onSuccess,
+    });
+}
 
-export const removeOther = async (other: string) => {
-    try {
-        const response = await axios.post(
-            'http://localhost:3000/remove-other',
-            { other },
-            { withCredentials: true },
-        );
-        return response.data;
-    } catch (error) {
-        throw error;
-    }
-};
+export function useRemoveFriend({ onSuccess }: { onSuccess: () => void }) {
+    return useMutation<string, ApiError, string>({
+        mutationFn: (friend) =>
+            postFetcher<string, { other: string }>(
+                Keys.Mutation.REMOVE_FRIEND,
+                { other: friend },
+            ),
+        onSuccess,
+    });
+}
