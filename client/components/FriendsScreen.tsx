@@ -18,14 +18,16 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 import { queryClient } from '@/lib/queryInit';
 import { Keys } from '@/lib/keys';
+import UserSettings from './chat/UserSettings';
 
 export type Friend = {
     name: string;
 };
 
 export default function FriendsScreen() {
-    const [hovered, setHovered] = useState<string | null>(null);
     const { pressed, setPressed } = usePressedStore();
+    const [hovered, setHovered] = useState<string | null>(null);
+    const [showSettings, setShowSettings] = useState<boolean>(false);
     const [removeId, setRemoveId] = useState<string | null>(null);
 
     const { mutate: logout } = useLogoutUser({
@@ -115,8 +117,17 @@ export default function FriendsScreen() {
                 />
             )}
 
-            <View style={styles.logoutButton}>
-                <Button variant="secondary" title="Logout" onPress={logout} />
+            <View style={styles.buttons}>
+                <Button
+                    style={{ flex: 1 / 2 }}
+                    variant="secondary"
+                    title="Logout"
+                    onPress={logout}
+                />
+                <UserSettings
+                    showSettings={showSettings}
+                    setShowSettings={setShowSettings}
+                />
             </View>
         </View>
     );
@@ -158,7 +169,9 @@ const styles = StyleSheet.create({
     friendItemPressed: {
         backgroundColor: theme.colors.card,
     },
-    logoutButton: {
+    buttons: {
+        flexDirection: 'row',
+        gap: theme.spacing.sm,
         margin: theme.spacing.sm,
     },
 });
