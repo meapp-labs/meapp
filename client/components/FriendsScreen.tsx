@@ -7,18 +7,19 @@ import {
     TouchableOpacity,
     View,
 } from 'react-native';
-import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
-import { useLogoutUser } from '@/services/auth';
 import { useGetFriends } from '@/services/others';
 import AddFriend from './forms/AddFriend';
 import DeleteFriend from './DeleteFriend';
 import Ionicons from '@expo/vector-icons/Ionicons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 import { queryClient } from '@/lib/queryInit';
 import { Keys } from '@/lib/keys';
 import UserSettings from '@/components/settings/UserSettings';
+import { UserAvatar } from './UserAvatar';
+import { Logout } from '@/components/Logout';
 
 export type Friend = {
     name: string;
@@ -29,12 +30,6 @@ export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState<boolean>(false);
     const [removeId, setRemoveId] = useState<string | null>(null);
-
-    const { mutate: logout } = useLogoutUser({
-        onSuccess: () => {
-            setPressed(null);
-        },
-    });
 
     const handleChange = (pressed: string | null, removed: string | null) => {
         setPressed(pressed ? { name: pressed } : null);
@@ -67,27 +62,36 @@ export default function FriendsScreen() {
                     pressed?.name === item.name && styles.friendItemPressed,
                 ]}
             >
-                <View
-                    style={{
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        flex: 1,
-                        paddingHorizontal: theme.spacing.md,
-                    }}
-                >
-                    <Text
-                        style={{ flex: 1, paddingVertical: theme.spacing.xs }}
-                    >
-                        {item.name}
-                    </Text>
+                <View style={styles.messageBoxContainer}>
+                    {/* placeholder */}
+                    <MaterialIcons
+                        name="face"
+                        size={38}
+                        color={theme.colors.text}
+                    />
+                    <View style={styles.messageBox}>
+                        <Text>{item.name}</Text>
+                        <Text style={{ ...theme.typography.caption }}>
+                            release my nigga...
+                        </Text>
+                    </View>
+                    <Text style={styles.timestamp}>10 min </Text>
+
                     {pressed?.name === item.name && (
                         <TouchableOpacity
+                            style={[
+                                { marginRight: theme.spacing.xs },
+                                pressed?.name === item.name && {
+                                    marginLeft: theme.spacing.sm,
+                                },
+                            ]}
                             onPress={() => setRemoveId(item.name)}
                         >
                             <Ionicons
                                 name="person-remove"
                                 size={22}
                                 color="white"
+                                style={{ opacity: 0.1 }}
                             />
                         </TouchableOpacity>
                     )}
@@ -101,10 +105,8 @@ export default function FriendsScreen() {
 
     return (
         <View style={styles.friendList}>
-            <View style={styles.headerContainer}>
-                <Text style={styles.contactHeader}>Contacts</Text>
-            </View>
-            <View>
+            <View style={styles.topMenu}>
+                <UserAvatar />
                 <AddFriend />
             </View>
             {isPending ? (
@@ -118,49 +120,30 @@ export default function FriendsScreen() {
             )}
 
             <View style={styles.buttons}>
-                <Button
-                    style={{ flex: 1 / 2 }}
-                    variant="secondary"
-                    title="Logout"
-                    onPress={logout}
-                />
                 <UserSettings
                     showSettings={showSettings}
                     setShowSettings={setShowSettings}
                 />
+                <Logout />
             </View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    headerContainer: {
-        alignSelf: 'center',
-        borderBottomWidth: 1,
-        borderColor: theme.colors.card,
-        width: '90%',
-        marginBottom: theme.spacing.xs,
-    },
-    contactHeader: {
-        ...theme.typography.h2,
-        marginVertical: theme.spacing.md,
-        alignSelf: 'center',
-    },
     friendList: {
         flex: 1 / 6,
+        flexShrink: 1,
         backgroundColor: theme.colors.surface,
-        margin: theme.spacing.sm,
-        borderRadius: theme.spacing.sm,
     },
     friendItem: {
         alignItems: 'center',
         flexDirection: 'row',
-        margin: theme.spacing.sm,
         marginHorizontal: theme.spacing.sm,
+        marginVertical: theme.spacing.xs,
         borderRadius: theme.spacing.sm,
         borderColor: theme.colors.surface,
         borderWidth: 1,
-        paddingVertical: theme.spacing.md,
     },
 
     friendItemHovered: {
@@ -172,6 +155,29 @@ const styles = StyleSheet.create({
     buttons: {
         flexDirection: 'row',
         gap: theme.spacing.sm,
+        margin: theme.spacing.md,
+        alignItems: 'center',
+    },
+    messageBox: {
+        flex: 1,
+        flexShrink: 1,
+        flexDirection: 'column',
         margin: theme.spacing.sm,
+    },
+    messageBoxContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        padding: theme.spacing.sm,
+    },
+    timestamp: {
+        ...theme.typography.caption,
+        marginRight: theme.spacing.xs,
+    },
+    topMenu: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        marginHorizontal: theme.spacing.lg,
+        gap: theme.spacing.sm,
     },
 });

@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Text } from '../common/Text';
 import { theme } from '@/theme/theme';
-import { Feather } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 export type Props = {
     setShowModal: (value: boolean) => void;
@@ -21,14 +21,14 @@ const modalOptions = [
     { id: '4', title: 'PRESS ESC TO CLOSE, for now' },
 ];
 
-export default function MoreIcon({ showModal, setShowModal }: Props) {
+export default function Attachment({ showModal, setShowModal }: Props) {
     return (
         <>
             <TouchableOpacity onPress={() => setShowModal(true)}>
-                <Feather
-                    name="more-horizontal"
+                <MaterialIcons
+                    name="attach-file"
                     size={24}
-                    color={theme.colors.secondary}
+                    color={theme.colors.text}
                 />
             </TouchableOpacity>
 
@@ -49,9 +49,6 @@ export default function MoreIcon({ showModal, setShowModal }: Props) {
                                             borderBottomWidth: 1,
                                             borderColor: theme.colors.secondary,
                                         }}
-                                        onPress={() =>
-                                            console.log('JOHN STAMP')
-                                        }
                                     >
                                         <Text style={theme.typography.h2}>
                                             {item.title}

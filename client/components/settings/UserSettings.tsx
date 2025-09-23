@@ -1,6 +1,12 @@
-import Button from '@/components/common/Button';
 import { theme } from '@/theme/theme';
-import { Modal, View, StyleSheet, Pressable, ScrollView } from 'react-native';
+import {
+    Modal,
+    View,
+    StyleSheet,
+    Pressable,
+    ScrollView,
+    TouchableHighlight,
+} from 'react-native';
 import { Text } from '@/components/common/Text';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import React, { useState } from 'react';
@@ -34,11 +40,13 @@ export default function UserSettings({
     const selected = optionsPlaceholder.find((opt) => opt.name === pressed);
     return (
         <>
-            <Button
-                variant="secondary"
-                title="Settings"
-                onPress={() => setShowSettings(true)}
-            />
+            <TouchableHighlight onPress={() => setShowSettings(true)}>
+                <MaterialIcons
+                    name="settings"
+                    size={28}
+                    color={theme.colors.text}
+                />
+            </TouchableHighlight>
             {showSettings && (
                 <Modal
                     visible={showSettings}

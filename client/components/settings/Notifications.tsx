@@ -57,6 +57,7 @@ const styles = StyleSheet.create({
     },
     placeholderDesc: {
         marginBottom: theme.spacing.lg,
+        maxWidth: '95%',
     },
     itemLabel: {
         ...theme.typography.body,

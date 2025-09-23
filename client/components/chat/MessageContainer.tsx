@@ -6,12 +6,14 @@ import { theme } from '@/theme/theme';
 import MessageBar from './MessageBar';
 import { useGetMessages } from '@/services/messages';
 import { usePressedStore } from '@/stores/pressedFriendStore';
+import { FriendHeader } from './FriendHeader';
 
 export type TMessage = {
     index: string;
     from: string;
     to: string;
     text: string;
+    timestamp: string;
 };
 
 export default function MessageList({ username }: { username: string }) {
@@ -32,10 +34,13 @@ export default function MessageList({ username }: { username: string }) {
     }, [messages]);
 
     return (
-        <View style={{ flex: 1 }}>
-            <View style={styles.statusBar}>
-                <Text>{username + ' connected'}</Text>
-            </View>
+        <View style={styles.container}>
+            {pressed && (
+                <View>
+                    <FriendHeader />
+                </View>
+            )}
+
             {messagesPending ? (
                 pressed ? (
                     <Text>Loading...</Text>
@@ -53,6 +58,7 @@ export default function MessageList({ username }: { username: string }) {
                                     index={item.index}
                                     fromOther={username === item.from}
                                     text={item.text}
+                                    timestamp={item.timestamp}
                                 />
                             )}
                             keyExtractor={(item) => item.index}
@@ -77,12 +83,9 @@ export default function MessageList({ username }: { username: string }) {
 }
 
 const styles = StyleSheet.create({
-    statusBar: {
-        marginVertical: theme.spacing.sm,
-        borderRadius: theme.spacing.sm,
-        padding: theme.spacing.sm,
-        marginRight: theme.spacing.sm,
-        backgroundColor: theme.colors.surface,
-        alignItems: 'center',
+    container: {
+        flex: 1,
+        margin: theme.spacing.sm,
+        marginTop: 0,
     },
 });
