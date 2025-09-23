@@ -18,7 +18,7 @@ export function Notifications() {
             <Text style={styles.placeholderLabel}>Account notifications</Text>
             <Text style={styles.placeholderDesc}>{placeholderDesc}</Text>
             {placeholderOptions.map((item) => (
-                <View style={styles.optionHeader}>
+                <View key={item.label} style={styles.optionHeader}>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.itemLabel}>{item.label}</Text>
                         <Text style={styles.itemDescription}>
