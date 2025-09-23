@@ -18,7 +18,7 @@ import Ionicons from '@expo/vector-icons/Ionicons';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 import { queryClient } from '@/lib/queryInit';
 import { Keys } from '@/lib/keys';
-import UserSettings from './chat/UserSettings';
+import UserSettings from '@/components/settings/UserSettings';
 
 export type Friend = {
     name: string;
