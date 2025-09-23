@@ -132,8 +132,6 @@ export default function FriendsScreen() {
 
 const styles = StyleSheet.create({
     friendList: {
-        flex: 1 / 6,
-        flexShrink: 1,
         backgroundColor: theme.colors.surface,
     },
     friendItem: {
