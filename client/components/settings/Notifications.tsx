@@ -3,6 +3,12 @@ import { theme } from '@/theme/theme';
 import { View, StyleSheet, Switch } from 'react-native';
 import { useState } from 'react';
 
+declare module 'react-native' {
+    interface SwitchProps {
+        activeThumbColor?: string;
+    }
+}
+
 export function Notifications() {
     const [isEnabled, setIsEnabled] = useState<Record<string, boolean>>({});
 
@@ -31,9 +37,14 @@ export function Notifications() {
                             false: theme.colors.borderSecondary,
                             true: theme.colors.secondary,
                         }}
+                        activeThumbColor={
+                            isEnabled[item.label]
+                                ? theme.colors.text
+                                : theme.colors.card
+                        }
                         thumbColor={
                             isEnabled[item.label]
-                                ? theme.colors.backgroundSecondary
+                                ? theme.colors.text
                                 : theme.colors.card
                         }
                         value={!!isEnabled[item.label]}

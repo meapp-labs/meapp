@@ -66,6 +66,8 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
 const styles = StyleSheet.create({
     container: {
         justifyContent: 'center',
+        marginHorizontal: theme.spacing.sm,
+        marginTop: theme.spacing.sm,
     },
     inputField: {
         paddingVertical: theme.spacing.md,

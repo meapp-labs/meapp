@@ -85,7 +85,7 @@ export default function MessageList({ username }: { username: string }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        margin: theme.spacing.sm,
         marginTop: 0,
+        marginBottom: theme.spacing.sm,
     },
 });

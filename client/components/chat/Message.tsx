@@ -1,4 +1,4 @@
-import { StyleSheet, View } from 'react-native';
+import { Dimensions, StyleSheet, View } from 'react-native';
 import { Text } from '../common/Text';
 import { theme } from '@/theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -18,7 +18,12 @@ export default function Message(message: {
     }).format(date);
 
     return (
-        <View style={!message.fromOther && styles.container}>
+        <View
+            style={[
+                styles.container,
+                message.fromOther && { alignSelf: 'flex-end' },
+            ]}
+        >
             {!message.fromOther && (
                 <MaterialIcons
                     name="face"
@@ -26,6 +31,7 @@ export default function Message(message: {
                     size={34}
                 />
             )}
+            {message.fromOther && <Text style={styles.timestamp}>{time}</Text>}
             <View
                 style={[
                     styles.messageContainer,
@@ -35,49 +41,40 @@ export default function Message(message: {
                 ]}
                 key={message.index}
             >
-                <Text
-                    style={message.fromOther ? styles.myMessageText : undefined}
-                >
-                    {message.text}
-                </Text>
-                <Text style={styles.timestamp}>{time}</Text>
+                <Text>{message.text}</Text>
             </View>
+            {!message.fromOther && <Text style={styles.timestamp}>{time}</Text>}
         </View>
     );
 }
+
+const SCREEN_WIDTH = Dimensions.get('screen').width;
 
 const styles = StyleSheet.create({
     messageContainer: {
         borderRadius: 20,
         padding: 15,
-        marginVertical: 5,
-        maxWidth: '80%',
+        marginTop: theme.spacing.xs,
         marginHorizontal: theme.spacing.sm,
-        flexDirection: 'row',
+        flexShrink: 1,
+        maxWidth: SCREEN_WIDTH * 0.35,
     },
     myMessageContainer: {
         backgroundColor: theme.colors.surface,
-        alignSelf: 'flex-end',
-        borderBottomRightRadius: theme.spacing.xs,
+        borderBottomRightRadius: theme.spacing.sm,
     },
     theirMessageContainer: {
         backgroundColor: theme.colors.card,
-        alignSelf: 'flex-start',
         borderBottomLeftRadius: theme.spacing.sm,
-    },
-    myMessageText: {
-        color: theme.colors.text,
     },
     timestamp: {
         ...theme.typography.caption,
-        paddingLeft: theme.spacing.sm,
-        textAlign: 'right',
-        alignSelf: 'flex-end',
+        alignSelf: 'center',
         color: 'gray',
     },
     container: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginLeft: theme.spacing.sm,
+        marginHorizontal: theme.spacing.sm,
     },
 });
