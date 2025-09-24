@@ -8,43 +8,65 @@ export default function Message(message: {
     fromOther: boolean;
     text: string;
     timestamp: string;
+    prevTimestamp?: string;
 }) {
     const iso = message.timestamp;
     const date = new Date(iso);
+    const prevDate = message.prevTimestamp
+        ? new Date(message.prevTimestamp)
+        : null;
 
     const time = new Intl.DateTimeFormat('default', {
         hour: '2-digit',
         minute: '2-digit',
     }).format(date);
 
+    const day = new Intl.DateTimeFormat('en-US', {
+        month: 'long',
+        day: 'numeric',
+    }).format(date);
+
+    const isDifferentDay =
+        !prevDate ||
+        prevDate.getFullYear() !== date.getFullYear() ||
+        prevDate.getMonth() !== date.getMonth() ||
+        prevDate.getDate() !== date.getDate();
+
     return (
-        <View
-            style={[
-                styles.container,
-                message.fromOther && { alignSelf: 'flex-end' },
-            ]}
-        >
-            {!message.fromOther && (
-                <MaterialIcons
-                    name="face"
-                    color={theme.colors.text}
-                    size={34}
-                />
-            )}
-            {message.fromOther && <Text style={styles.timestamp}>{time}</Text>}
+        <>
+            {isDifferentDay && <Text style={styles.day}>{day}</Text>}
             <View
                 style={[
-                    styles.messageContainer,
-                    message.fromOther
-                        ? styles.myMessageContainer
-                        : styles.theirMessageContainer,
+                    styles.container,
+                    message.fromOther && { alignSelf: 'flex-end' },
                 ]}
-                key={message.index}
             >
-                <Text>{message.text}</Text>
+                {!message.fromOther && (
+                    <MaterialIcons
+                        name="face"
+                        color={theme.colors.text}
+                        size={34}
+                    />
+                )}
+                {message.fromOther && (
+                    <Text style={styles.timestamp}>{time}</Text>
+                )}
+                <View
+                    style={[
+                        styles.messageContainer,
+                        message.fromOther
+                            ? styles.myMessageContainer
+                            : styles.theirMessageContainer,
+                    ]}
+                    key={message.index}
+                >
+                    <Text>{message.text}</Text>
+                </View>
+                {!message.fromOther && (
+                    <Text style={styles.timestamp}>{time}</Text>
+                )}
             </View>
-            {!message.fromOther && <Text style={styles.timestamp}>{time}</Text>}
-        </View>
+        </>
     );
 }
 
@@ -76,5 +98,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         marginHorizontal: theme.spacing.sm,
+    },
+    day: {
+        alignSelf: 'center',
+        ...theme.typography.caption,
+        marginTop: theme.spacing.sm,
+        marginBottom: theme.spacing.xs,
     },
 });

@@ -14,6 +14,7 @@ export type TMessage = {
     to: string;
     text: string;
     timestamp: string;
+    prevTimestamp?: string;
 };
 
 export default function MessageList({ username }: { username: string }) {
@@ -53,12 +54,17 @@ export default function MessageList({ username }: { username: string }) {
                         <FlatList
                             ref={flatListRef}
                             data={messages}
-                            renderItem={({ item }) => (
+                            renderItem={({ item, index }) => (
                                 <Message
                                     index={item.index}
                                     fromOther={username === item.from}
                                     text={item.text}
                                     timestamp={item.timestamp}
+                                    prevTimestamp={
+                                        index > 0
+                                            ? messages[index - 1].timestamp
+                                            : undefined
+                                    }
                                 />
                             )}
                             keyExtractor={(item) => item.index}
