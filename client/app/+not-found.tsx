@@ -1,5 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 import { Text } from '@/components/common/Text';
+import { theme } from '@/theme/theme';
 
 export default function NotFoundScreen() {
     return (
@@ -17,5 +18,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         padding: 20,
+        backgroundColor: theme.colors.background,
     },
 });

@@ -44,9 +44,9 @@ export default function MessageList({ username }: { username: string }) {
 
             {messagesPending ? (
                 pressed ? (
-                    <Text>Loading...</Text>
+                    <Text style={styles.tooltip}>Loading...</Text>
                 ) : (
-                    <Text>Select a friend.</Text>
+                    <Text style={styles.tooltip}>Select a friend.</Text>
                 )
             ) : (
                 messagesSuccess && (
@@ -93,5 +93,9 @@ const styles = StyleSheet.create({
         flex: 1,
         marginTop: 0,
         marginBottom: theme.spacing.sm,
+    },
+    tooltip: {
+        alignSelf: 'center',
+        marginTop: theme.spacing.sm,
     },
 });

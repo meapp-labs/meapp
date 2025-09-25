@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     container: {
         justifyContent: 'center',
         marginHorizontal: theme.spacing.sm,
-        marginTop: theme.spacing.sm,
+        marginTop: theme.spacing.xs,
     },
     inputField: {
         paddingVertical: theme.spacing.md,

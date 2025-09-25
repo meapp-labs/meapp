@@ -72,7 +72,7 @@ export default function FriendsScreen() {
                     <View style={styles.messageBox}>
                         <Text>{item.name}</Text>
                         <Text style={{ ...theme.typography.caption }}>
-                            release my nigga...
+                            We NEED to play Nightreign...
                         </Text>
                     </View>
                     <Text style={styles.timestamp}>10 min </Text>
