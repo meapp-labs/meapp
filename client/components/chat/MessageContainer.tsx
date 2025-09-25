@@ -1,12 +1,12 @@
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Text } from '../common/Text';
+import { Text } from '@/components/common/Text';
 import { useEffect, useRef } from 'react';
-import Message from './Message';
+import Message from '@/components/chat/Message';
 import { theme } from '@/theme/theme';
-import MessageBar from './MessageBar';
+import MessageBar from '@/components/chat/MessageBar';
 import { useGetMessages } from '@/services/messages';
 import { usePressedStore } from '@/stores/pressedFriendStore';
-import { FriendHeader } from './FriendHeader';
+import { FriendHeader } from '@/components/chat/FriendHeader';
 
 export type TMessage = {
     index: string;
@@ -55,16 +55,17 @@ export default function MessageList({ username }: { username: string }) {
                             ref={flatListRef}
                             data={messages}
                             renderItem={({ item, index }) => (
-                                <Message
-                                    index={item.index}
-                                    fromOther={username === item.from}
-                                    text={item.text}
-                                    timestamp={item.timestamp}
-                                    prevTimestamp={
-                                        index > 0
-                                            ? messages[index - 1].timestamp
-                                            : undefined
-                                    }
+                                <Message.Wrapper
+                                    message={{
+                                        index: item.index,
+                                        fromOther: username === item.from,
+                                        text: item.text,
+                                        timestamp: item.timestamp,
+                                        prevTimestamp:
+                                            index > 0
+                                                ? messages[index - 1].timestamp
+                                                : undefined,
+                                    }}
                                 />
                             )}
                             keyExtractor={(item) => item.index}

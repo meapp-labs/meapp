@@ -8,6 +8,7 @@ import {
 import { Text } from '../common/Text';
 import { theme } from '@/theme/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { set } from 'zod';
 
 export type Props = {
     setShowModal: (value: boolean) => void;
@@ -18,7 +19,7 @@ const modalOptions = [
     { id: '1', title: 'Delete from contacts' },
     { id: '2', title: 'Some option' },
     { id: '3', title: 'Some other option' },
-    { id: '4', title: 'PRESS ESC TO CLOSE, for now' },
+    { id: '4', title: 'Some other, other option' },
 ];
 
 export default function Attachment({ showModal, setShowModal }: Props) {
@@ -44,6 +45,7 @@ export default function Attachment({ showModal, setShowModal }: Props) {
                             <View style={{ gap: theme.spacing.md }}>
                                 {modalOptions.map((item) => (
                                     <TouchableOpacity
+                                        onPress={() => setShowModal(false)}
                                         key={item.id}
                                         style={{
                                             borderBottomWidth: 1,
