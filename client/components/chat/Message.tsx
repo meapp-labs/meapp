@@ -3,7 +3,7 @@ import { theme } from '@/theme/theme';
 import { Text } from '@/components/common/Text';
 import { MaterialIcons } from '@expo/vector-icons';
 
-type Message = {
+type BaseMessage = {
     index: string;
     fromOther: boolean;
     text: string;
@@ -12,7 +12,7 @@ type Message = {
 };
 
 type MessageProps = {
-    message: Message;
+    message: BaseMessage;
     time: string;
 };
 
@@ -45,7 +45,7 @@ const Message = {
             </View>
         );
     },
-    Wrapper: function ({ message }: { message: Message }) {
+    Wrapper: function ({ message }: { message: BaseMessage }) {
         const iso = message.timestamp;
         const date = new Date(iso);
         const prevDate = message.prevTimestamp

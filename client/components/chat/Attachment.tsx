@@ -8,7 +8,6 @@ import {
 import { Text } from '../common/Text';
 import { theme } from '@/theme/theme';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { set } from 'zod';
 
 export type Props = {
     setShowModal: (value: boolean) => void;
