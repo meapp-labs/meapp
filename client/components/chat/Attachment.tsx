@@ -7,7 +7,7 @@ import {
 } from 'react-native';
 import { Text } from '../common/Text';
 import { theme } from '@/theme/theme';
-import { Feather } from '@expo/vector-icons';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 
 export type Props = {
     setShowModal: (value: boolean) => void;
@@ -18,17 +18,17 @@ const modalOptions = [
     { id: '1', title: 'Delete from contacts' },
     { id: '2', title: 'Some option' },
     { id: '3', title: 'Some other option' },
-    { id: '4', title: 'PRESS ESC TO CLOSE, for now' },
+    { id: '4', title: 'Some other, other option' },
 ];
 
-export default function MoreIcon({ showModal, setShowModal }: Props) {
+export default function Attachment({ showModal, setShowModal }: Props) {
     return (
         <>
             <TouchableOpacity onPress={() => setShowModal(true)}>
-                <Feather
-                    name="more-horizontal"
+                <MaterialIcons
+                    name="attach-file"
                     size={24}
-                    color={theme.colors.secondary}
+                    color={theme.colors.text}
                 />
             </TouchableOpacity>
 
@@ -44,14 +44,12 @@ export default function MoreIcon({ showModal, setShowModal }: Props) {
                             <View style={{ gap: theme.spacing.md }}>
                                 {modalOptions.map((item) => (
                                     <TouchableOpacity
+                                        onPress={() => setShowModal(false)}
                                         key={item.id}
                                         style={{
                                             borderBottomWidth: 1,
                                             borderColor: theme.colors.secondary,
                                         }}
-                                        onPress={() =>
-                                            console.log('JOHN STAMP')
-                                        }
                                     >
                                         <Text style={theme.typography.h2}>
                                             {item.title}

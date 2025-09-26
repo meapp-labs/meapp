@@ -4,12 +4,13 @@ import {
     TextInput,
     StyleSheet,
     View,
+    TouchableOpacity,
 } from 'react-native';
 import { useState } from 'react';
 import { theme } from '@/theme/theme';
-import Button from '../common/Button';
+import { MaterialIcons } from '@expo/vector-icons';
 import { MessageData, useSendMessage } from '@/services/messages';
-import MoreIcon from './MoreIcon';
+import Attachment from '@/components/chat/Attachment';
 import { usePressedStore } from '@/stores/pressedFriendStore';
 
 export default function MessageBar({ refetch }: { refetch: () => void }) {
@@ -35,60 +36,53 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
         >
-            <View style={styles.inputContainer}>
-                <View style={styles.borderWrapper}>
-                    <TextInput
-                        style={styles.inputField}
-                        value={inputData}
-                        onChangeText={setInputData}
-                        placeholder="Type a message..."
-                        placeholderTextColor="#9BA1A6"
-                        onSubmitEditing={handleSend}
+            <View style={styles.container}>
+                <View style={styles.attachment}>
+                    <Attachment
+                        showModal={showModal}
+                        setShowModal={setShowModal}
                     />
-                    <View style={styles.moreIcon}>
-                        <MoreIcon
-                            showModal={showModal}
-                            setShowModal={setShowModal}
-                        />
-                    </View>
                 </View>
-                <Button variant="secondary" title="Send" onPress={handleSend} />
+                <TextInput
+                    style={styles.inputField}
+                    value={inputData}
+                    placeholder="Type a message..."
+                    placeholderTextColor="#9BA1A6"
+                    onChangeText={setInputData}
+                    onSubmitEditing={handleSend}
+                />
+                <TouchableOpacity style={styles.send} onPress={handleSend}>
+                    <MaterialIcons
+                        name="send"
+                        size={24}
+                        color={theme.colors.text}
+                    />
+                </TouchableOpacity>
             </View>
         </KeyboardAvoidingView>
     );
 }
 
 const styles = StyleSheet.create({
-    inputContainer: {
-        gap: theme.spacing.sm,
-        marginVertical: theme.spacing.sm,
-        marginRight: theme.spacing.sm,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
+    container: {
+        justifyContent: 'center',
+        marginHorizontal: theme.spacing.sm,
+        marginTop: theme.spacing.xs,
     },
     inputField: {
-        flex: 1,
-        padding: theme.spacing.md,
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: 48,
         color: theme.colors.text,
         width: '100%',
-        borderRadius: theme.spacing.sm,
-    },
-    sendButton: {
-        padding: theme.spacing.md,
-        alignSelf: 'center',
-        backgroundColor: theme.colors.secondary,
-        borderRadius: theme.spacing.sm,
-    },
-    borderWrapper: {
-        flex: 1,
-        flexDirection: 'row',
+        borderRadius: theme.spacing.xl,
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.spacing.sm,
-        alignItems: 'center',
-        position: 'relative',
     },
-    moreIcon: {
+    send: {
         position: 'absolute',
         right: theme.spacing.md,
+    },
+    attachment: {
+        position: 'absolute',
+        left: theme.spacing.md,
     },
 });

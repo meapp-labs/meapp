@@ -1,17 +1,20 @@
 import { FlatList, StyleSheet, View } from 'react-native';
-import { Text } from '../common/Text';
+import { Text } from '@/components/common/Text';
 import { useEffect, useRef } from 'react';
-import Message from './Message';
+import Message from '@/components/chat/Message';
 import { theme } from '@/theme/theme';
-import MessageBar from './MessageBar';
+import MessageBar from '@/components/chat/MessageBar';
 import { useGetMessages } from '@/services/messages';
 import { usePressedStore } from '@/stores/pressedFriendStore';
+import { FriendHeader } from '@/components/chat/FriendHeader';
 
 export type TMessage = {
     index: string;
     from: string;
     to: string;
     text: string;
+    timestamp: string;
+    prevTimestamp?: string;
 };
 
 export default function MessageList({ username }: { username: string }) {
@@ -32,15 +35,18 @@ export default function MessageList({ username }: { username: string }) {
     }, [messages]);
 
     return (
-        <View style={{ flex: 1 }}>
-            <View style={styles.statusBar}>
-                <Text>{username + ' connected'}</Text>
-            </View>
+        <View style={styles.container}>
+            {pressed && (
+                <View>
+                    <FriendHeader />
+                </View>
+            )}
+
             {messagesPending ? (
                 pressed ? (
-                    <Text>Loading...</Text>
+                    <Text style={styles.tooltip}>Loading...</Text>
                 ) : (
-                    <Text>Select a friend.</Text>
+                    <Text style={styles.tooltip}>Select a friend.</Text>
                 )
             ) : (
                 messagesSuccess && (
@@ -48,11 +54,18 @@ export default function MessageList({ username }: { username: string }) {
                         <FlatList
                             ref={flatListRef}
                             data={messages}
-                            renderItem={({ item }) => (
-                                <Message
-                                    index={item.index}
-                                    fromOther={username === item.from}
-                                    text={item.text}
+                            renderItem={({ item, index }) => (
+                                <Message.Wrapper
+                                    message={{
+                                        index: item.index,
+                                        fromOther: username === item.from,
+                                        text: item.text,
+                                        timestamp: item.timestamp,
+                                        prevTimestamp:
+                                            index > 0
+                                                ? messages[index - 1].timestamp
+                                                : undefined,
+                                    }}
                                 />
                             )}
                             keyExtractor={(item) => item.index}
@@ -77,12 +90,13 @@ export default function MessageList({ username }: { username: string }) {
 }
 
 const styles = StyleSheet.create({
-    statusBar: {
-        marginVertical: theme.spacing.sm,
-        borderRadius: theme.spacing.sm,
-        padding: theme.spacing.sm,
-        marginRight: theme.spacing.sm,
-        backgroundColor: theme.colors.surface,
-        alignItems: 'center',
+    container: {
+        flex: 1,
+        marginTop: 0,
+        marginBottom: theme.spacing.sm,
+    },
+    tooltip: {
+        alignSelf: 'center',
+        marginTop: theme.spacing.sm,
     },
 });

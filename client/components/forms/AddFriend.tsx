@@ -1,6 +1,6 @@
 import { theme } from '@/theme/theme';
-import { TextInput, View, StyleSheet } from 'react-native';
-import Button from '../common/Button';
+import { TextInput, View, StyleSheet, TouchableOpacity } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Text } from '../common/Text';
 import { useAddFriend } from '@/services/others';
 import { useState } from 'react';
@@ -22,7 +22,7 @@ export default function AddFriend() {
     });
 
     return (
-        <View>
+        <View style={{ flex: 1 }}>
             <View style={styles.container}>
                 <TextInput
                     value={inputData}
@@ -31,10 +31,9 @@ export default function AddFriend() {
                     style={styles.textInput}
                     onChangeText={setInputData}
                 />
-                <Button
-                    style={styles.addButton}
-                    variant="secondary"
-                    title="Add friend"
+
+                <TouchableOpacity
+                    style={styles.searchIcon}
                     onPress={() => {
                         handlePress(inputData, {
                             onSettled: () => {
@@ -42,7 +41,13 @@ export default function AddFriend() {
                             },
                         });
                     }}
-                />
+                >
+                    <MaterialIcons
+                        name="search"
+                        size={24}
+                        color={theme.colors.text}
+                    />
+                </TouchableOpacity>
             </View>
 
             {isError && (
@@ -78,9 +83,9 @@ const styles = StyleSheet.create({
     textInput: {
         color: theme.colors.text,
         backgroundColor: theme.colors.card,
-        padding: theme.spacing.sm,
-        borderRadius: theme.spacing.sm,
-        flexGrow: 1,
+        padding: theme.spacing.md,
+        borderRadius: theme.spacing.lg,
+        flex: 1,
     },
     response: {
         color: theme.colors.success,
@@ -91,5 +96,10 @@ const styles = StyleSheet.create({
     addButton: {
         borderRadius: theme.spacing.sm,
         padding: theme.spacing.sm,
+    },
+    searchIcon: {
+        alignSelf: 'center',
+        position: 'absolute',
+        right: theme.spacing.md,
     },
 });
