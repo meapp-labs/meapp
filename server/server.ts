@@ -53,23 +53,11 @@ await server.register(swaggerUI, {
 });
 
 await server.register(fastifyCors, {
-    origin: (origin, cb) => {
-        if (!origin) return cb(null, true);
-
-        try {
-            const { hostname, protocol } = new URL(origin);
-            if (
-                (hostname === 'localhost' || hostname === '127.0.0.1') &&
-                (protocol === 'http:' || protocol === 'https:')
-            ) {
-                cb(null, true);
-            } else {
-                cb(new Error('Not allowed by CORS'), false);
-            }
-        } catch {
-            cb(new Error('Invalid origin'), false);
-        }
-    },
+    origin:
+        process.env.NODE_ENV === 'production'
+            ? env.EXTERNAL_IP
+            : /localhost|127\.0\.0\.1/,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     credentials: true,
 });
 
@@ -87,16 +75,16 @@ await server.register(fastifySecureSession, {
     },
 });
 
-server.register(authenticate);
+server.register(authenticate, { prefix: '/api' });
 
-server.register(healthRoutes);
-server.register(authRoutes);
-server.register(messageRoutes);
-server.register(otherRoutes);
+server.register(healthRoutes, { prefix: '/api' });
+server.register(authRoutes, { prefix: '/api' });
+server.register(messageRoutes, { prefix: '/api' });
+server.register(otherRoutes, { prefix: '/api' });
 
 const start = async () => {
     try {
-        await server.listen({ port: env.PORT });
+        await server.listen({ host: env.HOST, port: env.PORT });
     } catch (err) {
         server.log.error(err);
         process.exit(1);
