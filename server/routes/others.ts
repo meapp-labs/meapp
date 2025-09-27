@@ -2,7 +2,6 @@ import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
 import z from 'zod';
 
-import { LOGIN_CONFIG } from '../lib/config';
 import {
     ApiError,
     createUserNotFoundError,
@@ -64,7 +63,6 @@ export async function otherRoutes(server: FastifyInstance) {
                 await handleAsyncOperation(
                     async () => {
                         await redis.rpush(key, other);
-                        await redis.expire(key, LOGIN_CONFIG.MESSAGE_EXPIRY);
                     },
                     'Failed to add item',
                     ErrorCode.DATABASE_ERROR,
