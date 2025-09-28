@@ -38,7 +38,7 @@ const getMessageKey = (user1: string, user2: string) => {
     return user1 > user2 ? `${user1}+${user2}` : `${user2}+${user1}`;
 };
 
-export async function messageRoutes(server: FastifyInstance) {
+export function messageRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     server.withTypeProvider<ZodTypeProvider>().post(

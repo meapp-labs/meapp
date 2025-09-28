@@ -64,7 +64,7 @@ async function clearLoginAttempts(
     }
 }
 
-export async function authRoutes(server: FastifyInstance) {
+export function authRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     // Registration endpoint
