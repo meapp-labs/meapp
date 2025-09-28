@@ -45,7 +45,6 @@ export default function RegisterForm() {
     });
 
     const onSubmit = handleSubmit((data: RegisterType) => {
-        console.log(data);
         mutate(data);
     });
 

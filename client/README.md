@@ -3,7 +3,7 @@
 1. **Install dependencies**
 
     ```bash
-    yarn install
+    yarn install --frozen-lockfile
     ```
 
 2. **Set up environment variables**
