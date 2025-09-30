@@ -29,5 +29,6 @@
     "emmet.includeLanguages": {
         "javascript": "javascriptreact",
         "typescript": "typescriptreact"
-    }
+    },
+    "postman.settings.dotenv-detection-notification-visibility": false
 }

@@ -27,13 +27,6 @@ const getMessagesSchema = z.object({
         .optional(),
 });
 
-type Message = {
-    from: string;
-    to: string;
-    text: string;
-    timestamp: string;
-};
-
 const getMessageKey = (user1: string, user2: string) => {
     return user1 > user2 ? `${user1}+${user2}` : `${user2}+${user1}`;
 };
@@ -53,6 +46,7 @@ export async function messageRoutes(server: FastifyInstance) {
 
             const recipientExists = await handleAsyncOperation(
                 () => redis.exists(recipientUsername),
+
                 'Failed to check recipient existence',
                 ErrorCode.DATABASE_ERROR,
             );
@@ -64,6 +58,7 @@ export async function messageRoutes(server: FastifyInstance) {
             const recipientOthersKey = `${recipientUsername}:others`;
             const recipientOthers = await handleAsyncOperation(
                 () => redis.lrange(recipientOthersKey, 0, -1),
+
                 'Failed to retrieve recipient data',
                 ErrorCode.DATABASE_ERROR,
             );
@@ -76,20 +71,14 @@ export async function messageRoutes(server: FastifyInstance) {
 
             const key = getMessageKey(username, recipientUsername);
 
-            const message: Message = {
-                from: username,
-                to: recipientUsername,
-                text,
-                timestamp: new Date().toISOString(),
-            };
-
             await handleAsyncOperation(
-                () => redis.rpush(key, JSON.stringify(message)),
+                () => redis.rpush(key),
                 'Failed to send message',
+
                 ErrorCode.DATABASE_ERROR,
             );
 
-            reply.send(message);
+            reply.send();
         },
     );
 
@@ -99,6 +88,7 @@ export async function messageRoutes(server: FastifyInstance) {
             schema: { querystring: getMessagesSchema },
             preHandler: [server.authenticate],
         },
+
         async (request, reply) => {
             const { username } = request;
             const { from, index: lastMessageIndex = 0 } = request.query;
@@ -114,7 +104,7 @@ export async function messageRoutes(server: FastifyInstance) {
             const messages = messagesRaw.map((message, index) => {
                 return {
                     index: index + lastMessageIndex,
-                    ...(JSON.parse(message) as Message),
+                    ...(JSON.parse(message) as Boolean),
                 };
             });
 
