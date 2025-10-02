@@ -16,7 +16,7 @@ const otherSchema = z.object({
     other: usernameSchema,
 });
 
-export async function otherRoutes(server: FastifyInstance) {
+export function otherRoutes(server: FastifyInstance) {
     const { redis } = server;
 
     // Add other endpoint

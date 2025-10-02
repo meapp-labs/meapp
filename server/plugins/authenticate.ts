@@ -4,7 +4,7 @@ import fp from 'fastify-plugin';
 import { createAuthError, ErrorCode, handleError } from '../lib/errors';
 import { handleSyncOperation } from '../lib/helpers';
 
-export default fp(async function (server: FastifyInstance) {
+export default fp(function (server: FastifyInstance) {
     server.decorate(
         'authenticate',
         async (request: FastifyRequest, reply: FastifyReply) => {

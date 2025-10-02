@@ -1,0 +1,14 @@
+#!/bin/sh
+echo "Precommit hook"
+set -e
+
+cd server
+bun format:fix
+bun lint:fix
+git add .
+bun test
+
+cd ../client
+yarn format:fix
+yarn lint:fix
+git add .
