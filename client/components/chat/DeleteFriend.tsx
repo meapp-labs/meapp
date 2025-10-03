@@ -1,5 +1,5 @@
 import { theme } from '@/theme/theme';
-import { Text } from './common/Text';
+import { Text } from '@/components/common/Text';
 import { View, StyleSheet, Pressable } from 'react-native';
 import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
 import { useRemoveFriend } from '@/services/others';
@@ -21,7 +21,7 @@ export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
 
     return (
         <View style={styles.container}>
-            <Text style={styles.text}>Are you sure?</Text>
+            <Text style={styles.text}>Remove this contact?</Text>
             <View style={styles.icons}>
                 <Pressable
                     onPress={() => {
@@ -35,7 +35,7 @@ export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
                         color={theme.colors.success}
                     />
                 </Pressable>
-                <Pressable onPress={() => onChange(null, null)}>
+                <Pressable onPress={() => onChange(friend, null)}>
                     <FontAwesome6
                         name="xmark-circle"
                         size={24}
@@ -51,10 +51,11 @@ export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
 const styles = StyleSheet.create({
     container: {
         alignItems: 'center',
+        marginTop: theme.spacing.sm,
     },
     text: {
         ...theme.typography.caption,
-        color: theme.colors.warning,
+        color: theme.colors.textSecondary,
     },
     icons: {
         alignItems: 'center',

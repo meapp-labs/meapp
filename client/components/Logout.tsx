@@ -1,5 +1,5 @@
 import { useLogoutUser } from '@/services/auth';
-import { usePressedStore } from '@/stores/pressedFriendStore';
+import { usePressedStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';

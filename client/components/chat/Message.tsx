@@ -1,7 +1,8 @@
-import { View, Dimensions, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { theme } from '@/theme/theme';
 import { Text } from '@/components/common/Text';
 import { MaterialIcons } from '@expo/vector-icons';
+import useBreakpoint from '@/hooks/useBreakpoint';
 
 type BaseMessage = {
     index: string;
@@ -18,8 +19,14 @@ type MessageProps = {
 
 const Message = {
     Received: function ({ message, time }: MessageProps) {
+        const { isDesktop, width } = useBreakpoint();
         return (
-            <View style={styles.messageGroupContainer}>
+            <View
+                style={[
+                    styles.messageGroupContainer,
+                    isDesktop && { maxWidth: width * 0.35 },
+                ]}
+            >
                 <MaterialIcons
                     name="face"
                     color={theme.colors.text}
@@ -33,10 +40,12 @@ const Message = {
         );
     },
     Sent: function ({ message, time }: MessageProps) {
+        const { isDesktop, width } = useBreakpoint();
         return (
             <View
                 style={[
                     styles.messageGroupContainer,
+                    isDesktop && { maxWidth: width * 0.35 },
                     { alignSelf: 'flex-end' },
                 ]}
             >
@@ -84,8 +93,6 @@ const Message = {
     },
 };
 
-const SCREEN_WIDTH = Dimensions.get('screen').width;
-
 const styles = StyleSheet.create({
     messageDate: {
         alignSelf: 'center',
@@ -99,7 +106,6 @@ const styles = StyleSheet.create({
         marginHorizontal: theme.spacing.sm,
         gap: theme.spacing.sm,
         marginVertical: theme.spacing.xs,
-        maxWidth: SCREEN_WIDTH * 0.35,
     },
     time: {
         ...theme.typography.caption,

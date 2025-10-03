@@ -1,4 +1,4 @@
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/lib/stores';
 import { Stack } from 'expo-router';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryInit';

@@ -5,7 +5,7 @@ import Message from '@/components/chat/Message';
 import { theme } from '@/theme/theme';
 import MessageBar from '@/components/chat/MessageBar';
 import { useGetMessages } from '@/services/messages';
-import { usePressedStore } from '@/stores/pressedFriendStore';
+import { usePressedStore } from '@/lib/stores';
 import { FriendHeader } from '@/components/chat/FriendHeader';
 
 export type TMessage = {
