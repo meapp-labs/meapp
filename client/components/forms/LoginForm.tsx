@@ -13,7 +13,7 @@ import { Text } from '../common/Text';
 import { router } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useState } from 'react';
-import { useAuthStore } from '@/stores/authStore';
+import { useAuthStore } from '@/lib/stores';
 import { LoginType, LoginSchema } from '@/validation/userValidation';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm, Controller } from 'react-hook-form';

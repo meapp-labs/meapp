@@ -4,22 +4,21 @@ import {
     FlatList,
     Pressable,
     StyleSheet,
-    TouchableOpacity,
     View,
 } from 'react-native';
 import { Text } from '@/components/common/Text';
 import { theme } from '@/theme/theme';
 import { useGetFriends } from '@/services/others';
-import AddFriend from './forms/AddFriend';
-import DeleteFriend from './DeleteFriend';
-import Ionicons from '@expo/vector-icons/Ionicons';
+import TopMenu from '@/components/forms/TopMenu';
+import DeleteFriend from '@/components/chat/DeleteFriend';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { usePressedStore } from '@/stores/pressedFriendStore';
+import { usePressedStore } from '@/lib/stores';
 import { queryClient } from '@/lib/queryInit';
 import { Keys } from '@/lib/keys';
 import UserSettings from '@/components/settings/UserSettings';
-import { UserAvatar } from './UserAvatar';
 import { Logout } from '@/components/Logout';
+import { RemoveIcon } from '@/components/chat/RemoveIcon';
+import useBreakpoint from '@/hooks/useBreakpoint';
 
 export type Friend = {
     name: string;
@@ -30,6 +29,7 @@ export default function FriendsScreen() {
     const [hovered, setHovered] = useState<string | null>(null);
     const [showSettings, setShowSettings] = useState<boolean>(false);
     const [removeId, setRemoveId] = useState<string | null>(null);
+    const { isMobile, isDesktop } = useBreakpoint();
 
     const handleChange = (pressed: string | null, removed: string | null) => {
         setPressed(pressed ? { name: pressed } : null);
@@ -63,7 +63,6 @@ export default function FriendsScreen() {
                 ]}
             >
                 <View style={styles.messageBoxContainer}>
-                    {/* placeholder */}
                     <MaterialIcons
                         name="face"
                         size={38}
@@ -76,24 +75,8 @@ export default function FriendsScreen() {
                         </Text>
                     </View>
                     <Text style={styles.timestamp}>10 min </Text>
-
-                    {pressed?.name === item.name && (
-                        <TouchableOpacity
-                            style={[
-                                { marginRight: theme.spacing.xs },
-                                pressed?.name === item.name && {
-                                    marginLeft: theme.spacing.sm,
-                                },
-                            ]}
-                            onPress={() => setRemoveId(item.name)}
-                        >
-                            <Ionicons
-                                name="person-remove"
-                                size={22}
-                                color="white"
-                                style={{ opacity: 0.1 }}
-                            />
-                        </TouchableOpacity>
+                    {isDesktop && pressed?.name === item.name && (
+                        <RemoveIcon item={item} setRemoveId={setRemoveId} />
                     )}
                 </View>
             </Pressable>
@@ -104,10 +87,9 @@ export default function FriendsScreen() {
     );
 
     return (
-        <View style={styles.friendList}>
+        <View style={[styles.friendList, isMobile && { flex: 1 }]}>
             <View style={styles.topMenu}>
-                <UserAvatar />
-                <AddFriend />
+                <TopMenu />
             </View>
             {isPending ? (
                 <ActivityIndicator />
