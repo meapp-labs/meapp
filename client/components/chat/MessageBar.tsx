@@ -11,7 +11,7 @@ import { theme } from '@/theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MessageData, useSendMessage } from '@/services/messages';
 import Attachment from '@/components/chat/Attachment';
-import { usePressedStore } from '@/stores/pressedFriendStore';
+import { usePressedStore } from '@/lib/stores';
 
 export default function MessageBar({ refetch }: { refetch: () => void }) {
     const { pressed } = usePressedStore();
