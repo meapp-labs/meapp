@@ -6,7 +6,7 @@ import {
     View,
     TouchableOpacity,
 } from 'react-native';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { theme } from '@/theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
 import { MessageData, useSendMessage } from '@/services/messages';
@@ -17,6 +17,7 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
     const { pressed } = usePressedStore();
     const [inputData, setInputData] = useState('');
     const [showModal, setShowModal] = useState(false);
+    const inputRef = useRef<TextInput>(null);
 
     const { mutate } = useSendMessage({ onSuccess: refetch });
 
@@ -28,6 +29,7 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
             };
             mutate(messageData);
             setInputData('');
+            inputRef.current?.focus();
         }
     };
 
@@ -44,12 +46,15 @@ export default function MessageBar({ refetch }: { refetch: () => void }) {
                     />
                 </View>
                 <TextInput
+                    ref={inputRef}
                     style={styles.inputField}
                     value={inputData}
                     placeholder="Type a message..."
                     placeholderTextColor="#9BA1A6"
                     onChangeText={setInputData}
                     onSubmitEditing={handleSend}
+                    blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
+                    submitBehavior="submit"
                 />
                 <TouchableOpacity style={styles.send} onPress={handleSend}>
                     <MaterialIcons
