@@ -21,7 +21,7 @@ export default function TopMenu() {
     reset,
   } = useAddFriend({
     onSuccess: () =>
-      queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] }),
+      void queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] }),
   });
 
   return (

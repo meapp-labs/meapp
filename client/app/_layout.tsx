@@ -5,7 +5,7 @@ import { queryClient } from '@/lib/queryInit';
 import { useAuthStore } from '@/lib/stores';
 
 export default function RootLayout() {
-  const username = useAuthStore((state: any) => state.username);
+  const username = useAuthStore((state) => state.username);
 
   return (
     <QueryClientProvider client={queryClient}>

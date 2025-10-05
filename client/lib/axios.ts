@@ -8,7 +8,7 @@ export const api = axios.create({
   withCredentials: true,
 });
 
-export async function getFetcher<T, P = Record<string, any>>(
+export async function getFetcher<T, P = Record<string, string>>(
   url: string,
   params?: P,
 ): Promise<T> {

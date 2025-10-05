@@ -47,7 +47,7 @@ export default function FriendsScreen() {
     <>
       <Pressable
         onPress={() => {
-          queryClient.refetchQueries({
+          void queryClient.refetchQueries({
             queryKey: [Keys.Query.GET_MESSAGES],
           });
         }}

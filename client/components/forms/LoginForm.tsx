@@ -83,7 +83,9 @@ export default function LoginForm() {
             name="username"
             render={({ field: { value, onChange, onBlur } }) => (
               <TextInput
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={() => {
+                  void onSubmit();
+                }}
                 style={[
                   styles.formInput,
                   errors.username && {
@@ -119,7 +121,9 @@ export default function LoginForm() {
             name="password"
             render={({ field: { value, onChange, onBlur } }) => (
               <TextInput
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={() => {
+                  void onSubmit();
+                }}
                 secureTextEntry={!isVisible}
                 style={[
                   styles.formInput,
@@ -131,14 +135,21 @@ export default function LoginForm() {
                 placeholderTextColor={theme.colors.textSecondary}
                 value={value}
                 onChangeText={onChange}
-                onBlur={onBlur}
+                onBlur={() => {
+                  void onBlur();
+                }}
               />
             )}
           />
           {errors.password && (
             <Text style={styles.errorText}>{errors.password.message}</Text>
           )}
-          <TouchableOpacity style={styles.submitButton} onPress={onSubmit}>
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={() => {
+              void onSubmit();
+            }}
+          >
             <Text style={{ color: 'black', fontWeight: 'bold' }}>Login</Text>
           </TouchableOpacity>
         </View>

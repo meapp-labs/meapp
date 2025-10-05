@@ -8,7 +8,7 @@ import { useAuthStore, usePressedStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
 export default function ChatScreen() {
-  const username = useAuthStore((state: any) => state.username);
+  const username = useAuthStore((state) => state.username);
   const { pressed, setPressed } = usePressedStore();
   const { isMobile } = useBreakpoint();
 

@@ -3,14 +3,14 @@ import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/common/Text';
 import useBreakpoint from '@/hooks/useBreakpoint';
+import { useAuthStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
-type BaseMessage = {
+export type BaseMessage = {
   index: string;
-  fromOther: boolean;
+  from: string;
   text: string;
   timestamp: string;
-  prevTimestamp?: string;
 };
 
 type MessageProps = {
@@ -49,12 +49,17 @@ const Message = {
       </View>
     );
   },
-  Wrapper: function ({ message }: { message: BaseMessage }) {
+  Wrapper: function ({
+    message,
+    prevTimestamp,
+  }: {
+    message: BaseMessage;
+    prevTimestamp: string | undefined;
+  }) {
+    const { username } = useAuthStore();
     const iso = message.timestamp;
     const date = new Date(iso);
-    const prevDate = message.prevTimestamp
-      ? new Date(message.prevTimestamp)
-      : null;
+    const prevDate = prevTimestamp ? new Date(prevTimestamp) : null;
 
     const time = new Intl.DateTimeFormat('default', {
       hour: '2-digit',
@@ -78,7 +83,7 @@ const Message = {
         {isDifferentDay && (
           <Text style={styles.messageDate}>{messageDate}</Text>
         )}
-        {message.fromOther ? (
+        {message.from === username ? (
           <Message.Sent message={message} time={time} />
         ) : (
           <Message.Received message={message} time={time} />

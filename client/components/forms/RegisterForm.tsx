@@ -89,7 +89,7 @@ export default function RegisterForm() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 editable={!isPending}
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={void onSubmit}
               />
             )}
           />
@@ -118,7 +118,7 @@ export default function RegisterForm() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 editable={!isPending}
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={void onSubmit}
               />
             )}
           />
@@ -158,7 +158,7 @@ export default function RegisterForm() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 editable={!isPending}
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={void onSubmit}
               />
             )}
           />
@@ -185,7 +185,7 @@ export default function RegisterForm() {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 editable={!isPending}
-                onSubmitEditing={onSubmit}
+                onSubmitEditing={void onSubmit}
               />
             )}
           />
@@ -196,7 +196,7 @@ export default function RegisterForm() {
           )}
 
           <TouchableOpacity
-            onPress={() => onSubmit()}
+            onPress={void onSubmit}
             style={styles.submitButton}
             disabled={isPending}
           >

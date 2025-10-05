@@ -2,23 +2,14 @@ import { useEffect, useRef } from 'react';
 import { FlatList, StyleSheet, View } from 'react-native';
 
 import { FriendHeader } from '@/components/chat/FriendHeader';
-import Message from '@/components/chat/Message';
+import Message, { BaseMessage } from '@/components/chat/Message';
 import MessageBar from '@/components/chat/MessageBar';
 import { Text } from '@/components/common/Text';
 import { usePressedStore } from '@/lib/stores';
 import { useGetMessages } from '@/services/messages';
 import { theme } from '@/theme/theme';
 
-export type TMessage = {
-  index: string;
-  from: string;
-  to: string;
-  text: string;
-  timestamp: string;
-  prevTimestamp?: string;
-};
-
-export default function MessageList({ username }: { username: string }) {
+export default function MessageList() {
   const { pressed } = usePressedStore();
   const flatListRef = useRef<FlatList>(null);
 
@@ -50,21 +41,18 @@ export default function MessageList({ username }: { username: string }) {
           <Text style={styles.tooltip}>Select a friend.</Text>
         )
       ) : (
-        messagesSuccess && (
+        messagesSuccess &&
+        messages && (
           <>
-            <FlatList
+            <FlatList<BaseMessage>
               ref={flatListRef}
               data={messages}
               renderItem={({ item, index }) => (
                 <Message.Wrapper
-                  message={{
-                    index: item.index,
-                    fromOther: username === item.from,
-                    text: item.text,
-                    timestamp: item.timestamp,
-                    prevTimestamp:
-                      index > 0 ? messages[index - 1].timestamp : undefined,
-                  }}
+                  message={item}
+                  prevTimestamp={
+                    messages[index - 1] && messages[index - 1]?.timestamp
+                  }
                 />
               )}
               keyExtractor={(item) => item.index}
@@ -80,7 +68,13 @@ export default function MessageList({ username }: { username: string }) {
                 })
               }
             />
-            {pressed && <MessageBar refetch={refetch} />}
+            {pressed && (
+              <MessageBar
+                refetch={() => {
+                  void refetch();
+                }}
+              />
+            )}
           </>
         )
       )}

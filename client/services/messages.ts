@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 
-import { TMessage } from '@/components/chat/MessageContainer';
+import { BaseMessage } from '@/components/chat/Message.js';
 import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 
@@ -10,9 +10,9 @@ export interface MessageData {
 }
 
 export function useSendMessage({ onSuccess }: { onSuccess: () => void }) {
-  return useMutation<TMessage, ApiError, MessageData>({
+  return useMutation<BaseMessage, ApiError, MessageData>({
     mutationFn: (messageData) =>
-      postFetcher<TMessage, MessageData>(
+      postFetcher<BaseMessage, MessageData>(
         Keys.Mutation.SEND_MESSAGE,
         messageData,
       ),
@@ -21,10 +21,11 @@ export function useSendMessage({ onSuccess }: { onSuccess: () => void }) {
 }
 
 export function useGetMessages({ from }: { from: string | undefined }) {
-  return useQuery<TMessage[], ApiError>({
+  return useQuery<BaseMessage[], ApiError>({
     queryKey: [Keys.Query.GET_MESSAGES, from],
-    queryFn: () => getFetcher<TMessage[]>(Keys.Query.GET_MESSAGES, { from }),
-    enabled: !!from,
+    queryFn: () =>
+      getFetcher<BaseMessage[]>(Keys.Query.GET_MESSAGES, { from: from! }),
+    enabled: Boolean(from),
     refetchInterval: 5000,
   });
 }
