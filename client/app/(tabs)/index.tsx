@@ -1,14 +1,11 @@
-import { BackHandler, SafeAreaView, StyleSheet, Platform } from 'react-native';
-import MessageContainer from '@/components/chat/MessageContainer';
+import { useCallback, useEffect } from 'react';
+import { BackHandler, SafeAreaView, StyleSheet } from 'react-native';
+
 import FriendsScreen from '@/components/FriendsScreen';
+import MessageContainer from '@/components/chat/MessageContainer';
 import useBreakpoint from '@/hooks/useBreakpoint';
 import { useAuthStore, usePressedStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
-import { useCallback, useEffect } from 'react';
-import {
-    setBackgroundColorAsync,
-    setButtonStyleAsync,
-} from 'expo-navigation-bar';
 
 export default function ChatScreen() {
     const username = useAuthStore((state: any) => state.username);
@@ -22,11 +19,6 @@ export default function ChatScreen() {
         }
         return false;
     }, [pressed, setPressed]);
-
-    if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        setBackgroundColorAsync(theme.colors.background);
-        setButtonStyleAsync('light');
-    }
 
     useEffect(() => {
         const returnHandler = BackHandler.addEventListener(

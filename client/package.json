@@ -1,69 +1,69 @@
 {
-    "name": "meapp",
-    "main": "expo-router/entry",
-    "version": "0.0.1",
-    "scripts": {
-        "start": "expo start",
-        "reset-project": "node ./scripts/reset-project.js",
-        "android": "expo run:android",
-        "ios": "expo run:ios",
-        "web": "expo start --web",
-        "export:web": "expo export -p web",
-        "lint": "eslint .",
-        "lint:fix": "eslint . --fix",
-        "format": "prettier --check . --ignore-path .gitignore",
-        "format:fix": "prettier --write . --ignore-path .gitignore"
+  "name": "meapp",
+  "main": "expo-router/entry",
+  "version": "0.0.2",
+  "scripts": {
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "export:web": "expo export -p web",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --check . --ignore-path .gitignore",
+    "format:fix": "prettier --write . --ignore-path .gitignore"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^14.1.0",
+    "@hookform/resolvers": "^5.2.2",
+    "@react-navigation/bottom-tabs": "^7.4.7",
+    "@react-navigation/elements": "^2.6.4",
+    "@react-navigation/native": "^7.1.17",
+    "@tanstack/react-query": "^5.90.2",
+    "axios": "^1.12.2",
+    "dotenv": "^17.2.2",
+    "expo": "53.0.23",
+    "expo-blur": "~14.1.5",
+    "expo-constants": "~17.1.7",
+    "expo-font": "~13.3.2",
+    "expo-image": "~2.4.0",
+    "expo-linking": "~7.1.7",
+    "expo-navigation-bar": "~4.2.8",
+    "expo-router": "~5.1.7",
+    "expo-splash-screen": "~0.30.10",
+    "expo-status-bar": "~2.2.3",
+    "expo-symbols": "~0.4.5",
+    "expo-system-ui": "~5.0.11",
+    "expo-web-browser": "~14.2.0",
+    "react": "19.1.1",
+    "react-dom": "19.1.1",
+    "react-hook-form": "^7.63.0",
+    "react-native": "~0.79.6",
+    "react-native-safe-area-context": "5.6.1",
+    "react-native-screens": "~4.16.0",
+    "react-native-web": "~0.21.1",
+    "zod": "^4.1.11",
+    "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.28.4",
+    "@types/react": "~19.1.15",
+    "@trivago/prettier-plugin-sort-imports": "^5.2.2",
+    "eslint": "^9.36.0",
+    "eslint-config-expo": "~9.2.0",
+    "eslint-config-prettier": "^10.1.8",
+    "prettier": "^3.6.2",
+    "typescript": "~5.9.2"
+  },
+  "private": true,
+  "type": "module",
+  "contributors": [
+    {
+      "name": "Emil Knysak"
     },
-    "dependencies": {
-        "@expo/vector-icons": "^14.1.0",
-        "@hookform/resolvers": "^5.2.2",
-        "@react-navigation/bottom-tabs": "^7.4.7",
-        "@react-navigation/elements": "^2.6.4",
-        "@react-navigation/native": "^7.1.17",
-        "@tanstack/react-query": "^5.90.2",
-        "axios": "^1.12.2",
-        "dotenv": "^17.2.2",
-        "expo": "53.0.23",
-        "expo-blur": "~14.1.5",
-        "expo-constants": "~17.1.7",
-        "expo-font": "~13.3.2",
-        "expo-image": "~2.4.0",
-        "expo-linking": "~7.1.7",
-        "expo-navigation-bar": "~4.2.8",
-        "expo-router": "~5.1.7",
-        "expo-splash-screen": "~0.30.10",
-        "expo-status-bar": "~2.2.3",
-        "expo-symbols": "~0.4.5",
-        "expo-system-ui": "~5.0.11",
-        "expo-web-browser": "~14.2.0",
-        "react": "19.1.1",
-        "react-dom": "19.1.1",
-        "react-hook-form": "^7.63.0",
-        "react-native": "~0.79.6",
-        "react-native-safe-area-context": "5.6.1",
-        "react-native-screens": "~4.16.0",
-        "react-native-web": "~0.21.1",
-        "zod": "^4.1.11",
-        "zustand": "^5.0.8"
-    },
-    "devDependencies": {
-        "@babel/core": "^7.28.4",
-        "@types/react": "~19.1.15",
-        "@types/react-native": "^0.73.0",
-        "eslint": "^9.36.0",
-        "eslint-config-expo": "~9.2.0",
-        "eslint-config-prettier": "^10.1.8",
-        "prettier": "^3.6.2",
-        "typescript": "~5.9.2"
-    },
-    "private": true,
-    "type": "module",
-    "contributors": [
-        {
-            "name": "Emil Knysak"
-        },
-        {
-            "name": "Dawid Kozłowski"
-        }
-    ]
+    {
+      "name": "Dawid Kozłowski"
+    }
+  ]
 }
