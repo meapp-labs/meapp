@@ -1,213 +1,247 @@
 name: CI/CD Pipeline
 
 on:
-    push:
-        branches: [main]
-    pull_request:
-        branches: [main]
-        types: [opened, synchronize, reopened]
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  workflow_dispatch:
+    inputs:
+      deploy_client:
+        description: 'Deploy client'
+        type: boolean
+        required: false
+        default: true
+      deploy_server:
+        description: 'Deploy server'
+        type: boolean
+        required: false
+        default: true
 
 concurrency:
-    group: ${{ github.workflow }}-${{ github.ref }}
-    cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
-    detect-changes:
-        runs-on: ubuntu-latest
-        outputs:
-            client: ${{ steps.filter.outputs.client }}
-            server: ${{ steps.filter.outputs.server }}
-        steps:
-            - uses: actions/checkout@v4
-            - uses: dorny/paths-filter@v3
-              id: filter
-              with:
-                  filters: |
-                      client:
-                        - client/**
-                      server:
-                        - server/**
+  detect-changes:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      contents: read
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            client:
+              - client/**
+            server:
+              - server/**
 
-    client:
-        needs: detect-changes
-        if: needs.detect-changes.outputs.client == 'true'
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: client
-        steps:
-            - uses: actions/checkout@v4
+  # ——— PR checks: client ———
+  client:
+    needs: detect-changes
+    if: ${{ github.event_name == 'pull_request' && needs.detect-changes.outputs.client == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
 
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: client/.nvmrc
-                  cache: yarn
-                  cache-dependency-path: client/yarn.lock
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: client/.nvmrc
+          cache: yarn
+          cache-dependency-path: client/yarn.lock
 
-            - name: Install dependencies
-              run: yarn install --frozen-lockfile --network-timeout 100000
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
 
-            - name: Audit dependencies
-              run: yarn audit --level=high
-              continue-on-error: true
+      - name: Audit dependencies
+        run: yarn audit --level=high
+        continue-on-error: true
 
-            - name: Lint and format
-              run: |
-                  yarn format
-                  yarn lint
+      - name: Lint and format
+        run: |
+          yarn format
+          yarn lint
 
-            - name: Build and export
-              run: yarn export:web
-              env:
-                  EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-                  CI: true
+      - name: Build and export
+        run: yarn export:web
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+          CI: true
 
-            - name: Deploy to server
-              if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-              timeout-minutes: 10
-              env:
-                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-                  REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-                  REMOTE_USER: ${{ secrets.REMOTE_USER }}
-              run: |
-                  set -euo pipefail
+  # ——— PR checks: server ———
+  server:
+    needs: detect-changes
+    if: ${{ github.event_name == 'pull_request' && needs.detect-changes.outputs.server == 'true' }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
 
-                  eval $(ssh-agent)
-                  ssh-add - <<< "$SSH_PRIVATE_KEY"
-                  mkdir -p ~/.ssh
-                  ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: server/.nvmrc
 
-                  ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-                    set -euo pipefail
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-                    if ! command -v rsync > /dev/null; then
-                      sudo apt-get update
-                      sudo apt-get install -y rsync
-                    fi
-                    mkdir -p ~/meapp/client/dist
-                  '
-                  
-                  rsync -azPic --delete --timeout=300 ./dist/ $REMOTE_USER@$REMOTE_HOST:~/meapp/client/dist/
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('server/bun.lockb') }}
+          restore-keys: ${{ runner.os }}-bun-
 
-    server:
-        needs: detect-changes
-        if: needs.detect-changes.outputs.server == 'true'
-        runs-on: ubuntu-latest
-        defaults:
-            run:
-                working-directory: server
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
 
-        steps:
-            - uses: actions/checkout@v4
+      - name: Audit dependencies
+        run: bun audit
+        continue-on-error: true
 
-            - uses: actions/setup-node@v4
-              with:
-                  node-version-file: server/.nvmrc
+      - name: Lint and format
+        run: |
+          bun format
+          bun lint
 
-            - uses: oven-sh/setup-bun@v2
-              with:
-                  bun-version: latest
+      - name: Run tests
+        run: bun test
+        env:
+          NODE_ENV: test
 
-            - name: Cache dependencies
-              uses: actions/cache@v4
-              with:
-                  path: ~/.bun/install/cache
-                  key: ${{ runner.os }}-bun-${{ hashFiles('server/bun.lockb') }}
-                  restore-keys: ${{ runner.os }}-bun-
+  deploy-client:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_client }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
 
-            - name: Install dependencies
-              run: bun install --frozen-lockfile
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: client/.nvmrc
+          cache: yarn
+          cache-dependency-path: client/yarn.lock
 
-            - name: Audit dependencies
-              run: bun audit
-              continue-on-error: true
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
 
-            - name: Lint and format
-              run: |
-                  bun format
-                  bun lint
+      - name: Build and export
+        run: yarn export:web
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+          CI: true
 
-            - name: Run tests
-              run: bun test
-              env:
-                  NODE_ENV: test
+      - name: Deploy to server
+        timeout-minutes: 10
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        run: |
+          set -euo pipefail
+          eval $(ssh-agent)
+          ssh-add - <<< "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
 
-            - name: Deploy to server
-              if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-              timeout-minutes: 10
-              env:
-                  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-                  REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-                  REMOTE_USER: ${{ secrets.REMOTE_USER }}
-              run: |
-                  set -euo pipefail
-                  eval $(ssh-agent)
-                  ssh-add - <<< "$SSH_PRIVATE_KEY"
-                  mkdir -p ~/.ssh
-                  ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
+          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
+            set -euo pipefail
+            if ! command -v rsync > /dev/null; then
+              sudo apt-get update
+              sudo apt-get install -y rsync
+            fi
+            mkdir -p ~/meapp/client/dist
+          '
+          rsync -azPic --delete --timeout=300 ./dist/ $REMOTE_USER@$REMOTE_HOST:~/meapp/client/dist/
 
-                  # Prepare remote
-                  ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-                    set -euo pipefail
-                    
-                    # Setup environment
-                    export BUN_INSTALL="~/.bun"
-                    export PATH="$BUN_INSTALL/bin:$PATH"
-                    
-                    # Install dependencies if needed
-                    command -v rsync >/dev/null || (sudo apt-get update && sudo apt-get install -y rsync)
-                    command -v curl >/dev/null || (sudo apt-get update && sudo apt-get install -y curl)
-                    command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash
-                    command -v pm2 >/dev/null || bun install -g pm2
+  deploy-server:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_server }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - uses: actions/checkout@v4
 
-                    # Create app directory
-                    mkdir -p ~/meapp/server
-                    
-                    # Deploy files
-                    echo "Receiving new files..."
-                  '
-                            
-                  # Sync files
-                  rsync -azPi --delete \
-                    --exclude node_modules \
-                    --exclude .git \
-                    --exclude .env \
-                    --exclude logs \
-                    --exclude .cache \
-                    ./ $REMOTE_USER@$REMOTE_HOST:~/meapp/server/
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: server/.nvmrc
 
-                  # Complete deployment
-                  ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-                    set -euo pipefail
-                    cd ~/meapp/server
-                    
-                    # Create .env file with proper permissions
-                    {
-                    echo "SESSION_SALT=${{ secrets.SESSION_SALT }}"
-                    echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
-                    echo "EXTERNAL_IP=${{ vars.EXTERNAL_IP }}"
-                    echo "HOST=${{ vars.HOST }}"
-                    echo "NODE_ENV=${{ vars.NODE_ENV }}"
-                    } > .env
-                    chmod 600 .env
-                    
-                    # Install dependencies
-                    export PATH="~/.bun/bin:$PATH"
-                    bun install --production
-                    
-                    # Graceful restart with zero downtime
-                    pm2 reload server --update-env 2>/dev/null || pm2 start bun --name server -- start
-                    
-                    # Wait for app to be ready
-                    sleep 3
-                    
-                    # Health check
-                    if pm2 show server | grep -q "online"; then
-                      echo "✅ Deployment successful!"
-                      pm2 save
-                    else
-                      echo "❌ Deployment failed, checking logs..."
-                      pm2 logs server --lines 20 --nostream
-                      exit 1
-                    fi
-                  '
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Prepare SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
+          REMOTE_USER: ${{ secrets.REMOTE_USER }}
+        run: |
+          set -euo pipefail
+          eval $(ssh-agent)
+          ssh-add - <<< "$SSH_PRIVATE_KEY"
+          mkdir -p ~/.ssh
+          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
+
+          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
+            set -euo pipefail
+            export BUN_INSTALL="~/.bun"
+            export PATH="$BUN_INSTALL/bin:$PATH"
+            command -v rsync >/dev/null || (sudo apt-get update && sudo apt-get install -y rsync)
+            command -v curl  >/dev/null || (sudo apt-get update && sudo apt-get install -y curl)
+            command -v bun   >/dev/null || curl -fsSL https://bun.sh/install | bash
+            command -v pm2   >/dev/null || bun install -g pm2
+            mkdir -p ~/meapp/server
+          '
+          rsync -azPi --delete \
+            --exclude node_modules \
+            --exclude .git \
+            --exclude .env \
+            --exclude logs \
+            --exclude .cache \
+            ./ $REMOTE_USER@$REMOTE_HOST:~/meapp/server/
+          
+          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
+            set -euo pipefail
+            cd ~/meapp/server
+
+            {
+              echo "SESSION_SALT=${{ secrets.SESSION_SALT }}"
+              echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
+              echo "DOMAIN=${{ vars.DOMAIN }}"
+              echo "HOST=${{ vars.HOST }}"
+              echo "NODE_ENV=${{ vars.NODE_ENV }}"
+            } > .env
+            chmod 600 .env
+
+            export PATH="~/.bun/bin:$PATH"
+            bun install --production
+
+            pm2 reload server --update-env 2>/dev/null || pm2 start bun --name server -- start
+            sleep 3
+
+            if pm2 show server | grep -q "online"; then
+              echo "✅ Deployment successful!"
+              pm2 save
+            else
+              echo "❌ Deployment failed, checking logs..."
+              pm2 logs server --lines 20 --nostream
+              exit 1
+            fi
+          '
