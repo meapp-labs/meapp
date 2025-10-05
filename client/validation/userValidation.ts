@@ -1,14 +1,14 @@
 import { z } from 'zod';
 
 const error = {
-  usernameShort: 'Username must be at least 3 characters long.',
-  usernameLong: 'Username must be at most 24 characters',
-  usernameCharacters: 'Username can only contain letters and numbers',
-  emailNotValid: 'Please enter a valid email address.',
-  passwordShort: 'Password must be at least 8 characters long.',
-  passwordLong: 'Password must be less than 128 characters.',
-  passwordsNoMatch: 'Passwords do not match.',
-  passwordHasUsername: 'Password can not have username inside.',
+    usernameShort: 'Username must be at least 3 characters long.',
+    usernameLong: 'Username must be at most 24 characters',
+    usernameCharacters: 'Username can only contain letters and numbers',
+    emailNotValid: 'Please enter a valid email address.',
+    passwordShort: 'Password must be at least 8 characters long.',
+    passwordLong: 'Password must be less than 128 characters.',
+    passwordsNoMatch: 'Passwords do not match.',
+    passwordHasUsername: 'Password can not have username inside.',
 };
 
 const passwordValidation = z.string();
@@ -32,37 +32,37 @@ const passwordValidation = z.string();
 // ); // TODO: Revert for prod
 
 const usernameValidation = z
-  .string()
-  .min(3, error.usernameShort)
-  .max(24, error.usernameLong)
-  .regex(/^[a-zA-Z0-9]+$/, error.usernameCharacters);
+    .string()
+    .min(3, error.usernameShort)
+    .max(24, error.usernameLong)
+    .regex(/^[a-zA-Z0-9]+$/, error.usernameCharacters);
 
 export const LoginSchema = z
-  .object({
-    username: usernameValidation,
-    password: passwordValidation,
-  })
-  .refine((data) => !data.password.includes(data.username), {
-    message: error.passwordHasUsername,
-    path: ['password'],
-  });
+    .object({
+        username: usernameValidation,
+        password: passwordValidation,
+    })
+    .refine((data) => !data.password.includes(data.username), {
+        message: error.passwordHasUsername,
+        path: ['password'],
+    });
 
 export type LoginType = z.infer<typeof LoginSchema>;
 
 export const RegisterSchema = z
-  .object({
-    username: usernameValidation,
-    email: z.email(error.emailNotValid),
-    password: passwordValidation,
-    confirmPassword: passwordValidation,
-  })
-  .refine((data) => !data.password.includes(data.username), {
-    message: error.passwordHasUsername,
-    path: ['password'],
-  })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: error.passwordsNoMatch,
-    path: ['confirmPassword'],
-  });
+    .object({
+        username: usernameValidation,
+        email: z.email(error.emailNotValid),
+        password: passwordValidation,
+        confirmPassword: passwordValidation,
+    })
+    .refine((data) => !data.password.includes(data.username), {
+        message: error.passwordHasUsername,
+        path: ['password'],
+    })
+    .refine((data) => data.password === data.confirmPassword, {
+        message: error.passwordsNoMatch,
+        path: ['confirmPassword'],
+    });
 
 export type RegisterType = z.infer<typeof RegisterSchema>;

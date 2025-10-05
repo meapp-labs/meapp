@@ -1,8 +1,8 @@
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
-  test: {
-    setupFiles: ['./tests/setup.ts'],
-    globals: true,
-  },
+    test: {
+        setupFiles: ['./tests/setup.ts'],
+        globals: true,
+    },
 });
