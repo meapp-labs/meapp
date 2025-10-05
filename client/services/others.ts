@@ -24,7 +24,9 @@ export function useRemoveFriend({ onSuccess }: { onSuccess: () => void }) {
         mutationFn: (friend) =>
             postFetcher<string, { other: string }>(
                 Keys.Mutation.REMOVE_FRIEND,
-                { other: friend },
+                {
+                    other: friend,
+                },
             ),
         onSuccess,
     });
