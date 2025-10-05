@@ -1,3 +1,4 @@
+
 export default {
     expo: {
         name: 'meapp',
@@ -26,6 +27,10 @@ export default {
             bundler: 'metro',
             output: 'static',
             favicon: './images/favicon.png',
+            meta:{
+                themeColor:"#121212",
+                //appleMobileWebAppStatusBarStyle: "black-translucent"
+            }
         },
         plugins: [
             'expo-router',
