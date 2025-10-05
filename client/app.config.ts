@@ -43,5 +43,9 @@ export default {
         experiments: {
             typedRoutes: true,
         },
+        meta: {
+            themeColor: '#1a1a1a',
+            appleMobileWebAppStatusBarStyle: 'black-translucent',
+        },
     },
 };
