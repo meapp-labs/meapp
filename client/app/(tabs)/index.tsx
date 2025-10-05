@@ -1,4 +1,4 @@
-import { BackHandler, SafeAreaView, StyleSheet } from 'react-native';
+import { BackHandler, SafeAreaView, StyleSheet, Platform } from 'react-native';
 import MessageContainer from '@/components/chat/MessageContainer';
 import FriendsScreen from '@/components/FriendsScreen';
 import useBreakpoint from '@/hooks/useBreakpoint';
@@ -23,10 +23,10 @@ export default function ChatScreen() {
         return false;
     }, [pressed, setPressed]);
 
-    useEffect(() => {
+    if (Platform.OS === 'android' || Platform.OS === 'ios') {
         setBackgroundColorAsync(theme.colors.background);
         setButtonStyleAsync('dark');
-    }, []);
+    }
 
     useEffect(() => {
         const returnHandler = BackHandler.addEventListener(
