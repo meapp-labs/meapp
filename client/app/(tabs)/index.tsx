@@ -5,6 +5,10 @@ import useBreakpoint from '@/hooks/useBreakpoint';
 import { useAuthStore, usePressedStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 import { useCallback, useEffect } from 'react';
+import {
+    setBackgroundColorAsync,
+    setButtonStyleAsync,
+} from 'expo-navigation-bar';
 
 export default function ChatScreen() {
     const username = useAuthStore((state: any) => state.username);
@@ -18,6 +22,11 @@ export default function ChatScreen() {
         }
         return false;
     }, [pressed, setPressed]);
+
+    useEffect(() => {
+        setBackgroundColorAsync(theme.colors.background);
+        setButtonStyleAsync('dark');
+    }, []);
 
     useEffect(() => {
         const returnHandler = BackHandler.addEventListener(
