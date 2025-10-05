@@ -3,18 +3,18 @@ import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
 
 export default tseslint.config(
-    eslint.configs.recommended,
-    ...tseslint.configs.recommendedTypeChecked,
-    prettierConfig,
-    {
-        languageOptions: {
-            parserOptions: {
-                project: true,
-                tsconfigRootDir: import.meta.dirname,
-            },
-        },
+  eslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeChecked,
+  prettierConfig,
+  {
+    languageOptions: {
+      parserOptions: {
+        project: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
     },
-    {
-        ignores: ['eslint.config.mjs'],
-    },
+  },
+  {
+    ignores: ['eslint.config.mjs'],
+  },
 );
