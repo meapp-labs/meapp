@@ -26,29 +26,9 @@ permissions:
   pull-requests: read
 
 jobs:
-  detect-changes:
-    runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
-      contents: read
-    outputs:
-      client: ${{ steps.filter.outputs.client }}
-      server: ${{ steps.filter.outputs.server }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            client:
-              - client/**
-            server:
-              - server/**
-
   # ——— PR checks: client ———
   client:
-    needs: detect-changes
-    if: ${{ github.event_name == 'pull_request' && needs.detect-changes.outputs.client == 'true' }}
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -82,8 +62,7 @@ jobs:
 
   # ——— PR checks: server ———
   server:
-    needs: detect-changes
-    if: ${{ github.event_name == 'pull_request' && needs.detect-changes.outputs.server == 'true' }}
+    if: ${{ github.event_name == 'pull_request' }}
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -123,6 +102,7 @@ jobs:
         env:
           NODE_ENV: test
 
+  # ——— Deploy: client ———
   deploy-client:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_client }}
     runs-on: ubuntu-latest
@@ -170,6 +150,7 @@ jobs:
           '
           rsync -azPic --delete --timeout=300 ./dist/ $REMOTE_USER@$REMOTE_HOST:~/meapp/client/dist/
 
+  # ——— Deploy: server ———
   deploy-server:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_server }}
     runs-on: ubuntu-latest
