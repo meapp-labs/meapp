@@ -25,7 +25,7 @@ export default function ChatScreen() {
 
     if (Platform.OS === 'android' || Platform.OS === 'ios') {
         setBackgroundColorAsync(theme.colors.background);
-        setButtonStyleAsync('dark');
+        setButtonStyleAsync('light');
     }
 
     useEffect(() => {
