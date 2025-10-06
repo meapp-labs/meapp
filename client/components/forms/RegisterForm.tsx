@@ -1,35 +1,26 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
-  TextInput,
   TouchableHighlight,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 
+import Button from '@/components/common/Button';
 import { Text } from '@/components/common/Text';
+import { FormContainer } from '@/components/forms/FormContainer';
+import { FormField } from '@/components/forms/FormInput';
 import { extractErrorMessage } from '@/lib/axios';
 import { useRegisterUser } from '@/services/auth';
 import { theme } from '@/theme/theme';
 import { RegisterSchema, RegisterType } from '@/validation/userValidation';
 
 export default function RegisterForm() {
-  const registerRoute = () => {
-    router.replace('/login');
-  };
-  const [isVisible, setVisible] = useState(false);
-
-  const { mutate, isError, isPending, error } = useRegisterUser({
-    onSuccess: () => router.replace('/login'),
-  });
+  const { mutate, isPending } = useRegisterUser();
 
   const {
     control,
@@ -45,202 +36,100 @@ export default function RegisterForm() {
     },
   });
 
-  const onSubmit = handleSubmit((data: RegisterType) => {
-    mutate(data);
-  });
+  const onSubmit = handleSubmit((data: RegisterType) =>
+    mutate(data, {
+      onSuccess: () => router.replace('/login'),
+      onError(error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Registration Failed',
+          text2: extractErrorMessage(error),
+        });
+      },
+    }),
+  );
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'android' ? 'padding' : 'height'}
       keyboardVerticalOffset={20}
     >
-      <View style={[styles.formContainer, styles.shadow]}>
-        {isError && (
-          <Text style={styles.errorText}>{extractErrorMessage(error)}</Text>
-        )}
-
+      <FormContainer>
         <Text style={styles.header}>Create a new account</Text>
+
         <View style={{ flexDirection: 'row' }}>
           <Text>Already have an account? </Text>
-          <TouchableHighlight onPress={registerRoute}>
+          <TouchableHighlight onPress={() => router.replace('/login')}>
             <Text style={{ color: theme.colors.secondary }}>Sign in</Text>
           </TouchableHighlight>
         </View>
+
         <View style={styles.inputContainer}>
-          <View style={styles.captionContainer}>
-            <Text>Username</Text>
-          </View>
-          <Controller
+          <FormField
             control={control}
             name="username"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                style={[
-                  styles.formInput,
-                  errors.username && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                autoComplete="off"
-                textContentType="none"
-                placeholder="Enter username"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isPending}
-                onSubmitEditing={void onSubmit}
-              />
-            )}
+            label="Username"
+            placeholder="Enter username"
+            error={errors.username}
+            editable={!isPending}
+            onSubmitEditing={() => {
+              void onSubmit();
+            }}
           />
-          {errors.username && (
-            <Text style={styles.errorText}>{errors.username.message}</Text>
-          )}
-          <View style={styles.captionContainer}>
-            <Text>Email</Text>
-          </View>
-          <Controller
+
+          <FormField
             control={control}
             name="email"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                style={[
-                  styles.formInput,
-                  errors.email && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                autoComplete="off"
-                textContentType="none"
-                placeholder="Enter email"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isPending}
-                onSubmitEditing={void onSubmit}
-              />
-            )}
+            label="Email"
+            placeholder="Enter email"
+            error={errors.email}
+            editable={!isPending}
+            onSubmitEditing={() => {
+              void onSubmit();
+            }}
           />
-          {errors.email && (
-            <Text style={styles.errorText}>{errors.email.message}</Text>
-          )}
-          <View style={styles.captionContainer}>
-            <Text>Password</Text>
-            <Pressable
-              style={styles.icon}
-              onPress={() => setVisible((prev) => !prev)}
-            >
-              <Ionicons
-                name={isVisible ? 'eye-off-outline' : 'eye-outline'}
-                size={22}
-                color="white"
-              />
-            </Pressable>
-          </View>
-          <Controller
+
+          <FormField
             control={control}
             name="password"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                secureTextEntry={!isVisible}
-                style={[
-                  styles.formInput,
-                  errors.password && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                autoComplete="off"
-                textContentType="none"
-                placeholder="Enter password"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isPending}
-                onSubmitEditing={void onSubmit}
-              />
-            )}
+            label="Password"
+            placeholder="Enter password"
+            error={errors.password}
+            isPassword
+            editable={!isPending}
+            onSubmitEditing={() => {
+              void onSubmit();
+            }}
           />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password.message}</Text>
-          )}
-          <Controller
+
+          <FormField
             control={control}
             name="confirmPassword"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                secureTextEntry={!isVisible}
-                style={[
-                  styles.formInput,
-                  errors.confirmPassword && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                autoComplete="off"
-                textContentType="none"
-                placeholder="Confirm password"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-                editable={!isPending}
-                onSubmitEditing={void onSubmit}
-              />
-            )}
+            label="Confirm Password"
+            placeholder="Confirm password"
+            error={errors.confirmPassword}
+            isPassword
+            editable={!isPending}
+            onSubmitEditing={() => {
+              void onSubmit();
+            }}
           />
-          {errors.confirmPassword && (
-            <Text style={styles.errorText}>
-              {errors.confirmPassword.message}
-            </Text>
-          )}
-
-          <TouchableOpacity
-            onPress={void onSubmit}
-            style={styles.submitButton}
-            disabled={isPending}
-          >
-            {isPending ? (
-              <ActivityIndicator />
-            ) : (
-              <Text
-                style={{
-                  color: 'black',
-                  fontWeight: 'bold',
-                }}
-              >
-                Register
-              </Text>
-            )}
-          </TouchableOpacity>
         </View>
-      </View>
+        <Button
+          title="Register"
+          onPress={() => {
+            void onSubmit();
+          }}
+          loading={isPending}
+          variant="primary"
+          size="small"
+        />
+      </FormContainer>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  formContainer: {
-    padding: theme.spacing.lg,
-    borderRadius: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.secondary,
-    backgroundColor: theme.colors.background,
-  },
-  submitButton: {
-    marginTop: theme.spacing.sm,
-    padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: theme.spacing.xs,
-    alignItems: 'center',
-  },
-  formInput: {
-    borderColor: theme.colors.borderSecondary,
-    padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
-    borderWidth: 1,
-    borderRadius: theme.spacing.xs,
-    color: theme.colors.text,
-  },
   header: {
     ...theme.typography.h1,
     fontWeight: 'bold',
@@ -248,29 +137,9 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: theme.spacing.md,
     rowGap: theme.spacing.sm,
-  },
-  shadow: {
-    //ios
-    shadowColor: theme.colors.secondary,
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    //android
-    elevation: 15,
-  },
-  icon: {
-    marginLeft: theme.spacing.sm,
-  },
-  captionContainer: {
-    minHeight: theme.spacing.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
+    marginBottom: theme.spacing.md,
   },
   errorText: {
-    textAlign: 'left',
     color: theme.colors.error,
     ...theme.typography.caption,
   },

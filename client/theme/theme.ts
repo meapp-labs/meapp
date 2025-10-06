@@ -1,6 +1,6 @@
 const colors = {
-  primary: '#2962FF', // Vibrant electric blue (buttons, key actions)
-  secondary: '#7C4DFF', // Soft amethyst purple (secondary actions)
+  primary: '#7C4DFF', // Vibrant electric blue (buttons, key actions)
+  secondary: '#2962FF', // Soft amethyst purple (secondary actions)
   background: '#121212', // True black background
   backgroundSecondary: '#f0f0f0',
   surface: '#1E1E1E', // Slightly elevated surfaces

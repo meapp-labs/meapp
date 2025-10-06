@@ -6,10 +6,9 @@ import { Keys } from '@/lib/keys';
 import { queryClient } from '@/lib/queryInit';
 import { LoginType, RegisterType } from '@/validation/userValidation';
 
-export function useRegisterUser({ onSuccess }: { onSuccess: () => void }) {
+export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({
     mutationFn: (body) => postFetcher(Keys.Mutation.REGISTER, body),
-    onSuccess,
   });
 }
 
