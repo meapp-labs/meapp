@@ -1,21 +1,28 @@
-import { PropsWithChildren } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, ViewProps } from 'react-native';
 
 import { theme } from '@/theme/theme';
 
-export default function FormContainer({ children }: PropsWithChildren) {
-  return <View style={styles.formContainer}>{children}</View>;
+export function FormContainer({ children, style, ...props }: ViewProps) {
+  return (
+    <View {...props} style={[styles.container, styles.shadow, style]}>
+      {children}
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  formContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: 300,
+  container: {
+    padding: theme.spacing.lg,
+    borderRadius: theme.spacing.md,
     borderWidth: 1,
-    borderColor: theme.colors.border,
-    borderRadius: 25,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.xl,
+    borderColor: theme.colors.secondary,
+    backgroundColor: theme.colors.background,
+  },
+  shadow: {
+    shadowColor: theme.colors.secondary,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+    elevation: 15,
   },
 });

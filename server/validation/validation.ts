@@ -12,8 +12,10 @@ export const usernameSchema = z
   .max(24, error.usernameLong)
   .regex(/^[a-zA-Z0-9_-]+$/, error.usernameCharacters);
 
-export const passwordSchema = z.string();
-// .min(12, 'Password must be at least 12 characters'),
+export const passwordSchema = z
+  .string()
+  .min(3, 'Password must be at least 3 characters');
+// .min(12, 'Password must be at least 12 characters');
 // .regex(
 //     /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).*$/,
 //     'Password must contain at least one lowercase letter, one uppercase letter, one number, and one special character',

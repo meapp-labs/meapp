@@ -1,35 +1,28 @@
-import Ionicons from '@expo/vector-icons/Ionicons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
-import { useState } from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   StyleSheet,
-  TextInput,
   TouchableHighlight,
-  TouchableOpacity,
   View,
 } from 'react-native';
+import Toast from 'react-native-toast-message';
 
+import Button from '@/components/common/Button';
+import { Text } from '@/components/common/Text';
+import { FormContainer } from '@/components/forms/FormContainer';
+import { FormField } from '@/components/forms/FormInput';
+import { extractErrorMessage } from '@/lib/axios';
 import { useAuthStore } from '@/lib/stores';
 import { useLoginUser } from '@/services/auth';
 import { theme } from '@/theme/theme';
 import { LoginSchema, LoginType } from '@/validation/userValidation';
 
-import { Text } from '../common/Text';
-
 export default function LoginForm() {
-  const [isVisible, setVisible] = useState(false);
   const setUsername = useAuthStore((state) => state.setUsername);
-
-  const registerRoute = () => {
-    router.replace('/register');
-  };
-
-  const { mutate, isError, isPending, error } = useLoginUser();
+  const { mutate, isPending } = useLoginUser();
 
   const {
     control,
@@ -49,6 +42,13 @@ export default function LoginForm() {
         setUsername(data.username);
         router.replace('/');
       },
+      onError(error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Login Failed',
+          text2: extractErrorMessage(error),
+        });
+      },
     });
   });
 
@@ -57,129 +57,57 @@ export default function LoginForm() {
       behavior={Platform.OS === 'android' ? 'padding' : 'height'}
       keyboardVerticalOffset={20}
     >
-      {isPending && (
-        <Text style={{ marginBottom: theme.spacing.md }}>Loading...</Text>
-      )}
-      {isError && (
-        <Text style={{ marginBottom: theme.spacing.md }}>
-          error: {error.message}
-        </Text>
-      )}
-
-      <View style={[styles.formContainer, styles.shadow]}>
+      <FormContainer>
         <Text style={styles.header}>Login to your account</Text>
+
         <View style={{ flexDirection: 'row' }}>
           <Text>Don&apos;t have an account? </Text>
-          <TouchableHighlight onPress={registerRoute}>
+          <TouchableHighlight onPress={() => router.replace('/register')}>
             <Text style={{ color: theme.colors.secondary }}>Sign up</Text>
           </TouchableHighlight>
         </View>
+
         <View style={styles.inputContainer}>
-          <View style={styles.captionContainer}>
-            <Text>Username</Text>
-          </View>
-          <Controller
+          <FormField
             control={control}
             name="username"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                onSubmitEditing={() => {
-                  void onSubmit();
-                }}
-                style={[
-                  styles.formInput,
-                  errors.username && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                placeholder="Enter username"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={onBlur}
-              />
-            )}
-          />
-          {errors.username && (
-            <Text style={styles.errorText}>{errors.username.message}</Text>
-          )}
-          <View style={styles.captionContainer}>
-            <Text>Password</Text>
-            <Pressable
-              style={styles.icon}
-              onPress={() => setVisible((prev) => !prev)}
-            >
-              <Ionicons
-                name={isVisible ? 'eye-off-outline' : 'eye-outline'}
-                size={22}
-                color="white"
-              />
-            </Pressable>
-          </View>
-          <Controller
-            control={control}
-            name="password"
-            render={({ field: { value, onChange, onBlur } }) => (
-              <TextInput
-                onSubmitEditing={() => {
-                  void onSubmit();
-                }}
-                secureTextEntry={!isVisible}
-                style={[
-                  styles.formInput,
-                  errors.password && {
-                    borderColor: theme.colors.error,
-                  },
-                ]}
-                placeholder="Enter password"
-                placeholderTextColor={theme.colors.textSecondary}
-                value={value}
-                onChangeText={onChange}
-                onBlur={() => {
-                  void onBlur();
-                }}
-              />
-            )}
-          />
-          {errors.password && (
-            <Text style={styles.errorText}>{errors.password.message}</Text>
-          )}
-          <TouchableOpacity
-            style={styles.submitButton}
-            onPress={() => {
+            label="Username"
+            placeholder="Enter username"
+            error={errors.username}
+            editable={!isPending}
+            onSubmitEditing={() => {
               void onSubmit();
             }}
-          >
-            <Text style={{ color: 'black', fontWeight: 'bold' }}>Login</Text>
-          </TouchableOpacity>
+          />
+
+          <FormField
+            control={control}
+            name="password"
+            label="Password"
+            placeholder="Enter password"
+            error={errors.password}
+            isPassword
+            editable={!isPending}
+            onSubmitEditing={() => {
+              void onSubmit();
+            }}
+          />
         </View>
-      </View>
+        <Button
+          title="Login"
+          onPress={() => {
+            void onSubmit();
+          }}
+          loading={isPending}
+          variant="primary"
+          size="small"
+        />
+      </FormContainer>
     </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
-  formContainer: {
-    padding: theme.spacing.lg,
-    borderRadius: theme.spacing.md,
-    borderWidth: 1,
-    borderColor: theme.colors.secondary,
-    backgroundColor: theme.colors.background,
-  },
-  submitButton: {
-    marginTop: theme.spacing.sm,
-    padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
-    backgroundColor: theme.colors.backgroundSecondary,
-    borderRadius: theme.spacing.xs,
-    alignItems: 'center',
-  },
-  formInput: {
-    borderColor: theme.colors.borderSecondary,
-    padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
-    borderWidth: 1,
-    borderRadius: theme.spacing.xs,
-    color: theme.colors.text,
-  },
   header: {
     ...theme.typography.h1,
     fontWeight: 'bold',
@@ -187,30 +115,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: theme.spacing.md,
     rowGap: theme.spacing.sm,
-  },
-  shadow: {
-    //ios
-    shadowColor: theme.colors.secondary,
-    shadowOffset: {
-      width: 0,
-      height: 0,
-    },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    //android
-    elevation: 15,
-  },
-  icon: {
-    marginLeft: theme.spacing.sm,
-  },
-  captionContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    minHeight: theme.spacing.lg,
-  },
-  errorText: {
-    textAlign: 'left',
-    color: theme.colors.error,
-    ...theme.typography.caption,
+    marginBottom: theme.spacing.lg,
   },
 });

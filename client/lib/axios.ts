@@ -26,7 +26,9 @@ export async function postFetcher<TResponse, TRequest>(
 
 export function extractErrorMessage(error: unknown): string {
   if (isAxiosError<ApiErrorResponse>(error)) {
-    return error.response?.data.message || error.message;
+    const message = error.response?.data.message || error.message;
+
+    return message.replace(/[\w/]+\s+(?=[A-Z])/g, '');
   }
   return 'An unexpected error occurred';
 }
