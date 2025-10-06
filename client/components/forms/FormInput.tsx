@@ -126,6 +126,7 @@ const styles = StyleSheet.create({
   },
   input: {
     borderColor: theme.colors.borderSecondary,
+    marginTop: theme.spacing.xs,
     padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
     borderWidth: 1,
     borderRadius: theme.spacing.xs,

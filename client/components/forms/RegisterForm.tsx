@@ -114,17 +114,16 @@ export default function RegisterForm() {
               void onSubmit();
             }}
           />
-
-          <Button
-            title="Register"
-            onPress={() => {
-              void onSubmit();
-            }}
-            loading={isPending}
-            variant="primary"
-            size="small"
-          />
         </View>
+        <Button
+          title="Register"
+          onPress={() => {
+            void onSubmit();
+          }}
+          loading={isPending}
+          variant="primary"
+          size="small"
+        />
       </FormContainer>
     </KeyboardAvoidingView>
   );
@@ -138,6 +137,7 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: theme.spacing.md,
     rowGap: theme.spacing.sm,
+    marginBottom: theme.spacing.md,
   },
   errorText: {
     color: theme.colors.error,

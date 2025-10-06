@@ -115,6 +115,6 @@ const styles = StyleSheet.create({
   inputContainer: {
     marginTop: theme.spacing.md,
     rowGap: theme.spacing.sm,
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
 });
