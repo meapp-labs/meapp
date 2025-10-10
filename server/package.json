@@ -13,7 +13,7 @@
   "dependencies": {
     "@fastify/autoload": "^6.3.1",
     "@fastify/cors": "^11.1.0",
-    "@fastify/redis": "^7.0.2",
+    "@fastify/redis": "^7.1.0",
     "@fastify/secure-session": "^8.2.0",
     "@fastify/swagger": "^9.5.2",
     "@fastify/swagger-ui": "^5.2.3",
@@ -22,25 +22,25 @@
     "fastify-plugin": "^5.1.0",
     "fastify-socket.io": "^5.1.0",
     "fastify-type-provider-zod": "^5.1.0",
-    "pino-pretty": "^13.1.1",
+    "pino-pretty": "^13.1.2",
     "socket.io": "^4.8.1",
-    "zod": "^4.1.11"
+    "zod": "^4.1.12"
   },
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^5.2.2",
-    "@tsconfig/bun": "^1.0.8",
+    "@tsconfig/bun": "^1.0.9",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/bun": "latest",
-    "@types/node": "^24.5.2",
-    "eslint": "^9.36.0",
+    "@types/bun": "^1.1.39",
+    "@types/node": "^24.7.1",
+    "eslint": "^9.37.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-import-resolver-typescript": "^4.4.4",
     "eslint-plugin-import": "^2.32.0",
     "jiti": "^2.6.1",
     "prettier": "^3.6.2",
-    "typescript": "^5.8.3",
-    "typescript-eslint": "^8.44.1",
-    "vitest": "^4.0.0-beta.13"
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.46.0",
+    "vitest": "^4.0.0-beta.17"
   },
   "private": true,
   "version": "0.0.1",
