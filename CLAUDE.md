@@ -6,9 +6,9 @@ Full-stack communicator app with React Native (Expo) client and Fastify server.
 ## Tech Stack
 
 ### Client (/client)
-- **Framework**: Expo 53, React 19, React Native 0.79
+- **Framework**: Expo 54, React 19, React Native 0.81
 - **Routing**: Expo Router (file-based)
-- **State**: Zustand (client state), TanStack Query (server state)
+- **State**: Zustand (client state), TanStack Query (server state), React Native Async Storage
 - **Forms**: React Hook Form + Zod validation
 - **HTTP**: Axios
 - **Platforms**: iOS, Android, Web

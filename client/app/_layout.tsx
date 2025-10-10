@@ -7,10 +7,14 @@ import Toast from 'react-native-toast-message';
 import { getFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 import { queryClient } from '@/lib/queryInit';
+import { logStartupInfo } from '@/lib/startupInfo';
 import { useAuthStore } from '@/lib/stores';
 import { toastConfig } from '@/misc/toastConfig';
 import { RememberMeStorage } from '@/services/storage';
 import { theme } from '@/theme/theme';
+
+// Log startup information when the app loads
+logStartupInfo();
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const setUsername = useAuthStore((state) => state.setUsername);
