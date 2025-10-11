@@ -1,14 +1,14 @@
 import { useCallback, useEffect } from 'react';
-import { BackHandler, SafeAreaView, StyleSheet } from 'react-native';
+import { BackHandler, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import FriendsScreen from '@/components/FriendsScreen';
 import MessageContainer from '@/components/chat/MessageContainer';
 import useBreakpoint from '@/hooks/useBreakpoint';
-import { useAuthStore, usePressedStore } from '@/lib/stores';
+import { usePressedStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
 export default function ChatScreen() {
-  const username = useAuthStore((state) => state.username);
   const { pressed, setPressed } = usePressedStore();
   const { isMobile } = useBreakpoint();
 
@@ -33,12 +33,12 @@ export default function ChatScreen() {
       {isMobile ? (
         <>
           {pressed === null && <FriendsScreen />}
-          {pressed !== null && <MessageContainer username={username} />}
+          {pressed !== null && <MessageContainer />}
         </>
       ) : (
         <>
           <FriendsScreen />
-          <MessageContainer username={username} />
+          <MessageContainer />
         </>
       )}
     </SafeAreaView>

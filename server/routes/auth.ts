@@ -212,4 +212,21 @@ export function authRoutes(server: FastifyInstance) {
       reply.code(500).send(response);
     }
   });
+
+  // Get current user endpoint (validates session)
+  server.get(
+    '/me',
+    {
+      preHandler: [server.authenticate],
+    },
+    async (request, reply) => {
+      try {
+        // If we get here, session is valid (authenticate middleware passed)
+        reply.code(200).send({ username: request.username });
+      } catch (error) {
+        const response = handleError(error, server);
+        reply.code(500).send(response);
+      }
+    },
+  );
 }

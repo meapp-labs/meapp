@@ -7,7 +7,7 @@ bun format:fix
 bun lint:fix
 git add .
 
-# cd ../client
-# yarn format:fix
-# yarn lint:fix
-# git add .
+cd ../client
+yarn format:fix
+yarn lint:fix
+git add .

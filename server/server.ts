@@ -53,7 +53,7 @@ await server.register(swaggerUI, {
 
 await server.register(fastifyCors, {
   origin:
-    process.env.NODE_ENV === 'production'
+    process.env.NODE_ENV === 'production' && env.DOMAIN
       ? env.DOMAIN
       : /localhost|127\.0\.0\.1/,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -70,7 +70,7 @@ await server.register(fastifySecureSession, {
     httpOnly: true,
     secure: false,
     sameSite: 'lax',
-    maxAge: 1000 * 60 * 60 * 24, // 24 hours
+    maxAge: 1000 * 60 * 60 * 24 * 30, // 30 days
   },
 });
 
