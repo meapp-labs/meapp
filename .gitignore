@@ -1,6 +1,5 @@
 # Dependencies
 **/node_modules
-**/package.json
 
 # VSCode
 .vscode/*
@@ -42,12 +41,6 @@
 # Environment / local configs
 **/.env
 **/*.local
-
-# Lock files
-**/package-lock.json
-**/yarn.lock
-**/bun.lock
-**/server.ts
 
 # Redis persistence files
 **/dump.rdb

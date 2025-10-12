@@ -1,0 +1,24 @@
+# Lock files
+bun.lockb
+bun.lock
+yarn.lock
+package-lock.json
+pnpm-lock.yaml
+
+# Package files
+package.json
+package-lock.json
+
+# Build outputs
+dist/
+build/
+.expo/
+.next/
+
+# Dependencies
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.*.local
