@@ -16,6 +16,11 @@ on:
         type: boolean
         required: false
         default: true
+      build_android:
+        description: 'Build Android app'
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -226,3 +231,46 @@ jobs:
               exit 1
             fi
           '
+
+  # ——— Build: Android ———
+  build-android:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_android }}
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: client/.nvmrc
+          cache: yarn
+          cache-dependency-path: client/yarn.lock
+
+      - name: Setup Expo
+        uses: expo/expo-github-action@v8
+        with:
+          expo-version: latest
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile --network-timeout 100000
+
+      - name: Build Android app
+        run: eas build --platform android --profile production --non-interactive
+        env:
+          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
+
+      - name: Download build artifact
+        run: |
+          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
+          curl -L -o meapp.apk "$BUILD_URL"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: meapp-android-${{ github.sha }}
+          path: client/meapp.apk
+          retention-days: 14
