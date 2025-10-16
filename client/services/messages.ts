@@ -1,6 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query';
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from '@tanstack/react-query';
 
-import { BaseMessage } from '@/components/chat/Message.js';
+import { BaseMessage } from '@/components/chat/MessageBubble.js';
 import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 
@@ -9,23 +13,96 @@ export interface MessageData {
   text: string;
 }
 
-export function useSendMessage({ onSuccess }: { onSuccess: () => void }) {
+export interface MessagesResponse {
+  messages: BaseMessage[];
+  hasMore: boolean;
+  totalCount: number;
+}
+
+export function useSendMessage({
+  selectedFriendName,
+}: {
+  selectedFriendName: string;
+}) {
+  const queryClient = useQueryClient();
+
   return useMutation<BaseMessage, ApiError, MessageData>({
     mutationFn: (messageData) =>
       postFetcher<BaseMessage, MessageData>(
         Keys.Mutation.SEND_MESSAGE,
         messageData,
       ),
-    onSuccess,
+    onSuccess: (newMessage) => {
+      // Optimistically add the new message to the cache
+      queryClient.setQueryData<{
+        pages: MessagesResponse[];
+        pageParams: { after?: number; before?: number }[];
+      }>([Keys.Query.GET_MESSAGES, selectedFriendName], (old) => {
+        if (!old || !old.pages[0]) return old;
+
+        // Add the new message to the beginning of the first page (since inverted)
+        const updatedMessages = [newMessage, ...old.pages[0].messages];
+
+        return {
+          ...old,
+          pages: [
+            {
+              messages: updatedMessages,
+              hasMore: old.pages[0].hasMore,
+              totalCount: old.pages[0].totalCount + 1,
+            },
+          ],
+          pageParams: old.pageParams,
+        };
+      });
+    },
   });
 }
 
-export function useGetMessages({ from }: { from: string | undefined }) {
-  return useQuery<BaseMessage[], ApiError>({
-    queryKey: [Keys.Query.GET_MESSAGES, from],
-    queryFn: () =>
-      getFetcher<BaseMessage[]>(Keys.Query.GET_MESSAGES, { from: from! }),
-    enabled: Boolean(from),
-    refetchInterval: 5000,
+export function useGetMessages({
+  selectedFriendName,
+}: {
+  selectedFriendName: string;
+}) {
+  return useInfiniteQuery<
+    MessagesResponse,
+    ApiError,
+    {
+      pages: MessagesResponse[];
+      pageParams: { after?: number; before?: number }[];
+    },
+    [string, string],
+    { after?: number; before?: number }
+  >({
+    queryKey: [Keys.Query.GET_MESSAGES, selectedFriendName],
+    queryFn: async ({ pageParam }) => {
+      const params: Record<string, string> = {
+        from: selectedFriendName,
+        limit: '16',
+      };
+
+      if (pageParam['after'] !== undefined) {
+        params['after'] = pageParam['after'].toString();
+      } else if (pageParam['before'] !== undefined) {
+        params['before'] = pageParam['before'].toString();
+      }
+
+      return getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, params);
+    },
+    initialPageParam: {},
+    getNextPageParam: (lastPage) => {
+      // For loading older messages (scroll up)
+      if (lastPage.hasMore && lastPage.messages.length > 0) {
+        const firstMessage = lastPage.messages[0];
+        const index = firstMessage?.index;
+        if (index !== undefined) {
+          return { before: Number(index) };
+        }
+      }
+      return undefined;
+    },
+    refetchOnWindowFocus: false,
+    refetchInterval: 5000, // Poll for new messages every 5 seconds
+    refetchIntervalInBackground: false,
   });
 }

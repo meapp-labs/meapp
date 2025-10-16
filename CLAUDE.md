@@ -102,3 +102,6 @@ bun format:fix         # Fix formatting
 - Git hooks run linting/formatting checks pre-commit
 - CI/CD auto-deploys to remote server on push to main
 - Server managed by PM2 in production
+- Always use type instead of interface
+- There are strict TypeScript rules in `tsconfig.json` files, like no any or Promises need to be always awaited or with void
+- Do not use default exports

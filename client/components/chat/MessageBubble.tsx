@@ -1,9 +1,9 @@
 import { MaterialIcons } from '@expo/vector-icons';
+import { memo } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/common/Text';
 import useBreakpoint from '@/hooks/useBreakpoint';
-import { useAuthStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
 export type BaseMessage = {
@@ -18,8 +18,19 @@ type MessageProps = {
   time: string;
 };
 
-const Message = {
-  Received: function ({ message, time }: MessageProps) {
+const timeFormatter = new Intl.DateTimeFormat('default', {
+  hour: '2-digit',
+  minute: '2-digit',
+  hourCycle: 'h23',
+});
+
+const dateFormatter = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  day: 'numeric',
+});
+
+const MessageBubble = {
+  Received: memo(function ReceivedMessage({ message, time }: MessageProps) {
     const { isDesktop, width } = useBreakpoint();
     return (
       <View
@@ -33,8 +44,8 @@ const Message = {
         <Text style={styles.time}>{time}</Text>
       </View>
     );
-  },
-  Sent: function ({ message, time }: MessageProps) {
+  }),
+  Sent: memo(function SentMessage({ message, time }: MessageProps) {
     const { isDesktop, width } = useBreakpoint();
     return (
       <View
@@ -48,29 +59,21 @@ const Message = {
         <Text style={styles.sentMessageContainer}>{message.text}</Text>
       </View>
     );
-  },
-  Wrapper: function ({
+  }),
+  Wrapper: memo(function MessageWrapper({
     message,
     prevTimestamp,
+    currentUsername,
   }: {
     message: BaseMessage;
     prevTimestamp: string | undefined;
+    currentUsername: string;
   }) {
-    const { username } = useAuthStore();
-    const iso = message.timestamp;
-    const date = new Date(iso);
+    const date = new Date(message.timestamp);
     const prevDate = prevTimestamp ? new Date(prevTimestamp) : null;
 
-    const time = new Intl.DateTimeFormat('default', {
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
-    }).format(date);
-
-    const messageDate = new Intl.DateTimeFormat('en-US', {
-      month: 'long',
-      day: 'numeric',
-    }).format(date);
+    const time = timeFormatter.format(date);
+    const messageDate = dateFormatter.format(date);
 
     const isDifferentDay =
       !prevDate ||
@@ -80,17 +83,17 @@ const Message = {
 
     return (
       <>
+        {message.from === currentUsername ? (
+          <MessageBubble.Sent message={message} time={time} />
+        ) : (
+          <MessageBubble.Received message={message} time={time} />
+        )}
         {isDifferentDay && (
           <Text style={styles.messageDate}>{messageDate}</Text>
         )}
-        {message.from === username ? (
-          <Message.Sent message={message} time={time} />
-        ) : (
-          <Message.Received message={message} time={time} />
-        )}
       </>
     );
-  },
+  }),
 };
 
 const styles = StyleSheet.create({
@@ -126,4 +129,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Message;
+export default MessageBubble;

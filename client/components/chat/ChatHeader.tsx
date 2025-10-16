@@ -2,13 +2,13 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 
 import { Text } from '@/components/common/Text';
-import { usePressedStore } from '@/lib/stores';
+import { useFriendStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
-export function FriendHeader() {
-  const { pressed, setPressed } = usePressedStore();
+export function ChatHeader() {
+  const { selectedFriend, setSelectedFriend } = useFriendStore();
   const handlePress = () => {
-    setPressed(null);
+    setSelectedFriend(null);
   };
 
   return (
@@ -23,7 +23,7 @@ export function FriendHeader() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.contactInfo}>
           <MaterialIcons name="face" size={34} color={theme.colors.text} />
-          <Text style={styles.contactName}>{pressed?.name}</Text>
+          <Text style={styles.contactName}>{selectedFriend?.name}</Text>
         </TouchableOpacity>
       </View>
       <TouchableOpacity>
@@ -35,7 +35,6 @@ export function FriendHeader() {
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
     flexDirection: 'row',
     justifyContent: 'space-between',
     margin: theme.spacing.md,

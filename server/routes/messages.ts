@@ -20,11 +20,22 @@ const sendMessageSchema = z.object({
 
 const getMessagesSchema = z.object({
   from: usernameSchema,
-  index: z
+  after: z
+    .string()
+    .regex(/^\d+$/, 'Must be a non-negative integer string')
+    .transform((val) => parseInt(val, 10))
+    .optional(),
+  before: z
     .string()
     .regex(/^[1-9]\d*$/, 'Must be a positive integer string')
     .transform((val) => parseInt(val, 10))
     .optional(),
+  limit: z
+    .string()
+    .regex(/^[1-9]\d*$/, 'Must be a positive integer')
+    .transform((val) => Math.min(parseInt(val, 10), 100))
+    .optional()
+    .default(50),
 });
 
 type Message = {
@@ -83,13 +94,23 @@ export function messageRoutes(server: FastifyInstance) {
         timestamp: new Date().toISOString(),
       };
 
+      // Get the index before pushing (current length will be the new message's index)
+      const messageIndex = await handleAsyncOperation(
+        () => redis.llen(key),
+        'Failed to get message count',
+        ErrorCode.DATABASE_ERROR,
+      );
+
       await handleAsyncOperation(
         () => redis.rpush(key, JSON.stringify(message)),
         'Failed to send message',
         ErrorCode.DATABASE_ERROR,
       );
 
-      reply.send(message);
+      reply.send({
+        index: messageIndex,
+        ...message,
+      });
     },
   );
 
@@ -101,24 +122,57 @@ export function messageRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       const { username } = request;
-      const { from, index: lastMessageIndex = 0 } = request.query;
+      const { from, after, before, limit } = request.query;
 
       const key = getMessageKey(username, from);
 
+      // Get total message count
+      const totalCount = await handleAsyncOperation(
+        () => redis.llen(key),
+        'Failed to get message count',
+        ErrorCode.DATABASE_ERROR,
+      );
+
+      let start: number;
+      let end: number;
+
+      if (after !== undefined) {
+        // Get messages AFTER a specific index (for polling new messages)
+        start = after + 1;
+        end = -1; // Get all new messages
+      } else if (before !== undefined) {
+        // Get messages BEFORE a specific index (for loading older messages)
+        end = before - 1;
+        start = Math.max(0, end - limit + 1);
+      } else {
+        // Initial load: Get the most recent messages
+        end = -1;
+        start = Math.max(0, totalCount - limit);
+      }
+
       const messagesRaw = await handleAsyncOperation(
-        () => redis.lrange(key, lastMessageIndex ?? 0, -1),
+        () => redis.lrange(key, start, end),
         'Failed to retrieve messages',
         ErrorCode.DATABASE_ERROR,
       );
 
       const messages = messagesRaw.map((message, index) => {
         return {
-          index: index + lastMessageIndex,
+          index: start + index,
           ...(JSON.parse(message) as Message),
         };
       });
 
-      reply.send(messages);
+      // hasMore logic:
+      // - If polling for new messages (after param), hasMore is always false
+      // - Otherwise, hasMore is true if there are older messages (start > 0)
+      const hasMore = after !== undefined ? false : start > 0;
+
+      reply.send({
+        messages,
+        hasMore,
+        totalCount,
+      });
     },
   );
 }

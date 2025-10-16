@@ -10,22 +10,26 @@ import {
 } from 'react-native';
 
 import Attachment from '@/components/chat/Attachment';
-import { usePressedStore } from '@/lib/stores';
+import { useFriendStore } from '@/lib/stores';
 import { MessageData, useSendMessage } from '@/services/messages';
 import { theme } from '@/theme/theme';
 
-export default function MessageBar({ refetch }: { refetch: () => void }) {
-  const { pressed } = usePressedStore();
+export default function MessageInput({
+  selectedFriendName,
+}: {
+  selectedFriendName: string;
+}) {
+  const { selectedFriend } = useFriendStore();
   const [inputData, setInputData] = useState('');
   const [showModal, setShowModal] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  const { mutate } = useSendMessage({ onSuccess: refetch });
+  const { mutate } = useSendMessage({ selectedFriendName });
 
   const handleSend = () => {
     if (inputData.trim().length > 0) {
       const messageData: MessageData = {
-        to: `${pressed?.name}`,
+        to: `${selectedFriend?.name}`,
         text: inputData,
       };
       mutate(messageData);

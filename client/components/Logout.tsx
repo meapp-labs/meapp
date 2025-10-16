@@ -1,17 +1,18 @@
 import { MaterialIcons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 
-import { useAuthStore, usePressedStore } from '@/lib/stores';
+import { useAuthStore, useFriendStore } from '@/lib/stores';
 import { useLogoutUser } from '@/services/auth';
 import { RememberMeStorage } from '@/services/storage';
 import { theme } from '@/theme/theme';
 
 export function Logout() {
-  const { setPressed } = usePressedStore();
-  const setUsername = useAuthStore((state) => state.setUsername);
+  const { setSelectedFriend } = useFriendStore();
+  const { setUsername } = useAuthStore();
+
   const { mutate: logout } = useLogoutUser({
     onSuccess: () => {
-      setPressed(null);
+      setSelectedFriend(null);
       setUsername('');
       void RememberMeStorage.clear();
     },

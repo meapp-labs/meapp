@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 
-import { usePressedStore } from '@/lib/stores';
+import { useFriendStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
 
 import { Friend } from '../FriendsScreen';
@@ -12,12 +12,13 @@ type RemoveIconProps = {
 };
 
 export function RemoveIcon({ item, setRemoveId }: RemoveIconProps) {
-  const { pressed } = usePressedStore();
+  const { selectedFriend } = useFriendStore();
+
   return (
     <TouchableOpacity
       style={[
         { marginRight: theme.spacing.xs },
-        pressed?.name === item.name && {
+        selectedFriend?.name === item.name && {
           marginLeft: theme.spacing.sm,
         },
       ]}
