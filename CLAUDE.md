@@ -106,4 +106,5 @@ bun format:fix         # Fix formatting
 - There are strict TypeScript rules in `tsconfig.json` files, like no any or Promises need to be always awaited or with void
 - Do not use default exports
 - Use theming from theme.ts
+- Add comments only for complex logic
 
