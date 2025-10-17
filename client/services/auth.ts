@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { ApiError, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
@@ -14,7 +15,8 @@ export function useRegisterUser() {
 
 export function useLoginUser() {
   return useMutation<string, ApiError, LoginType>({
-    mutationFn: (body) => postFetcher(Keys.Mutation.LOGIN, body),
+    mutationFn: (body) =>
+      postFetcher(Keys.Mutation.LOGIN, { ...body, platform: Platform.OS }),
   });
 }
 

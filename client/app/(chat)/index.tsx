@@ -9,6 +9,7 @@ import { MessageList } from '@/components/chat/MessageList';
 import { Text } from '@/components/common/Text';
 import useBreakpoint from '@/hooks/useBreakpoint';
 import { useFriendStore } from '@/lib/stores';
+import { registerForPushNotificationsAsync } from '@/services/notification';
 import { theme } from '@/theme/theme';
 
 export default function ChatApp() {
@@ -30,6 +31,10 @@ export default function ChatApp() {
     );
     return () => returnHandler.remove();
   }, [returnAction]);
+
+  useEffect(() => {
+    void registerForPushNotificationsAsync();
+  }, []);
 
   return (
     <SafeAreaView style={styles.container}>
