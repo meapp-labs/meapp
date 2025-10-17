@@ -4,7 +4,7 @@ import {
   useQueryClient,
 } from '@tanstack/react-query';
 
-import { BaseMessage } from '@/components/chat/MessageBubble.js';
+import { BaseMessage } from '@/components/chat/MessageBubble';
 import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 
