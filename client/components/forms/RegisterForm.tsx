@@ -30,7 +30,7 @@ export default function RegisterForm() {
     resolver: zodResolver(RegisterSchema),
     defaultValues: {
       username: '',
-      email: '',
+      // email: '',
       password: '',
       confirmPassword: '',
     },
@@ -77,7 +77,7 @@ export default function RegisterForm() {
             }}
           />
 
-          <FormField
+          {/* <FormField
             control={control}
             name="email"
             label="Email"
@@ -87,7 +87,7 @@ export default function RegisterForm() {
             onSubmitEditing={() => {
               void onSubmit();
             }}
-          />
+          /> */}
 
           <FormField
             control={control}

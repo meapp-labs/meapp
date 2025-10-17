@@ -15,9 +15,7 @@ import { Text } from '@/components/common/Text';
 import TopMenu from '@/components/forms/TopMenu';
 import UserSettings from '@/components/settings/UserSettings';
 import useBreakpoint from '@/hooks/useBreakpoint';
-import { Keys } from '@/lib/keys';
-import { queryClient } from '@/lib/queryInit';
-import { usePressedStore } from '@/lib/stores';
+import { useFriendStore } from '@/lib/stores';
 import { useGetFriends } from '@/services/others';
 import { theme } from '@/theme/theme';
 
@@ -26,14 +24,15 @@ export type Friend = {
 };
 
 export default function FriendsScreen() {
-  const { pressed, setPressed } = usePressedStore();
+  const { selectedFriend, setSelectedFriend } = useFriendStore();
+  const { isMobile, isDesktop } = useBreakpoint();
+
   const [hovered, setHovered] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState<boolean>(false);
   const [removeId, setRemoveId] = useState<string | null>(null);
-  const { isMobile, isDesktop } = useBreakpoint();
 
   const handleChange = (pressed: string | null, removed: string | null) => {
-    setPressed(pressed ? { name: pressed } : null);
+    setSelectedFriend(pressed ? { name: pressed } : null);
     setRemoveId(removed);
   };
 
@@ -43,42 +42,38 @@ export default function FriendsScreen() {
     name,
   }));
 
-  const renderFriend = ({ item }: { item: Friend }) => (
+  const renderFriend = ({ item: listFriend }: { item: Friend }) => (
     <>
       <Pressable
         onPress={() => {
-          void queryClient.refetchQueries({
-            queryKey: [Keys.Query.GET_MESSAGES],
-          });
-        }}
-        onPressIn={() => {
-          setPressed(item);
+          if (listFriend.name !== selectedFriend?.name)
+            setSelectedFriend(listFriend);
           setRemoveId(null);
         }}
-        onHoverIn={() => setHovered(item.name)}
+        onHoverIn={() => setHovered(listFriend.name)}
         onHoverOut={() => setHovered(null)}
         style={[
           styles.friendItem,
-          hovered === item.name && styles.friendItemHovered,
-          pressed?.name === item.name && styles.friendItemPressed,
+          hovered === listFriend.name && styles.friendItemHovered,
+          selectedFriend?.name === listFriend.name && styles.friendItemPressed,
         ]}
       >
         <View style={styles.messageBoxContainer}>
           <MaterialIcons name="face" size={38} color={theme.colors.text} />
           <View style={styles.messageBox}>
-            <Text>{item.name}</Text>
+            <Text>{listFriend.name}</Text>
             <Text style={{ ...theme.typography.caption }}>
               We NEED to play Nightreign...
             </Text>
           </View>
           <Text style={styles.timestamp}>10 min </Text>
-          {isDesktop && pressed?.name === item.name && (
-            <RemoveIcon item={item} setRemoveId={setRemoveId} />
+          {isDesktop && selectedFriend?.name === listFriend.name && (
+            <RemoveIcon item={listFriend} setRemoveId={setRemoveId} />
           )}
         </View>
       </Pressable>
-      {removeId === item.name && (
-        <DeleteFriend friend={item.name} onChange={handleChange} />
+      {removeId === listFriend.name && (
+        <DeleteFriend friend={listFriend.name} onChange={handleChange} />
       )}
     </>
   );

@@ -1,9 +1,12 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 
+import { env } from '@/lib/env';
+
 interface StartupInfo {
   appVersion: string;
   expoVersion: string;
+  apiUrl: string;
   platform: string;
   platformVersion: string;
   deviceName: string;
@@ -25,6 +28,7 @@ export function getStartupInfo(): StartupInfo {
       Constants.expoConfig?.sdkVersion ||
       (Constants.expoVersion as string | undefined) ||
       'unknown',
+    apiUrl: env.EXPO_PUBLIC_API_URL,
     platform: Platform.OS,
     platformVersion: String(Platform.Version),
     deviceName: Constants.deviceName || 'unknown',
@@ -47,8 +51,9 @@ export function logStartupInfo(): void {
   console.log('🚀 MeApp Starting Up');
   console.log(`📦 App Version:      ${info.appVersion}`);
   console.log(`🔧 Expo Version:     ${info.expoVersion}`);
+  console.log(`🕸 API URL:           ${info.apiUrl}`);
   console.log(
-    `📱 Platform:         ${info.platform} (v${info.platformVersion})`,
+    `📱 Platform:          ${info.platform} (v${info.platformVersion})`,
   );
   console.log(`💻 Device:           ${info.deviceName}`);
   console.log(`🐛 Debug Mode:       ${info.isDebug ? 'Yes' : 'No'}`);

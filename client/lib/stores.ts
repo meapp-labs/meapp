@@ -2,13 +2,12 @@ import { create } from 'zustand';
 
 import { Friend } from '@/components/FriendsScreen';
 
-//username store
-type AuthType = {
+type AuthStore = {
   username: string;
   setUsername: (by: string) => void;
 };
 
-export const useAuthStore = create<AuthType>((set) => ({
+export const useAuthStore = create<AuthStore>((set) => ({
   username: '',
   setUsername: (username: string) =>
     set(() => ({
@@ -16,13 +15,12 @@ export const useAuthStore = create<AuthType>((set) => ({
     })),
 }));
 
-//pressed friend store
-type PressedState = {
-  pressed: Friend | null;
-  setPressed: (friend: Friend | null) => void;
+type FriendStore = {
+  selectedFriend: Friend | null;
+  setSelectedFriend: (friend: Friend | null) => void;
 };
 
-export const usePressedStore = create<PressedState>((set) => ({
-  pressed: null,
-  setPressed: (friend) => set({ pressed: friend }),
+export const useFriendStore = create<FriendStore>((set) => ({
+  selectedFriend: null,
+  setSelectedFriend: (friend) => set({ selectedFriend: friend }),
 }));

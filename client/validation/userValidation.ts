@@ -52,7 +52,7 @@ export type LoginType = z.infer<typeof LoginSchema>;
 export const RegisterSchema = z
   .object({
     username: usernameValidation,
-    email: z.email(error.emailNotValid),
+    // email: z.email(error.emailNotValid),
     password: passwordValidation,
     confirmPassword: passwordValidation,
   })
