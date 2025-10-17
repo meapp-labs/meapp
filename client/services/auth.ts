@@ -9,7 +9,8 @@ import { LoginType, RegisterType } from '@/validation/userValidation';
 
 export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({
-    mutationFn: (body) => postFetcher(Keys.Mutation.REGISTER, body),
+    mutationFn: (body) =>
+      postFetcher(Keys.Mutation.REGISTER, { ...body, platform: Platform.OS }),
   });
 }
 
