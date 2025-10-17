@@ -40,8 +40,9 @@ export function useSendMessage({
       }>([Keys.Query.GET_MESSAGES, selectedFriendName], (old) => {
         if (!old || !old.pages[0]) return old;
 
-        // Add the new message to the beginning of the first page (since inverted)
-        const updatedMessages = [newMessage, ...old.pages[0].messages];
+        // Add the new message to the end of the first page
+        // (server returns in ascending order, newest message has highest index)
+        const updatedMessages = [...old.pages[0].messages, newMessage];
 
         return {
           ...old,
@@ -51,6 +52,7 @@ export function useSendMessage({
               hasMore: old.pages[0].hasMore,
               totalCount: old.pages[0].totalCount + 1,
             },
+            ...old.pages.slice(1),
           ],
           pageParams: old.pageParams,
         };

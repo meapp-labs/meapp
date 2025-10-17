@@ -24,11 +24,11 @@ export function MessageList({ selectedFriendName }: ChatProps) {
     selectedFriendName,
   });
 
-  // Flatten all pages into a single message array
-  const messages = React.useMemo(
-    () => data?.pages.flatMap((page) => page.messages) ?? [],
-    [data],
-  );
+  // Flatten all pages into a single message array and reverse
+  const messages = React.useMemo(() => {
+    if (!data?.pages) return [];
+    return data.pages.flatMap((page) => [...page.messages].reverse());
+  }, [data]);
 
   const handleLoadMore = React.useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
