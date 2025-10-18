@@ -4,7 +4,6 @@
     "paths": {
       "@/*": ["./*"]
     },
-
     "allowUnreachableCode": false,
     "allowUnusedLabels": false,
     "exactOptionalPropertyTypes": true,
@@ -24,5 +23,5 @@
     "forceConsistentCasingInFileNames": true
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "**/env.ts"]
 }

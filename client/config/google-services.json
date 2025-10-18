@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "305400404343",
+    "project_id": "meapp0",
+    "storage_bucket": "meapp0.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:305400404343:android:3f42fe204bb92365656972",
+        "android_client_info": {
+          "package_name": "com.meapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDZO8O-uXO5DIE8Abr6GtqtdXHFNK1197o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

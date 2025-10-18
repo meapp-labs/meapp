@@ -1,5 +1,6 @@
 import { useMutation } from '@tanstack/react-query';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 import { ApiError, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
@@ -8,13 +9,15 @@ import { LoginType, RegisterType } from '@/validation/userValidation';
 
 export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({
-    mutationFn: (body) => postFetcher(Keys.Mutation.REGISTER, body),
+    mutationFn: (body) =>
+      postFetcher(Keys.Mutation.REGISTER, { ...body, platform: Platform.OS }),
   });
 }
 
 export function useLoginUser() {
   return useMutation<string, ApiError, LoginType>({
-    mutationFn: (body) => postFetcher(Keys.Mutation.LOGIN, body),
+    mutationFn: (body) =>
+      postFetcher(Keys.Mutation.LOGIN, { ...body, platform: Platform.OS }),
   });
 }
 

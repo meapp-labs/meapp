@@ -20,7 +20,8 @@ export default {
       },
       edgeToEdgeEnabled: true,
       permissions: [],
-      package: 'com.anonymous.meapp',
+      package: 'com.meapp',
+      googleServicesFile: './config/google-services.json',
     },
     web: {
       bundler: 'metro',
@@ -33,6 +34,7 @@ export default {
       },
     },
     plugins: [
+      'expo-notifications',
       [
         'expo-build-properties',
         {

@@ -8,6 +8,7 @@ import {
   createUserNotFoundError,
 } from '@/lib/errors.ts';
 import { handleAsyncOperation } from '@/lib/helpers.ts';
+import { sendPushNotification } from '@/lib/notification.ts';
 import { usernameSchema } from '@/validation/validation.ts';
 
 const sendMessageSchema = z.object({
@@ -106,6 +107,16 @@ export function messageRoutes(server: FastifyInstance) {
         'Failed to send message',
         ErrorCode.DATABASE_ERROR,
       );
+
+      // Try to send push notification if recipient has a push token (Android only)
+      const pushToken = await redis.get(`${recipientUsername}:pushtoken`);
+      if (pushToken) {
+        void sendPushNotification({
+          expoPushToken: pushToken,
+          senderUsername: username,
+          messageText: text,
+        });
+      }
 
       reply.send({
         index: messageIndex,

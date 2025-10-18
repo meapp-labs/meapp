@@ -11,5 +11,6 @@ export const Keys = {
     LOGOUT: 'logout',
     ADD_FRIEND: 'add-other',
     REMOVE_FRIEND: 'remove-other',
+    PUSH_TOKEN: 'push-token',
   },
 };
