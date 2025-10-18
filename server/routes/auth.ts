@@ -243,7 +243,7 @@ export function authRoutes(server: FastifyInstance) {
   );
 
   // Get current user endpoint (validates session)
-  server.get(
+  server.post(
     '/me',
     {
       preHandler: [server.authenticate],
