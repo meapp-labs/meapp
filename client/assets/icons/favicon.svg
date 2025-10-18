@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg
+   width="1024"
+   height="1024"
+   viewBox="0 0 100 100"
+   version="1.1"
+   id="svg20"
+   sodipodi:docname="favicon.svg"
+   inkscape:version="1.2.1 (9c6d41e410, 2022-07-14)"
+   inkscape:export-filename="favicon.png"
+   inkscape:export-xdpi="4.5"
+   inkscape:export-ydpi="4.5"
+   xmlns:inkscape="http://www.inkscape.org/namespaces/inkscape"
+   xmlns:sodipodi="http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd"
+   xmlns="http://www.w3.org/2000/svg"
+   xmlns:svg="http://www.w3.org/2000/svg">
+  <defs
+     id="defs24" />
+  <sodipodi:namedview
+     id="namedview22"
+     pagecolor="#505050"
+     bordercolor="#eeeeee"
+     borderopacity="1"
+     inkscape:showpageshadow="0"
+     inkscape:pageopacity="0"
+     inkscape:pagecheckerboard="0"
+     inkscape:deskcolor="#505050"
+     showgrid="false"
+     inkscape:zoom="0.87695312"
+     inkscape:cx="266.26281"
+     inkscape:cy="481.78174"
+     inkscape:window-width="2498"
+     inkscape:window-height="1057"
+     inkscape:window-x="54"
+     inkscape:window-y="-8"
+     inkscape:window-maximized="1"
+     inkscape:current-layer="svg20" />
+  <rect
+     width="35"
+     height="35"
+     x="10"
+     y="10"
+     fill="#F5BA30"
+     id="rect4" />
+  <rect
+     width="35"
+     height="35"
+     x="55"
+     y="10"
+     fill="#F5BA30"
+     id="rect6" />
+  <rect
+     width="35"
+     height="35"
+     x="10"
+     y="55"
+     fill="#F5BA30"
+     id="rect8" />
+  <rect
+     width="35"
+     height="35"
+     x="55"
+     y="55"
+     fill="#F5BA30"
+     id="rect10" />
+  <rect
+     width="50"
+     height="50"
+     x="25"
+     y="25"
+     fill="#F5BA30"
+     id="rect12" />
+  <rect
+     width="34.724545"
+     height="5.7874241"
+     x="32.63773"
+     y="31.850304"
+     fill="#f5ba30"
+     id="rect16"
+     style="stroke-width:1.15748" />
+  <path
+     d="M 28.012448,77.978526 V 33.283462 L 50,59.587715 71.987552,33.283462 v 44.695064"
+     fill="none"
+     stroke="#374151"
+     stroke-width="10.0325"
+     stroke-linecap="round"
+     id="path18"
+     style="stroke:#000000;stroke-width:13.9388;stroke-dasharray:none;stroke-opacity:1"
+     sodipodi:nodetypes="ccccc" />
+</svg>

@@ -4,29 +4,29 @@ export default {
     slug: 'meapp',
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './images/icon.png',
+    icon: './assets/icons/icon.png',
     scheme: 'meapp',
     userInterfaceStyle: 'automatic',
     backgroundColor: '#000000',
-    assetBundlePatterns: ['assets/images/*'],
+    assetBundlePatterns: ['assets/*'],
     newArchEnabled: true,
     ios: {
       supportsTablet: true,
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: './images/adaptive-icon.png',
+        foregroundImage: './assets/icons/icon.png',
         backgroundColor: '#000000',
       },
       edgeToEdgeEnabled: true,
-      permissions: [],
+      permissions: ['android.permission.POST_NOTIFICATIONS'],
       package: 'com.meapp',
       googleServicesFile: './config/google-services.json',
     },
     web: {
       bundler: 'metro',
       output: 'static',
-      favicon: './images/favicon.png',
+      favicon: './assets/icons/favicon.png',
     },
     extra: {
       eas: {
@@ -47,7 +47,7 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './images/splash-icon.png',
+          image: './assets/icons/icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
           backgroundColor: '#000000',
@@ -57,6 +57,7 @@ export default {
     ],
     experiments: {
       typedRoutes: true,
+      reactCompiler: true,
     },
   },
 };

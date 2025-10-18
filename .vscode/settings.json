@@ -29,5 +29,6 @@
     "emmet.includeLanguages": {
         "javascript": "javascriptreact",
         "typescript": "typescriptreact"
-    }
+    },
+    "svg.preview.background": "editor"
 }
