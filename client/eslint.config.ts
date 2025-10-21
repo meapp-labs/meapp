@@ -10,6 +10,7 @@ export default defineConfig(
       'node_modules/',
       'build/',
       '**/*.config.js',
+      '**/*.config.ts',
       '**/env.ts',
     ],
   },

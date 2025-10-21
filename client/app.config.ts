@@ -1,32 +1,39 @@
+const IS_PROD = process.env['APP_VARIANT'] === 'production';
+
+const config = IS_PROD
+  ? { packageName: 'com.meapp', appName: 'MeApp' }
+  : { packageName: 'com.meapp.dev', appName: 'MeApp (dev)' };
+
 export default {
   expo: {
-    name: 'meapp',
+    name: config.appName,
+    description: 'Messaging app',
     slug: 'meapp',
-    version: '1.0.0',
+    version: '0.1.0',
     orientation: 'portrait',
-    icon: './images/icon.png',
+    icon: './assets/icons/icon.png',
     scheme: 'meapp',
-    userInterfaceStyle: 'automatic',
+    platform: ['android', 'web'],
+    userInterfaceStyle: 'dark',
     backgroundColor: '#000000',
-    assetBundlePatterns: ['assets/images/*'],
+    primaryColor: '#F5BA30',
+    assetBundlePatterns: ['assets/*'],
     newArchEnabled: true,
-    ios: {
-      supportsTablet: true,
-    },
     android: {
       adaptiveIcon: {
-        foregroundImage: './images/adaptive-icon.png',
+        foregroundImage: './assets/icons/icon.png',
         backgroundColor: '#000000',
       },
       edgeToEdgeEnabled: true,
-      permissions: [],
-      package: 'com.meapp',
+      permissions: ['android.permission.POST_NOTIFICATIONS'],
+      package: config.packageName,
       googleServicesFile: './config/google-services.json',
     },
     web: {
       bundler: 'metro',
       output: 'static',
-      favicon: './images/favicon.png',
+      favicon: './assets/icons/favicon.png',
+      name: config.appName,
     },
     extra: {
       eas: {
@@ -47,7 +54,7 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './images/splash-icon.png',
+          image: './assets/icons/icon.png',
           imageWidth: 200,
           resizeMode: 'contain',
           backgroundColor: '#000000',
@@ -57,6 +64,7 @@ export default {
     ],
     experiments: {
       typedRoutes: true,
+      reactCompiler: true,
     },
   },
 };
