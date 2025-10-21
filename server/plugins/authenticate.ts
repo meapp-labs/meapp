@@ -9,18 +9,22 @@ export default fp(function (server: FastifyInstance) {
     'authenticate',
     async (request: FastifyRequest, reply: FastifyReply) => {
       try {
-        const username = handleSyncOperation(
-          () => request.session.get('username'),
+        const sessionData = handleSyncOperation(
+          () => ({
+            username: request.session.get('username'),
+            platform: request.session.get('platform'),
+          }),
           'Failed to retrieve session data',
           ErrorCode.SESSION_ERROR,
         );
 
-        if (!username) {
+        if (!sessionData.username || !sessionData.platform) {
           const error = createAuthError('Authentication required');
           return reply.code(error.statusCode).send(error);
         }
 
-        request.username = username;
+        request.username = sessionData.username;
+        request.platform = sessionData.platform;
       } catch (error) {
         const response = handleError(error, server);
         return reply

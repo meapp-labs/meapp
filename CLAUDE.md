@@ -107,4 +107,5 @@ bun format:fix         # Fix formatting
 - Do not use default exports
 - Use theming from theme.ts
 - Add comments only for complex logic
+- No need to run lint and format for every change
 

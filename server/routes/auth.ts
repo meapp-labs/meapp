@@ -17,9 +17,16 @@ import {
 import { handleAsyncOperation, handleSyncOperation } from '@/lib/helpers.ts';
 import { passwordSchema, usernameSchema } from '@/validation/validation.ts';
 
+export enum Platform {
+  ANDROID = 'android',
+  IOS = 'ios',
+  WEB = 'web',
+}
+
 export const authSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
+  platform: z.enum(Platform),
 });
 
 async function checkRateLimit(
@@ -122,7 +129,7 @@ export function authRoutes(server: FastifyInstance) {
       { schema: { body: authSchema } },
       async (request, reply) => {
         try {
-          const { username, password } = request.body;
+          const { username, password, platform } = request.body;
 
           // Check rate limiting
           const canAttempt = await checkRateLimit(redis, username);
@@ -173,7 +180,10 @@ export function authRoutes(server: FastifyInstance) {
 
             // Set session (synchronous operation)
             handleSyncOperation(
-              () => request.session.set('username', username),
+              () => {
+                request.session.set('username', username);
+                request.session.set('platform', platform);
+              },
               'Failed to create session',
               ErrorCode.SESSION_ERROR,
             );
@@ -197,24 +207,43 @@ export function authRoutes(server: FastifyInstance) {
     );
 
   // Logout endpoint
-  server.post('/logout', async (request, reply) => {
-    try {
-      // Delete session (synchronous operation)
-      handleSyncOperation(
-        () => request.session.delete(),
-        'Failed to destroy session',
-        ErrorCode.SESSION_ERROR,
-      );
+  server.post(
+    '/logout',
+    {
+      preHandler: [server.authenticate],
+    },
+    async (request, reply) => {
+      try {
+        const { username, platform } = request;
 
-      reply.code(200).send('logged_out');
-    } catch (error) {
-      const response = handleError(error, server);
-      reply.code(500).send(response);
-    }
-  });
+        // Delete push token if exists
+        if (platform === Platform.ANDROID) {
+          await handleAsyncOperation(
+            () => redis.del(`pushtoken:${username}`),
+            'Failed to delete push token',
+            ErrorCode.DATABASE_ERROR,
+          ).catch(() => {
+            // Ignore errors if push token doesn't exist
+          });
+        }
+
+        // Delete session (synchronous operation)
+        handleSyncOperation(
+          () => request.session.delete(),
+          'Failed to destroy session',
+          ErrorCode.SESSION_ERROR,
+        );
+
+        reply.code(200).send('logged_out');
+      } catch (error) {
+        const response = handleError(error, server);
+        reply.code(500).send(response);
+      }
+    },
+  );
 
   // Get current user endpoint (validates session)
-  server.get(
+  server.post(
     '/me',
     {
       preHandler: [server.authenticate],
@@ -223,6 +252,44 @@ export function authRoutes(server: FastifyInstance) {
       try {
         // If we get here, session is valid (authenticate middleware passed)
         reply.code(200).send({ username: request.username });
+      } catch (error) {
+        const response = handleError(error, server);
+        reply.code(500).send(response);
+      }
+    },
+  );
+
+  // Store push token endpoint (Android only)
+  server.withTypeProvider<ZodTypeProvider>().post(
+    '/push-token',
+    {
+      preHandler: [server.authenticate],
+      schema: {
+        body: z.object({
+          token: z.string().min(1, 'Push token is required'),
+        }),
+      },
+    },
+    async (request, reply) => {
+      try {
+        const { token } = request.body;
+        const { username, platform } = request;
+
+        if (platform !== Platform.ANDROID) {
+          reply.code(200).send({
+            success: false,
+            message: 'Push tokens only supported for Android',
+          });
+          return;
+        }
+
+        await handleAsyncOperation(
+          () => redis.set(`${username}:pushtoken`, token),
+          'Failed to store push token',
+          ErrorCode.DATABASE_ERROR,
+        );
+
+        reply.code(200).send({ success: true });
       } catch (error) {
         const response = handleError(error, server);
         reply.code(500).send(response);

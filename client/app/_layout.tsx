@@ -1,10 +1,11 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { Stack } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { Platform, PlatformOSType } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import { Loader } from '@/components/Loader';
-import { getFetcher } from '@/lib/axios';
+import { postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 import { queryClient } from '@/lib/queryInit';
 import { logStartupInfo } from '@/lib/startupInfo';
@@ -29,7 +30,12 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       try {
-        const response = await getFetcher<{ username: string }>(Keys.Query.ME);
+        const response = await postFetcher<
+          { username: string },
+          { platform: PlatformOSType }
+        >(Keys.Query.ME, {
+          platform: Platform.OS,
+        });
         setUsername(response.username);
       } catch {
         // Session invalid or expired - clear remember me flag
