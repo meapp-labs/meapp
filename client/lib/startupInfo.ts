@@ -4,6 +4,7 @@ import { Platform } from 'react-native';
 import { env } from '@/lib/env';
 
 interface StartupInfo {
+  appName: string;
   appVersion: string;
   expoVersion: string;
   apiUrl: string;
@@ -23,6 +24,7 @@ export function getStartupInfo(): StartupInfo {
   const nativeAppVersion = Constants['nativeAppVersion'] as string | undefined;
 
   return {
+    appName: Constants.expoConfig?.name || 'unknown',
     appVersion: manifest?.version || nativeAppVersion || 'unknown',
     expoVersion:
       Constants.expoConfig?.sdkVersion ||
@@ -48,7 +50,7 @@ export function getStartupInfo(): StartupInfo {
  */
 export function logStartupInfo(): void {
   const info = getStartupInfo();
-  console.log('🚀 MeApp Starting Up');
+  console.log(`🚀 ${info.appName} Starting Up`);
   console.log(`📦 App Version:      ${info.appVersion}`);
   console.log(`🔧 Expo Version:     ${info.expoVersion}`);
   console.log(`🕸 API URL:           ${info.apiUrl}`);
