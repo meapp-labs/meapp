@@ -12,9 +12,9 @@ export function Logout() {
 
   const { mutate: logout } = useLogoutUser({
     onSuccess: () => {
+      void RememberMeStorage.clear();
       setSelectedFriend(null);
       setUsername('');
-      void RememberMeStorage.clear();
     },
   });
   return (
