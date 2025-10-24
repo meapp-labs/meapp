@@ -57,6 +57,8 @@ export default function MessageInput({
           onSubmitEditing={handleSend}
           blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
           submitBehavior="submit"
+          multiline
+          maxLength={1000}
         />
         <TouchableOpacity style={styles.send} onPress={handleSend}>
           <MaterialIcons name="send" size={24} color={theme.colors.text} />
@@ -79,6 +81,8 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: theme.spacing.xl,
     backgroundColor: theme.colors.surface,
+    maxHeight: 120,
+    textAlignVertical: 'center',
   },
   send: {
     position: 'absolute',
