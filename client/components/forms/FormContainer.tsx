@@ -1,12 +1,23 @@
-import { StyleSheet, View, ViewProps } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+  View,
+  ViewProps,
+} from 'react-native';
 
 import { theme } from '@/theme/theme';
 
 export function FormContainer({ children, style, ...props }: ViewProps) {
   return (
-    <View {...props} style={[styles.container, styles.shadow, style]}>
-      {children}
-    </View>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+      keyboardVerticalOffset={50}
+    >
+      <View {...props} style={[styles.container, styles.shadow, style]}>
+        {children}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

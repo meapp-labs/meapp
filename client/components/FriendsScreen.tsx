@@ -16,12 +16,26 @@ import TopMenu from '@/components/forms/TopMenu';
 import UserSettings from '@/components/settings/UserSettings';
 import useBreakpoint from '@/hooks/useBreakpoint';
 import { useFriendStore } from '@/lib/stores';
+import { useGetMessages } from '@/services/messages';
 import { useGetFriends } from '@/services/others';
 import { theme } from '@/theme/theme';
 
 export type Friend = {
   name: string;
 };
+
+function LastMessage({ friendName }: { friendName: string }) {
+  const { data } = useGetMessages({
+    selectedFriendName: friendName,
+    enabled: false,
+  });
+
+  return data?.lastMessageText ? (
+    <Text style={{ ...theme.typography.caption }} numberOfLines={1}>
+      {data.lastMessageText}
+    </Text>
+  ) : null;
+}
 
 export default function FriendsScreen() {
   const { selectedFriend, setSelectedFriend } = useFriendStore();
@@ -62,9 +76,7 @@ export default function FriendsScreen() {
           <MaterialIcons name="face" size={38} color={theme.colors.text} />
           <View style={styles.messageBox}>
             <Text>{listFriend.name}</Text>
-            <Text style={{ ...theme.typography.caption }}>
-              We NEED to play Nightreign...
-            </Text>
+            <LastMessage friendName={listFriend.name} />
           </View>
           <Text style={styles.timestamp}>10 min </Text>
           {isDesktop && selectedFriend?.name === listFriend.name && (

@@ -63,8 +63,10 @@ export function useSendMessage({
 
 export function useGetMessages({
   selectedFriendName,
+  enabled = true,
 }: {
   selectedFriendName: string;
+  enabled?: boolean;
 }) {
   return useInfiniteQuery<
     MessagesResponse,
@@ -72,6 +74,7 @@ export function useGetMessages({
     {
       pages: MessagesResponse[];
       pageParams: { after?: number; before?: number }[];
+      lastMessageText?: string;
     },
     [string, string],
     { after?: number; before?: number }
@@ -103,8 +106,26 @@ export function useGetMessages({
       }
       return undefined;
     },
+    enabled,
     refetchOnWindowFocus: false,
     refetchInterval: 5000, // Poll for new messages every 5 seconds
     refetchIntervalInBackground: false,
+    select: (data) => {
+      let lastMessageText: string | undefined;
+      for (const page of data.pages) {
+        for (let i = page.messages.length - 1; i >= 0; i--) {
+          if (page.messages[i]?.from === selectedFriendName) {
+            lastMessageText = page.messages[i]?.text;
+            break;
+          }
+        }
+        if (lastMessageText) break;
+      }
+      return {
+        pages: data.pages,
+        pageParams: data.pageParams,
+        ...(lastMessageText && { lastMessageText }),
+      };
+    },
   });
 }
