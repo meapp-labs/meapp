@@ -40,7 +40,9 @@ const MessageBubble = {
         ]}
       >
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
-        <Text style={styles.receivedMessageContainer}>{message.text}</Text>
+        <Text selectable style={styles.receivedMessageContainer}>
+          {message.text}
+        </Text>
         <Text style={styles.time}>{time}</Text>
       </View>
     );
@@ -56,7 +58,9 @@ const MessageBubble = {
         ]}
       >
         <Text style={styles.time}>{time}</Text>
-        <Text style={styles.sentMessageContainer}>{message.text}</Text>
+        <Text selectable style={styles.sentMessageContainer}>
+          {message.text}
+        </Text>
       </View>
     );
   }),
