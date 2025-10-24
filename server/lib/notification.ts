@@ -14,6 +14,8 @@ export type ExpoPushNotificationOptions = {
   expoPushToken: string;
   senderUsername: string;
   messageText: string;
+  messageIndex: number;
+  timestamp: string;
   channelId?: string;
 };
 
@@ -24,6 +26,8 @@ export async function sendPushNotification(
     expoPushToken,
     senderUsername,
     messageText,
+    messageIndex,
+    timestamp,
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
   } = options;
 
@@ -31,7 +35,12 @@ export async function sendPushNotification(
     to: expoPushToken,
     title: senderUsername,
     body: messageText,
-    data: { from: senderUsername },
+    data: {
+      from: senderUsername,
+      text: messageText,
+      index: messageIndex,
+      timestamp,
+    },
     channelId,
   };
 

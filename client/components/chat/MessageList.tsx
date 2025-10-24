@@ -20,6 +20,7 @@ export function MessageList({ selectedFriendName }: ChatProps) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    refetch,
   } = useGetMessages({
     selectedFriendName,
   });
@@ -29,6 +30,12 @@ export function MessageList({ selectedFriendName }: ChatProps) {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => [...page.messages].reverse());
   }, [data]);
+
+  React.useEffect(() => {
+    if (isSuccess && messages.length < 16 && messages.length > 0) {
+      void refetch();
+    }
+  }, [isSuccess, messages.length, refetch]);
 
   const handleLoadMore = React.useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {

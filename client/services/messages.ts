@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
+import { Platform } from 'react-native';
 
 import { BaseMessage } from '@/components/chat/MessageBubble';
 import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
@@ -96,7 +97,6 @@ export function useGetMessages({
     },
     initialPageParam: {},
     getNextPageParam: (lastPage) => {
-      // For loading older messages (scroll up)
       if (lastPage.hasMore && lastPage.messages.length > 0) {
         const firstMessage = lastPage.messages[0];
         const index = firstMessage?.index;
@@ -107,8 +107,7 @@ export function useGetMessages({
       return undefined;
     },
     enabled,
-    refetchOnWindowFocus: false,
-    refetchInterval: 5000, // Poll for new messages every 5 seconds
+    refetchInterval: Platform.OS === 'web' && enabled ? 5000 : false,
     refetchIntervalInBackground: false,
     select: (data) => {
       let lastMessageText: string | undefined;

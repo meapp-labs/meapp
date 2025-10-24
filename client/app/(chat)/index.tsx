@@ -15,7 +15,11 @@ import { Text } from '@/components/common/Text';
 import useBreakpoint from '@/hooks/useBreakpoint';
 import { useFriendStore } from '@/lib/stores';
 import { DocumentTitle } from '@/misc/DocumentTitle';
-import { registerForPushNotificationsAsync } from '@/services/notification';
+import {
+  handleIncomingNotification,
+  registerForPushNotificationsAsync,
+  setupNotificationListeners,
+} from '@/services/notification';
 import { theme } from '@/theme/theme';
 
 export default function ChatApp() {
@@ -41,6 +45,13 @@ export default function ChatApp() {
   useEffect(() => {
     void registerForPushNotificationsAsync();
   }, []);
+
+  useEffect(() => {
+    const cleanup = setupNotificationListeners((notification) =>
+      handleIncomingNotification(notification, selectedFriend?.name),
+    );
+    return cleanup;
+  }, [selectedFriend]);
 
   return (
     <SafeAreaView style={styles.container}>

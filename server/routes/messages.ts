@@ -115,6 +115,8 @@ export function messageRoutes(server: FastifyInstance) {
           expoPushToken: pushToken,
           senderUsername: username,
           messageText: text,
+          messageIndex,
+          timestamp: message.timestamp,
         });
       }
 
