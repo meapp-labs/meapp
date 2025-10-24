@@ -2,13 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TouchableHighlight,
-  View,
-} from 'react-native';
+import { StyleSheet, TouchableHighlight, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Button from '@/components/common/Button';
@@ -64,66 +58,61 @@ export default function LoginForm() {
   });
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'android' ? 'padding' : 'height'}
-      keyboardVerticalOffset={20}
-    >
-      <FormContainer>
-        <Text style={styles.header}>Login to your account</Text>
+    <FormContainer>
+      <Text style={styles.header}>Login to your account</Text>
 
-        <View style={{ flexDirection: 'row' }}>
-          <Text>Don&apos;t have an account? </Text>
-          <TouchableHighlight onPress={() => router.replace('/register')}>
-            <Text style={{ color: theme.colors.secondary }}>Sign up</Text>
-          </TouchableHighlight>
-        </View>
+      <View style={{ flexDirection: 'row' }}>
+        <Text>Don&apos;t have an account? </Text>
+        <TouchableHighlight onPress={() => router.replace('/register')}>
+          <Text style={{ color: theme.colors.secondary }}>Sign up</Text>
+        </TouchableHighlight>
+      </View>
 
-        <View style={styles.inputContainer}>
-          <FormField
-            control={control}
-            name="username"
-            label="Username"
-            placeholder="Enter username"
-            error={errors.username}
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          />
-
-          <FormField
-            control={control}
-            name="password"
-            label="Password"
-            placeholder="Enter password"
-            error={errors.password}
-            isPassword
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          />
-        </View>
-
-        <Switch
-          value={rememberMe}
-          onValueChange={setRememberMe}
-          disabled={isPending}
-          label="Remember me"
-          style={{ marginBottom: theme.spacing.md }}
-        />
-
-        <Button
-          title="Login"
-          onPress={() => {
+      <View style={styles.inputContainer}>
+        <FormField
+          control={control}
+          name="username"
+          label="Username"
+          placeholder="Enter username"
+          error={errors.username}
+          editable={!isPending}
+          onSubmitEditing={() => {
             void onSubmit();
           }}
-          loading={isPending}
-          variant="primary"
-          size="small"
         />
-      </FormContainer>
-    </KeyboardAvoidingView>
+
+        <FormField
+          control={control}
+          name="password"
+          label="Password"
+          placeholder="Enter password"
+          error={errors.password}
+          isPassword
+          editable={!isPending}
+          onSubmitEditing={() => {
+            void onSubmit();
+          }}
+        />
+      </View>
+
+      <Switch
+        value={rememberMe}
+        onValueChange={setRememberMe}
+        disabled={isPending}
+        label="Remember me"
+        style={{ marginBottom: theme.spacing.md }}
+      />
+
+      <Button
+        title="Login"
+        onPress={() => {
+          void onSubmit();
+        }}
+        loading={isPending}
+        variant="primary"
+        size="small"
+      />
+    </FormContainer>
   );
 }
 

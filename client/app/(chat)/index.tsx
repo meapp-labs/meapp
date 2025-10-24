@@ -1,5 +1,10 @@
 import { useCallback, useEffect } from 'react';
-import { BackHandler, StyleSheet, View } from 'react-native';
+import {
+  BackHandler,
+  KeyboardAvoidingView,
+  Platform,
+  StyleSheet,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import FriendsScreen from '@/components/FriendsScreen';
@@ -44,21 +49,29 @@ export default function ChatApp() {
         selectedFriend === null ? (
           <FriendsScreen />
         ) : (
-          <View style={styles.chatScreen}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+            keyboardVerticalOffset={5}
+            style={styles.chatScreen}
+          >
             <ChatHeader />
             <MessageList selectedFriendName={selectedFriend.name} />
             <MessageInput selectedFriendName={selectedFriend.name} />
-          </View>
+          </KeyboardAvoidingView>
         )
       ) : (
         <>
           <FriendsScreen />
           {selectedFriend ? (
-            <View style={styles.chatScreen}>
+            <KeyboardAvoidingView
+              behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+              keyboardVerticalOffset={5}
+              style={styles.chatScreen}
+            >
               <ChatHeader />
               <MessageList selectedFriendName={selectedFriend.name} />
               <MessageInput selectedFriendName={selectedFriend.name} />
-            </View>
+            </KeyboardAvoidingView>
           ) : (
             <Text>{'something'}</Text>
           )}

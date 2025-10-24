@@ -1,13 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
 import { useForm } from 'react-hook-form';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TouchableHighlight,
-  View,
-} from 'react-native';
+import { StyleSheet, TouchableHighlight, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Button from '@/components/common/Button';
@@ -50,34 +44,30 @@ export default function RegisterForm() {
   );
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'android' ? 'padding' : 'height'}
-      keyboardVerticalOffset={20}
-    >
-      <FormContainer>
-        <Text style={styles.header}>Create a new account</Text>
+    <FormContainer>
+      <Text style={styles.header}>Create a new account</Text>
 
-        <View style={{ flexDirection: 'row' }}>
-          <Text>Already have an account? </Text>
-          <TouchableHighlight onPress={() => router.replace('/login')}>
-            <Text style={{ color: theme.colors.secondary }}>Sign in</Text>
-          </TouchableHighlight>
-        </View>
+      <View style={{ flexDirection: 'row' }}>
+        <Text>Already have an account? </Text>
+        <TouchableHighlight onPress={() => router.replace('/login')}>
+          <Text style={{ color: theme.colors.secondary }}>Sign in</Text>
+        </TouchableHighlight>
+      </View>
 
-        <View style={styles.inputContainer}>
-          <FormField
-            control={control}
-            name="username"
-            label="Username"
-            placeholder="Enter username"
-            error={errors.username}
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          />
+      <View style={styles.inputContainer}>
+        <FormField
+          control={control}
+          name="username"
+          label="Username"
+          placeholder="Enter username"
+          error={errors.username}
+          editable={!isPending}
+          onSubmitEditing={() => {
+            void onSubmit();
+          }}
+        />
 
-          {/* <FormField
+        {/* <FormField
             control={control}
             name="email"
             label="Email"
@@ -89,43 +79,42 @@ export default function RegisterForm() {
             }}
           /> */}
 
-          <FormField
-            control={control}
-            name="password"
-            label="Password"
-            placeholder="Enter password"
-            error={errors.password}
-            isPassword
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          />
-
-          <FormField
-            control={control}
-            name="confirmPassword"
-            label="Confirm Password"
-            placeholder="Confirm password"
-            error={errors.confirmPassword}
-            isPassword
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          />
-        </View>
-        <Button
-          title="Register"
-          onPress={() => {
+        <FormField
+          control={control}
+          name="password"
+          label="Password"
+          placeholder="Enter password"
+          error={errors.password}
+          isPassword
+          editable={!isPending}
+          onSubmitEditing={() => {
             void onSubmit();
           }}
-          loading={isPending}
-          variant="primary"
-          size="small"
         />
-      </FormContainer>
-    </KeyboardAvoidingView>
+
+        <FormField
+          control={control}
+          name="confirmPassword"
+          label="Confirm Password"
+          placeholder="Confirm password"
+          error={errors.confirmPassword}
+          isPassword
+          editable={!isPending}
+          onSubmitEditing={() => {
+            void onSubmit();
+          }}
+        />
+      </View>
+      <Button
+        title="Register"
+        onPress={() => {
+          void onSubmit();
+        }}
+        loading={isPending}
+        variant="primary"
+        size="small"
+      />
+    </FormContainer>
   );
 }
 

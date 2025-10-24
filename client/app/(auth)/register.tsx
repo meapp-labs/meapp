@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CenteredContainer from '@/components/common/CenteredContainer';
 import RegisterForm from '@/components/forms/RegisterForm';
@@ -7,12 +8,17 @@ import { theme } from '@/theme/theme';
 
 export default function RegisterScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <DocumentTitle title="Register" />
       <CenteredContainer>
-        <RegisterForm />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+          keyboardVerticalOffset={20}
+        >
+          <RegisterForm />
+        </KeyboardAvoidingView>
       </CenteredContainer>
-    </View>
+    </SafeAreaView>
   );
 }
 

@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import CenteredContainer from '@/components/common/CenteredContainer';
 import LoginForm from '@/components/forms/LoginForm';
@@ -7,12 +8,17 @@ import { theme } from '@/theme/theme';
 
 export default function LoginScreen() {
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <DocumentTitle title="Login" />
       <CenteredContainer>
-        <LoginForm />
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'android' ? 'padding' : 'height'}
+          keyboardVerticalOffset={20}
+        >
+          <LoginForm />
+        </KeyboardAvoidingView>
       </CenteredContainer>
-    </View>
+    </SafeAreaView>
   );
 }
 
