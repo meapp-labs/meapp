@@ -62,7 +62,7 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: theme.spacing.sm,
+    borderRadius: theme.spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
@@ -72,6 +72,9 @@ const styles = StyleSheet.create({
   text: {
     ...theme.typography.body,
     fontWeight: '600',
+    textShadowColor: theme.colors.background,
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 24,
   },
 
   // Variants

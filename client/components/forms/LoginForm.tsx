@@ -1,12 +1,12 @@
+import { MaterialIcons } from '@expo/vector-icons';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { StyleSheet, TouchableHighlight, View } from 'react-native';
+import { Pressable, StyleSheet, TouchableHighlight, View } from 'react-native';
 import Toast from 'react-native-toast-message';
 
 import Button from '@/components/common/Button';
-import Switch from '@/components/common/Switch';
 import { Text } from '@/components/common/Text';
 import { FormContainer } from '@/components/forms/FormContainer';
 import { FormField } from '@/components/forms/FormInput';
@@ -20,7 +20,7 @@ import { LoginSchema, LoginType } from '@/validation/userValidation';
 export default function LoginForm() {
   const setUsername = useAuthStore((state) => state.setUsername);
   const { mutate, isPending } = useLoginUser();
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
 
   const {
     control,
@@ -80,7 +80,6 @@ export default function LoginForm() {
             void onSubmit();
           }}
         />
-
         <FormField
           control={control}
           name="password"
@@ -93,15 +92,34 @@ export default function LoginForm() {
             void onSubmit();
           }}
         />
+        <View style={styles.container}>
+          <Pressable
+            style={styles.rememberMe}
+            onPress={() => setRememberMe(!rememberMe)}
+          >
+            <MaterialIcons
+              name={rememberMe ? 'check-box' : 'check-box-outline-blank'}
+              size={16}
+              color={rememberMe ? theme.colors.neutral : theme.colors.border}
+            />
+            <Text selectable={false}>Remember me</Text>
+          </Pressable>
+          <Pressable>
+            <Text
+              selectable={false}
+              onPress={() =>
+                Toast.show({
+                  type: 'info',
+                  text1: 'Too bad 🤷‍♂️',
+                  text2: 'Recovery not yet implemented',
+                })
+              }
+            >
+              Forgot password?
+            </Text>
+          </Pressable>
+        </View>
       </View>
-
-      <Switch
-        value={rememberMe}
-        onValueChange={setRememberMe}
-        disabled={isPending}
-        label="Remember me"
-        style={{ marginBottom: theme.spacing.md }}
-      />
 
       <Button
         title="Login"
@@ -122,8 +140,16 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   inputContainer: {
-    marginTop: theme.spacing.md,
+    marginVertical: theme.spacing.md,
     rowGap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+  },
+  container: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.sm,
+  },
+  rememberMe: {
+    gap: theme.spacing.xs,
+    flexDirection: 'row',
   },
 });
