@@ -31,7 +31,6 @@ const styles = StyleSheet.create({
   },
   shadow: {
     shadowColor: theme.colors.secondary,
-    shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.5,
     shadowRadius: 15,
     elevation: 15,

@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   TextStyle,
   TouchableOpacity,
@@ -72,11 +73,16 @@ const styles = StyleSheet.create({
   text: {
     ...theme.typography.body,
     fontWeight: '600',
-    textShadowColor: theme.colors.background,
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 24,
+    ...Platform.select({
+      web: {
+        textShadowColor: theme.colors.background,
+        textShadowRadius: 20,
+      },
+      default: {
+        textShadowRadius: 8,
+      },
+    }),
   },
-
   // Variants
   primary: { backgroundColor: theme.colors.primary },
   secondary: { backgroundColor: theme.colors.secondary },

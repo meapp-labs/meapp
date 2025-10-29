@@ -93,16 +93,17 @@ export default function LoginForm() {
           }}
         />
         <View style={styles.container}>
-          <Pressable
-            style={styles.rememberMe}
-            onPress={() => setRememberMe(!rememberMe)}
-          >
-            <MaterialIcons
-              name={rememberMe ? 'check-box' : 'check-box-outline-blank'}
-              size={16}
-              color={rememberMe ? theme.colors.text : theme.colors.border}
-            />
-            <Text selectable={false}>Remember me</Text>
+          <Pressable onPress={() => setRememberMe(!rememberMe)}>
+            <View style={styles.checkboxContainer}>
+              <MaterialIcons
+                name={rememberMe ? 'check-box' : 'check-box-outline-blank'}
+                size={20}
+                color={
+                  rememberMe ? theme.colors.text : theme.colors.borderSecondary
+                }
+              />
+              <Text selectable={false}>Remember me</Text>
+            </View>
           </Pressable>
           <Pressable>
             <Text
@@ -147,9 +148,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: theme.spacing.sm,
+    alignItems: 'center',
   },
-  rememberMe: {
-    gap: theme.spacing.xs,
+  checkboxContainer: {
+    alignItems: 'center',
     flexDirection: 'row',
+    gap: theme.spacing.xs,
   },
 });
