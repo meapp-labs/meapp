@@ -51,6 +51,7 @@ export default function MessageInput({
           ref={inputRef}
           style={styles.inputField}
           value={inputData}
+          placeholder="Type a message..."
           placeholderTextColor="#9BA1A6"
           onChangeText={setInputData}
           onSubmitEditing={handleSend}
