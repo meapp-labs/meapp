@@ -100,7 +100,7 @@ export default function LoginForm() {
             <MaterialIcons
               name={rememberMe ? 'check-box' : 'check-box-outline-blank'}
               size={16}
-              color={rememberMe ? theme.colors.neutral : theme.colors.border}
+              color={rememberMe ? theme.colors.text : theme.colors.border}
             />
             <Text selectable={false}>Remember me</Text>
           </Pressable>
