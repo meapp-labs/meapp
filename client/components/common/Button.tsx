@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Platform,
   StyleSheet,
   TextStyle,
   TouchableOpacity,
@@ -62,7 +63,7 @@ export default function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: theme.spacing.sm,
+    borderRadius: theme.spacing.xs,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
@@ -72,8 +73,16 @@ const styles = StyleSheet.create({
   text: {
     ...theme.typography.body,
     fontWeight: '600',
+    ...Platform.select({
+      web: {
+        textShadowColor: theme.colors.background,
+        textShadowRadius: 20,
+      },
+      default: {
+        textShadowRadius: 8,
+      },
+    }),
   },
-
   // Variants
   primary: { backgroundColor: theme.colors.primary },
   secondary: { backgroundColor: theme.colors.secondary },

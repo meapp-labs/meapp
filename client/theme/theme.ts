@@ -5,7 +5,7 @@ const colors = {
   backgroundSecondary: '#0A0A0A', // Near Black - modals, overlays
   surface: '#121212', // Surface Level 1 - cards, message bubbles
   card: '#1E1E1E', // Surface Level 2 - elevated cards, navigation
-  text: '#FAFAFA', // Primary text - headings, body text
+  text: '#e6e6e6', // Primary text - headings, body text
   textSecondary: '#9CA3AF', // Secondary text - timestamps, metadata
   border: '#374151', // Primary borders - dividers, outlines
   borderSecondary: '#1F2937', // Subtle borders - internal separators
