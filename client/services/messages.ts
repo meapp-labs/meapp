@@ -20,6 +20,11 @@ export interface MessagesResponse {
   totalCount: number;
 }
 
+export interface LastMessage {
+  text: string;
+  date: string;
+}
+
 export function useSendMessage({
   selectedFriendName,
 }: {
@@ -75,7 +80,7 @@ export function useGetMessages({
     {
       pages: MessagesResponse[];
       pageParams: { after?: number; before?: number }[];
-      lastMessageText?: string;
+      lastMessage?: LastMessage;
     },
     [string, string],
     { after?: number; before?: number }
@@ -110,20 +115,24 @@ export function useGetMessages({
     refetchInterval: Platform.OS === 'web' && enabled ? 5000 : false,
     refetchIntervalInBackground: false,
     select: (data) => {
-      let lastMessageText: string | undefined;
+      let lastMessage: LastMessage | undefined;
       for (const page of data.pages) {
         for (let i = page.messages.length - 1; i >= 0; i--) {
-          if (page.messages[i]?.from === selectedFriendName) {
-            lastMessageText = page.messages[i]?.text;
+          const pageMessages = page.messages[i];
+          if (pageMessages?.text && pageMessages?.from === selectedFriendName) {
+            lastMessage = {
+              text: pageMessages.text,
+              date: pageMessages.timestamp,
+            };
             break;
           }
         }
-        if (lastMessageText) break;
+        if (lastMessage) break;
       }
       return {
         pages: data.pages,
         pageParams: data.pageParams,
-        ...(lastMessageText && { lastMessageText }),
+        ...(lastMessage && { lastMessage: lastMessage }),
       };
     },
   });
