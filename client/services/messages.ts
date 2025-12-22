@@ -1,53 +1,70 @@
 import {
+  QueryClient,
   useInfiniteQuery,
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
 
-import { BaseMessage } from '@/components/chat/MessageBubble';
 import { ApiError, getFetcher, postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
+import type {
+  Conversation,
+  Message,
+  MessagesResponse,
+  SendMessageRequest,
+} from '@/types/models';
 
-export interface MessageData {
-  to: string;
-  text: string;
+// Re-export for backwards compatibility
+export type { MessagesResponse } from '@/types/models';
+
+/**
+ * Update the conversation list cache with a new message preview
+ */
+function updateConversationListCache(
+  queryClient: QueryClient,
+  conversationId: string,
+  lastMessage: Message,
+) {
+  queryClient.setQueryData<Conversation[]>(
+    [Keys.Query.GET_CONVERSATIONS],
+    (old) => {
+      if (!old) return old;
+      return old.map((c: Conversation) => {
+        if (c.id === conversationId) {
+          return {
+            ...c,
+            lastMessagePreview: lastMessage.text,
+            lastMessageAt: lastMessage.timestamp,
+          };
+        }
+        return c;
+      });
+    },
+  );
 }
 
-export interface MessagesResponse {
-  messages: BaseMessage[];
-  hasMore: boolean;
-  totalCount: number;
-}
-
-export interface LastMessage {
-  text: string;
-  date: string;
-}
-
-export function useSendMessage({
-  selectedFriendName,
-}: {
-  selectedFriendName: string;
-}) {
+/**
+ * Send a message to a conversation
+ */
+export function useSendMessage({ conversationId }: { conversationId: string }) {
   const queryClient = useQueryClient();
 
-  return useMutation<BaseMessage, ApiError, MessageData>({
-    mutationFn: (messageData) =>
-      postFetcher<BaseMessage, MessageData>(
-        Keys.Mutation.SEND_MESSAGE,
-        messageData,
-      ),
+  return useMutation<Message, ApiError, { text: string }>({
+    mutationFn: ({ text }) =>
+      postFetcher<Message, SendMessageRequest>(Keys.Mutation.SEND_MESSAGE, {
+        conversationId,
+        text,
+      }),
     onSuccess: (newMessage) => {
-      // Optimistically add the new message to the cache
+      // Add the new message to the messages cache
       queryClient.setQueryData<{
         pages: MessagesResponse[];
         pageParams: { after?: number; before?: number }[];
-      }>([Keys.Query.GET_MESSAGES, selectedFriendName], (old) => {
+      }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
         if (!old || !old.pages[0]) return old;
 
-        // Add the new message to the end of the first page
-        // (server returns in ascending order, newest message has highest index)
         const updatedMessages = [...old.pages[0].messages, newMessage];
 
         return {
@@ -63,32 +80,56 @@ export function useSendMessage({
           pageParams: old.pageParams,
         };
       });
+
+      // Update conversation list cache to sync preview
+      updateConversationListCache(queryClient, conversationId, newMessage);
     },
   });
 }
 
+/**
+ * Get the last message index from cached data
+ */
+function getLastMessageIndex(
+  data: { pages: MessagesResponse[] } | undefined,
+): number | undefined {
+  if (!data?.pages[0]?.messages.length) return undefined;
+
+  const firstPage = data.pages[0];
+  const lastMessage = firstPage.messages[firstPage.messages.length - 1];
+  return lastMessage?.index;
+}
+
+/**
+ * Get messages for a conversation with infinite scroll
+ * Uses custom polling to only fetch new messages (after last known index)
+ */
 export function useGetMessages({
-  selectedFriendName,
+  conversationId,
   enabled = true,
 }: {
-  selectedFriendName: string;
+  conversationId: string;
   enabled?: boolean;
 }) {
-  return useInfiniteQuery<
+  const queryClient = useQueryClient();
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+
+  const query = useInfiniteQuery<
     MessagesResponse,
     ApiError,
     {
       pages: MessagesResponse[];
       pageParams: { after?: number; before?: number }[];
-      lastMessage?: LastMessage;
     },
     [string, string],
     { after?: number; before?: number }
   >({
-    queryKey: [Keys.Query.GET_MESSAGES, selectedFriendName],
+    queryKey: [Keys.Query.GET_MESSAGES, conversationId],
     queryFn: async ({ pageParam }) => {
       const params: Record<string, string> = {
-        from: selectedFriendName,
+        conversationId,
         limit: '16',
       };
 
@@ -111,29 +152,84 @@ export function useGetMessages({
       }
       return undefined;
     },
-    enabled,
-    refetchInterval: Platform.OS === 'web' && enabled ? 5000 : false,
-    refetchIntervalInBackground: false,
-    select: (data) => {
-      let lastMessage: LastMessage | undefined;
-      for (const page of data.pages) {
-        for (let i = page.messages.length - 1; i >= 0; i--) {
-          const pageMessages = page.messages[i];
-          if (pageMessages?.text && pageMessages?.from === selectedFriendName) {
-            lastMessage = {
-              text: pageMessages.text,
-              date: pageMessages.timestamp,
+    enabled: !!conversationId && enabled,
+  });
+
+  // Custom polling: fetch only new messages using `after` parameter
+  useEffect(() => {
+    if (Platform.OS !== 'web' || !enabled || !conversationId) {
+      return;
+    }
+
+    const pollForNewMessages = async () => {
+      const currentData = queryClient.getQueryData<{
+        pages: MessagesResponse[];
+        pageParams: { after?: number; before?: number }[];
+      }>([Keys.Query.GET_MESSAGES, conversationId]);
+
+      const lastIndex = getLastMessageIndex(currentData);
+      if (lastIndex === undefined) return;
+
+      try {
+        // Fetch only messages after the last known index
+        const newMessages = await getFetcher<MessagesResponse>(
+          Keys.Query.GET_MESSAGES,
+          {
+            conversationId,
+            after: lastIndex.toString(),
+            limit: '50',
+          },
+        );
+
+        if (newMessages.messages.length > 0) {
+          // Append new messages to the first page
+          queryClient.setQueryData<{
+            pages: MessagesResponse[];
+            pageParams: { after?: number; before?: number }[];
+          }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
+            if (!old || !old.pages[0]) return old;
+
+            return {
+              ...old,
+              pages: [
+                {
+                  messages: [...old.pages[0].messages, ...newMessages.messages],
+                  hasMore: old.pages[0].hasMore,
+                  totalCount: newMessages.totalCount,
+                },
+                ...old.pages.slice(1),
+              ],
+              pageParams: old.pageParams,
             };
-            break;
+          });
+
+          // Update conversation list cache to sync preview
+          const latestMessage =
+            newMessages.messages[newMessages.messages.length - 1];
+          if (latestMessage) {
+            updateConversationListCache(
+              queryClient,
+              conversationId,
+              latestMessage,
+            );
           }
         }
-        if (lastMessage) break;
+      } catch {
+        // Silently ignore polling errors
       }
-      return {
-        pages: data.pages,
-        pageParams: data.pageParams,
-        ...(lastMessage && { lastMessage: lastMessage }),
-      };
-    },
-  });
+    };
+
+    pollingIntervalRef.current = setInterval(() => {
+      void pollForNewMessages();
+    }, 5000);
+
+    return () => {
+      if (pollingIntervalRef.current) {
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [conversationId, enabled, queryClient]);
+
+  return query;
 }

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-import { Friend } from '@/components/FriendsScreen';
+import type { Conversation } from '@/types/models';
 
 type AuthStore = {
   username: string;
@@ -15,12 +15,16 @@ export const useAuthStore = create<AuthStore>((set) => ({
     })),
 }));
 
-type FriendStore = {
-  selectedFriend: Friend | null;
-  setSelectedFriend: (friend: Friend | null) => void;
+type ConversationStore = {
+  selectedConversation: Conversation | null;
+  setSelectedConversation: (conversation: Conversation | null) => void;
 };
 
-export const useFriendStore = create<FriendStore>((set) => ({
-  selectedFriend: null,
-  setSelectedFriend: (friend) => set({ selectedFriend: friend }),
+export const useConversationStore = create<ConversationStore>((set) => ({
+  selectedConversation: null,
+  setSelectedConversation: (conversation) =>
+    set({ selectedConversation: conversation }),
 }));
+
+// Legacy alias for backwards compatibility during migration
+export const useFriendStore = useConversationStore;

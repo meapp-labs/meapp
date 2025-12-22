@@ -3,12 +3,12 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 
-import { BaseMessage } from '@/components/chat/MessageBubble';
 import { postFetcher } from '@/lib/axios';
 import { Keys } from '@/lib/keys';
 import { queryClient } from '@/lib/queryInit';
 import { MessagesResponse } from '@/services/messages';
 import { theme } from '@/theme/theme';
+import type { Message } from '@/types/models';
 
 export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
@@ -30,29 +30,47 @@ Notifications.setNotificationHandler({
 
 export function handleIncomingNotification(
   notification: Notifications.Notification,
-  currentFriendName?: string | null,
+  currentConversationId?: string | null,
 ) {
   const { title, body, data } = notification.request.content;
 
   if (title && data) {
     const messageData = data as {
+      id?: string;
+      conversationId?: string;
       from: string;
       text: string;
       index: number;
       timestamp: string;
     };
 
-    const newMessage: BaseMessage = {
+    // Need conversationId to update the right cache
+    const conversationId = messageData.conversationId;
+    if (!conversationId) {
+      // Can't update cache without conversationId
+      Toast.show({
+        type: 'info',
+        text1: title || 'New message',
+        text2: body || '',
+        position: 'top',
+        visibilityTime: 4000,
+      });
+      return;
+    }
+
+    const newMessage: Message = {
+      id: messageData.id || `${messageData.index}`,
       from: messageData.from,
       text: messageData.text,
-      index: messageData.index.toString(),
+      type: 'text',
+      index: messageData.index,
       timestamp: messageData.timestamp,
     };
 
     queryClient.setQueryData<{
       pages: MessagesResponse[];
       pageParams: { after?: number; before?: number }[];
-    }>([Keys.Query.GET_MESSAGES, messageData.from], (old) => {
+    }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
       if (!old || !old.pages[0]) {
         return {
           pages: [
@@ -82,7 +100,7 @@ export function handleIncomingNotification(
       };
     });
 
-    if (currentFriendName === messageData.from) {
+    if (currentConversationId === conversationId) {
       return;
     }
   }

@@ -2,6 +2,7 @@ import '@fastify/secure-session';
 import 'fastify';
 
 import type { Platform } from '@/routes/auth.ts';
+import type { RedisService } from '@/services/redis.service.ts';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -9,6 +10,7 @@ declare module 'fastify' {
       request: FastifyRequest,
       reply: FastifyReply,
     ) => Promise<void>;
+    redisService: RedisService;
   }
 
   interface FastifyRequest {

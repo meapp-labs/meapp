@@ -10,29 +10,23 @@ import {
 } from 'react-native';
 
 import Attachment from '@/components/chat/Attachment';
-import { useFriendStore } from '@/lib/stores';
-import { MessageData, useSendMessage } from '@/services/messages';
+import { useSendMessage } from '@/services/messages';
 import { theme } from '@/theme/theme';
 
 export default function MessageInput({
-  selectedFriendName,
+  conversationId,
 }: {
-  selectedFriendName: string;
+  conversationId: string;
 }) {
-  const { selectedFriend } = useFriendStore();
   const [inputData, setInputData] = useState('');
   const [showModal, setShowModal] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
-  const { mutate } = useSendMessage({ selectedFriendName });
+  const { mutate } = useSendMessage({ conversationId });
 
   const handleSend = () => {
     if (inputData.trim().length > 0) {
-      const messageData: MessageData = {
-        to: `${selectedFriend?.name}`,
-        text: inputData,
-      };
-      mutate(messageData);
+      mutate({ text: inputData });
       setInputData('');
       inputRef.current?.focus();
     }

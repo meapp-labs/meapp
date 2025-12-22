@@ -1,28 +1,27 @@
 import { Ionicons } from '@expo/vector-icons';
 import { TouchableOpacity } from 'react-native';
 
-import { useFriendStore } from '@/lib/stores';
+import { useConversationStore } from '@/lib/stores';
 import { theme } from '@/theme/theme';
+import type { Conversation } from '@/types/models';
 
-import { Friend } from '../FriendsScreen';
-
-type RemoveIconProps = {
-  item: Friend;
+export type RemoveIconProps = {
+  conversation: Conversation;
   setRemoveId: (value: string) => void;
 };
 
-export function RemoveIcon({ item, setRemoveId }: RemoveIconProps) {
-  const { selectedFriend } = useFriendStore();
+export function RemoveIcon({ conversation, setRemoveId }: RemoveIconProps) {
+  const { selectedConversation } = useConversationStore();
 
   return (
     <TouchableOpacity
       style={[
         { marginRight: theme.spacing.xs },
-        selectedFriend?.name === item.name && {
+        selectedConversation?.id === conversation.id && {
           marginLeft: theme.spacing.sm,
         },
       ]}
-      onPress={() => setRemoveId(item.name)}
+      onPress={() => setRemoveId(conversation.id)}
     >
       <Ionicons
         name="person-remove"

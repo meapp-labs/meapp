@@ -56,7 +56,9 @@ export class ApiError extends Error {
     this.name = 'ApiError';
     this.code = code;
     this.statusCode = statusCode;
-    this.details = details;
+    if (details) {
+      this.details = details;
+    }
     this.timestamp = new Date().toISOString();
 
     // Maintains proper stack trace for where our error was thrown

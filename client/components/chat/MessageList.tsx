@@ -7,10 +7,10 @@ import { useAuthStore } from '@/lib/stores';
 import { useGetMessages } from '@/services/messages';
 
 type ChatProps = {
-  selectedFriendName: string;
+  conversationId: string;
 };
 
-export function MessageList({ selectedFriendName }: ChatProps) {
+export function MessageList({ conversationId }: ChatProps) {
   const { username } = useAuthStore();
 
   const {
@@ -20,9 +20,8 @@ export function MessageList({ selectedFriendName }: ChatProps) {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-    refetch,
   } = useGetMessages({
-    selectedFriendName,
+    conversationId,
   });
 
   // Flatten all pages into a single message array and reverse
@@ -30,12 +29,6 @@ export function MessageList({ selectedFriendName }: ChatProps) {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => [...page.messages].reverse());
   }, [data]);
-
-  React.useEffect(() => {
-    if (isSuccess && messages.length < 16 && messages.length > 0) {
-      void refetch();
-    }
-  }, [isSuccess, messages.length, refetch]);
 
   const handleLoadMore = React.useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -47,14 +40,22 @@ export function MessageList({ selectedFriendName }: ChatProps) {
 
   if (!isSuccess) return null;
 
+  // Adapt Message to BaseMessage for MessageBubble
+  const adaptedMessages: BaseMessage[] = messages.map((msg) => ({
+    index: String(msg.index),
+    from: msg.from,
+    text: msg.text,
+    timestamp: msg.timestamp,
+  }));
+
   return (
     <FlatList<BaseMessage>
       inverted
-      data={messages}
+      data={adaptedMessages}
       renderItem={({ item, index }) => (
         <MessageBubble.Wrapper
           message={item}
-          prevTimestamp={messages[index + 1] && messages[index + 1]?.timestamp}
+          prevTimestamp={adaptedMessages[index + 1]?.timestamp}
           currentUsername={username}
         />
       )}
