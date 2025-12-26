@@ -1,69 +1,36 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState } from 'react';
-import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TextInput, View } from 'react-native';
 
 import { UserAvatar } from '@/components/UserAvatar';
-import { Keys } from '@/lib/keys';
-import { queryClient } from '@/lib/queryInit';
-import { useAddFriend } from '@/services/others';
 import { theme } from '@/theme/theme';
 
-import { Text } from '../common/Text';
+type TopMenuProps = {
+  searchQuery: string;
+  onSearchChange: (query: string) => void;
+};
 
-export default function TopMenu() {
-  const [inputData, setInputData] = useState('');
-
-  const {
-    mutate: handlePress,
-    isError,
-    isSuccess,
-    error,
-    reset,
-  } = useAddFriend({
-    onSuccess: () =>
-      void queryClient.refetchQueries({ queryKey: [Keys.Query.GET_FRIENDS] }),
-  });
-
+export default function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
   return (
     <View style={styles.container}>
       <View style={styles.innerContainer}>
         <UserAvatar />
         <View style={styles.inputContainer}>
           <TextInput
-            value={inputData}
-            placeholder="Enter username..."
+            value={searchQuery}
+            placeholder="Search conversations..."
             placeholderTextColor={theme.colors.textSecondary}
             style={styles.textInput}
-            onChangeText={setInputData}
+            onChangeText={onSearchChange}
           />
-
-          <TouchableOpacity
-            style={styles.searchIcon}
-            onPress={() => {
-              handlePress(inputData, {
-                onSettled: () => {
-                  setTimeout(() => reset(), 5000);
-                },
-              });
-            }}
-          >
-            <MaterialIcons name="search" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
+          <View style={styles.searchIcon}>
+            <MaterialIcons
+              name="search"
+              size={24}
+              color={theme.colors.textSecondary}
+            />
+          </View>
         </View>
       </View>
-      {isError && (
-        <Text style={[styles.response, { color: theme.colors.error }]}>
-          {
-            //this revealed that some error responses are fucked up e.g. input too short
-            `${error?.response?.data?.message ?? 'Something went wrong.'}`
-          }
-        </Text>
-      )}
-      {isSuccess && (
-        <Text style={[styles.response, { color: theme.colors.success }]}>
-          Contact successfully added.
-        </Text>
-      )}
     </View>
   );
 }
@@ -86,25 +53,13 @@ const styles = StyleSheet.create({
     marginVertical: theme.spacing.md,
     marginHorizontal: theme.spacing.sm,
   },
-  responseContainer: {
-    marginVertical: theme.spacing.sm,
-  },
   textInput: {
     flexGrow: 1,
     color: theme.colors.text,
     backgroundColor: theme.colors.card,
     padding: theme.spacing.md,
     borderRadius: theme.spacing.lg,
-  },
-  response: {
-    color: theme.colors.success,
-    textAlign: 'center',
-    ...theme.typography.caption,
-    paddingBottom: theme.spacing.sm,
-  },
-  addButton: {
-    borderRadius: theme.spacing.sm,
-    padding: theme.spacing.sm,
+    paddingRight: 48,
   },
   searchIcon: {
     alignSelf: 'center',

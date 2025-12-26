@@ -17,7 +17,7 @@ const otherSchema = z.object({
 });
 
 export function otherRoutes(server: FastifyInstance) {
-  const { redis } = server;
+  const { redisService } = server;
 
   // Add other endpoint
   server.withTypeProvider<ZodTypeProvider>().post(
@@ -40,7 +40,7 @@ export function otherRoutes(server: FastifyInstance) {
         }
 
         const otherExists = await handleAsyncOperation(
-          () => redis.exists(other),
+          () => redisService.checkUserExists(other),
           'Failed to check other user existence',
           ErrorCode.DATABASE_ERROR,
         );
@@ -49,10 +49,9 @@ export function otherRoutes(server: FastifyInstance) {
           throw createUserNotFoundError(other);
         }
 
-        const key = `${username}:others`;
-
-        const others = await redis.lrange(key, 0, -1);
-        if (others.includes(other)) {
+        // Check if already a contact (Set handles duplicates, but we want to inform user)
+        const isAlreadyContact = await redisService.hasContact(username, other);
+        if (isAlreadyContact) {
           throw new ApiError(
             ErrorCode.DUPLICATE_ITEM,
             'User is already in the list.',
@@ -62,7 +61,7 @@ export function otherRoutes(server: FastifyInstance) {
 
         await handleAsyncOperation(
           async () => {
-            await redis.rpush(key, other);
+            await redisService.addContact(username, other);
           },
           'Failed to add item',
           ErrorCode.DATABASE_ERROR,
@@ -88,10 +87,9 @@ export function otherRoutes(server: FastifyInstance) {
       try {
         const { other } = request.body;
         const username = request.username;
-        const key = `${username}:others`;
 
         const removedCount = await handleAsyncOperation(
-          () => redis.lrem(key, 0, other),
+          () => redisService.removeContact(username, other),
           'Failed to remove item',
           ErrorCode.DATABASE_ERROR,
         );
@@ -120,10 +118,9 @@ export function otherRoutes(server: FastifyInstance) {
     async (request, reply) => {
       try {
         const username = request.username;
-        const key = `${username}:others`;
 
         const others = await handleAsyncOperation(
-          () => redis.lrange(key, 0, -1),
+          () => redisService.getContacts(username),
           'Failed to retrieve items',
           ErrorCode.DATABASE_ERROR,
         );

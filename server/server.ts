@@ -16,6 +16,7 @@ import { authRoutes } from '@/routes/auth.ts';
 import { healthRoutes } from '@/routes/health.ts';
 import { messageRoutes } from '@/routes/messages.ts';
 import { otherRoutes } from '@/routes/others.ts';
+import { RedisService } from '@/services/redis.service.ts';
 
 const server = Fastify({
   logger: {
@@ -36,6 +37,8 @@ await server.register(fastifyRedis, {
   host: env.REDIS_HOST,
   port: env.REDIS_PORT,
 });
+
+server.decorate('redisService', new RedisService(server.redis));
 
 await server.register(swagger, {
   openapi: {

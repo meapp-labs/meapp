@@ -11,6 +11,7 @@ const APP_NAMESPACE = '@meapp:';
  */
 export const STORAGE_KEYS = {
   REMEMBER_ME: `${APP_NAMESPACE}rememberMe`,
+  SELECTED_CONVERSATION_ID: `${APP_NAMESPACE}selectedConversationId`,
 } as const;
 
 /**
@@ -106,4 +107,17 @@ export const RememberMeStorage = {
   clear: () => StorageService.removeItem(STORAGE_KEYS.REMEMBER_ME),
 
   has: () => StorageService.hasItem(STORAGE_KEYS.REMEMBER_ME),
+};
+
+/**
+ * Helper functions for selected conversation ID
+ */
+export const ConversationStorage = {
+  save: (id: string) =>
+    StorageService.setItem(STORAGE_KEYS.SELECTED_CONVERSATION_ID, id),
+
+  get: () =>
+    StorageService.getItem<string>(STORAGE_KEYS.SELECTED_CONVERSATION_ID),
+
+  clear: () => StorageService.removeItem(STORAGE_KEYS.SELECTED_CONVERSATION_ID),
 };

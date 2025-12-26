@@ -1,4 +1,3 @@
-import type { FastifyRedis } from '@fastify/redis';
 import { randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 import type { FastifyInstance } from 'fastify';
 import type { ZodTypeProvider } from 'fastify-type-provider-zod';
@@ -9,7 +8,6 @@ import {
   ApiError,
   ErrorCode,
   createAuthError,
-  createDatabaseError,
   createRateLimitError,
   createUserExistsError,
   handleError,
@@ -29,47 +27,8 @@ export const authSchema = z.object({
   platform: z.enum(Platform),
 });
 
-async function checkRateLimit(
-  redis: FastifyRedis,
-  username: string,
-): Promise<boolean> {
-  try {
-    const key = `login_attempts:${username}`;
-    const attempts = await redis.get(key);
-    return !attempts || parseInt(attempts) < LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS;
-  } catch (error) {
-    throw createDatabaseError('rate limit check', error as Error);
-  }
-}
-
-async function incrementLoginAttempts(
-  redis: FastifyRedis,
-  username: string,
-): Promise<void> {
-  try {
-    const key = `login_attempts:${username}`;
-    const current = await redis.incr(key);
-    if (current === 1) {
-      await redis.expire(key, LOGIN_CONFIG.LOCKOUT_DURATION / 1000);
-    }
-  } catch (error) {
-    throw createDatabaseError('increment login attempts', error as Error);
-  }
-}
-
-async function clearLoginAttempts(
-  redis: FastifyRedis,
-  username: string,
-): Promise<void> {
-  try {
-    await redis.del(`login_attempts:${username}`);
-  } catch (error) {
-    throw createDatabaseError('clear login attempts', error as Error);
-  }
-}
-
 export function authRoutes(server: FastifyInstance) {
-  const { redis } = server;
+  const { redisService } = server;
 
   // Registration endpoint
   server
@@ -83,7 +42,7 @@ export function authRoutes(server: FastifyInstance) {
 
           // Check if user already exists
           const existingUser = await handleAsyncOperation(
-            () => redis.get(username),
+            () => redisService.getUser(username),
             'Failed to check existing user',
             ErrorCode.DATABASE_ERROR,
           );
@@ -102,7 +61,8 @@ export function authRoutes(server: FastifyInstance) {
 
           // Store user
           const wasSet = await handleAsyncOperation(
-            () => redis.set(username, `${salt}:${hashedPassword}`, 'NX'),
+            () =>
+              redisService.createUser(username, `${salt}:${hashedPassword}`),
             'Failed to create user',
             ErrorCode.DATABASE_ERROR,
           );
@@ -132,7 +92,7 @@ export function authRoutes(server: FastifyInstance) {
           const { username, password, platform } = request.body;
 
           // Check rate limiting
-          const canAttempt = await checkRateLimit(redis, username);
+          const canAttempt = await redisService.checkRateLimit(username);
           if (!canAttempt) {
             throw createRateLimitError(
               'Too many login attempts. Please try again later.',
@@ -145,20 +105,20 @@ export function authRoutes(server: FastifyInstance) {
 
           // Get user data
           const user = await handleAsyncOperation(
-            () => redis.get(username),
+            () => redisService.getUser(username),
             'Failed to retrieve user data',
             ErrorCode.DATABASE_ERROR,
           );
 
           if (!user) {
-            await incrementLoginAttempts(redis, username);
+            await redisService.incrementLoginAttempts(username);
             throw createAuthError('Invalid credentials');
           }
 
           // Parse stored password
           const [salt, key] = user.split(':');
           if (!salt || !key) {
-            await incrementLoginAttempts(redis, username);
+            await redisService.incrementLoginAttempts(username);
             throw new ApiError(
               ErrorCode.DATA_CORRUPTION,
               'User data is corrupted',
@@ -176,7 +136,7 @@ export function authRoutes(server: FastifyInstance) {
           const match = timingSafeEqual(hashedBuffer, keyBuffer);
 
           if (match) {
-            await clearLoginAttempts(redis, username);
+            await redisService.clearLoginAttempts(username);
 
             // Set session (synchronous operation)
             handleSyncOperation(
@@ -190,7 +150,7 @@ export function authRoutes(server: FastifyInstance) {
 
             reply.code(200).send(username);
           } else {
-            await incrementLoginAttempts(redis, username);
+            await redisService.incrementLoginAttempts(username);
             throw createAuthError('Invalid credentials');
           }
         } catch (error) {
@@ -219,7 +179,7 @@ export function authRoutes(server: FastifyInstance) {
         // Delete push token if exists
         if (platform === Platform.ANDROID) {
           await handleAsyncOperation(
-            () => redis.del(`pushtoken:${username}`),
+            () => redisService.deletePushToken(username),
             'Failed to delete push token',
             ErrorCode.DATABASE_ERROR,
           ).catch(() => {
@@ -284,7 +244,7 @@ export function authRoutes(server: FastifyInstance) {
         }
 
         await handleAsyncOperation(
-          () => redis.set(`${username}:pushtoken`, token),
+          () => redisService.setPushToken(username, token),
           'Failed to store push token',
           ErrorCode.DATABASE_ERROR,
         );

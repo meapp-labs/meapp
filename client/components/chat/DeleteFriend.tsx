@@ -1,5 +1,5 @@
-import FontAwesome6 from '@expo/vector-icons/FontAwesome6';
-import { Pressable, StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/common/Text';
 import { Keys } from '@/lib/keys';
@@ -13,57 +13,131 @@ type DeleteFriendProps = {
 };
 
 export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
-  const { mutate, error, isError } = useRemoveFriend({
-    onSuccess: () =>
+  const { mutate, isPending } = useRemoveFriend({
+    onSuccess: () => {
       void queryClient.refetchQueries({
         queryKey: [Keys.Query.GET_FRIENDS],
-      }),
+      });
+      onChange(null, friend);
+    },
   });
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Remove this contact?</Text>
-      <View style={styles.icons}>
-        <Pressable
-          onPress={() => {
-            mutate(friend);
-            onChange(null, null);
-          }}
-        >
-          <FontAwesome6
-            name="check-circle"
-            size={24}
-            color={theme.colors.success}
-          />
-        </Pressable>
-        <Pressable onPress={() => onChange(friend, null)}>
-          <FontAwesome6
-            name="xmark-circle"
-            size={24}
-            color={theme.colors.error}
-          />
-        </Pressable>
-      </View>
-      {isError && `${error.message}`}
-    </View>
+    <Modal transparent animationType="fade" visible={true}>
+      <Pressable style={styles.overlay} onPress={() => onChange(friend, null)}>
+        <View style={styles.modalContent}>
+          <View style={styles.iconContainer}>
+            <MaterialIcons
+              name="person-remove"
+              size={42}
+              color={theme.colors.error}
+            />
+          </View>
+
+          <Text style={styles.title}>Remove Friend?</Text>
+          <Text style={styles.description}>
+            Are you sure you want to remove{' '}
+            <Text style={styles.name}>{friend}</Text>? This action will hide the
+            conversation from your list.
+          </Text>
+
+          <View style={styles.buttonContainer}>
+            <Pressable
+              style={[styles.button, styles.cancelButton]}
+              onPress={() => onChange(friend, null)}
+            >
+              <Text style={styles.cancelButtonText}>Cancel</Text>
+            </Pressable>
+
+            <Pressable
+              style={[styles.button, styles.confirmButton]}
+              onPress={() => mutate(friend)}
+              disabled={isPending}
+            >
+              <Text style={styles.confirmButtonText}>
+                {isPending ? 'Removing...' : 'Remove'}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Pressable>
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
     alignItems: 'center',
-    marginTop: theme.spacing.sm,
+    padding: theme.spacing.lg,
   },
-  text: {
-    ...theme.typography.caption,
+  modalContent: {
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.spacing.lg,
+    padding: theme.spacing.xl,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255, 69, 58, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: theme.spacing.md,
+  },
+  title: {
+    ...theme.typography.h2,
+    marginBottom: theme.spacing.sm,
+    color: theme.colors.text,
+  },
+  description: {
+    ...theme.typography.body,
+    textAlign: 'center',
     color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.xl,
+    lineHeight: 22,
   },
-  icons: {
-    alignItems: 'center',
-    margin: theme.spacing.sm,
+  name: {
+    fontWeight: 'bold',
+    color: theme.colors.text,
+  },
+  buttonContainer: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.spacing.lg,
+    width: '100%',
+  },
+  button: {
+    flex: 1,
+    height: 50,
+    borderRadius: theme.spacing.md,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: theme.colors.card,
+  },
+  confirmButton: {
+    backgroundColor: theme.colors.error,
+  },
+  cancelButtonText: {
+    ...theme.typography.body,
+    color: theme.colors.textSecondary,
+  },
+  confirmButtonText: {
+    ...theme.typography.body,
+    color: 'white',
+    fontWeight: '600',
   },
 });
