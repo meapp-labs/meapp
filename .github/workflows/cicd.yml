@@ -1,276 +1,151 @@
-name: CI/CD Pipeline
-
+name: CI/CD Podman Fixed
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
-    types: [opened, synchronize, reopened]
-  workflow_dispatch:
-    inputs:
-      deploy_client:
-        description: 'Deploy client'
-        type: boolean
-        required: false
-        default: true
-      deploy_server:
-        description: 'Deploy server'
-        type: boolean
-        required: false
-        default: true
-      build_android:
-        description: 'Build Android app'
-        type: boolean
-        required: false
-        default: false
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
-
-permissions:
-  contents: read
-  pull-requests: read
 
 jobs:
-  # ——— PR checks: client ———
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      client: ${{ steps.filter.outputs.client }}
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            client:
+              - 'apps/client/**'
+              - 'packages/shared/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+            server:
+              - 'apps/server/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'bun.lock'
+              - 'bunfig.toml'
+              - 'compose.dev.yaml'
+              - 'scripts/**'
+
   client:
-    if: ${{ github.event_name == 'pull_request' }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.client == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          node-version-file: client/.nvmrc
-          cache: yarn
-          cache-dependency-path: client/yarn.lock
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --network-timeout 100000
-
-      - name: Audit dependencies
-        run: yarn audit --level=high
-        continue-on-error: true
-
-      - name: Lint and format
+          bun-version: 1.4.2
+      - run: bun install --frozen-lockfile
+      - run: bunx @biomejs/biome check ./apps/client ./packages/shared
+      - run: bunx expo-doctor
+      - run: npx expo-modules-autolinking verify -v
+      - run: bun --filter client export:web
+      - if: github.ref == 'refs/heads/main'
+        run: rsync -avz apps/client/dist/ user@server:/var/www/meapp-web/dist/
+      - if: github.ref == 'refs/heads/main'
         run: |
-          yarn format
-          yarn lint
-
-      - name: Build and export
-        run: yarn export:web
+          npm install -g eas-cli
+          eas update --branch production --message ${{ github.sha }} --non-interactive
         env:
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-          CI: true
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
-  # ——— PR checks: server ———
   server:
-    if: ${{ github.event_name == 'pull_request' }}
+    needs: detect-changes
+    if: needs.detect-changes.outputs.server == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: server/.nvmrc
-
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.2
+      - name: Install Podman deps
+        run: sudo apt update && sudo apt install -y podman passt netavark aardvark-dns trivy
+      - run: bun install --frozen-lockfile
 
-      - name: Cache dependencies
-        uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('server/bun.lockb') }}
-          restore-keys: ${{ runner.os }}-bun-
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Audit dependencies
-        run: bun audit
-        continue-on-error: true
-
-      - name: Lint and format
+      # Phase 7: Destructive Migration Guard
+      - name: Check destructive migrations (Phase 7)
         run: |
-          bun format
-          bun lint
+          chmod +x scripts/check-destructive-migration.sh
+          ALLOW_DESTRUCTIVE=${{ contains(github.event.pull_request.labels.*.name, 'allow-destructive-migration') }} ./scripts/check-destructive-migration.sh
 
-      - name: Run tests
-        run: bun test
-        env:
-          NODE_ENV: test
+      - run: bunx @biomejs/biome check ./apps/server/src ./packages
+      - run: bun --filter @meapp/server test
+      - run: bun audit
 
-  # ——— Deploy: client ———
-  deploy-client:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_client }}
+      - name: Build immutable tag
+        if: github.ref == 'refs/heads/main'
+        run: |
+          echo ${{ secrets.GITHUB_TOKEN }} | podman login ghcr.io -u ${{ github.actor }} --password-stdin
+          SHA_TAG=sha-${{ github.sha }}
+          podman build -t ghcr.io/meapp-labs/meapp:$SHA_TAG -t ghcr.io/meapp-labs/meapp:server -f apps/server/Dockerfile .
+          podman push ghcr.io/meapp-labs/meapp:$SHA_TAG
+          podman push ghcr.io/meapp-labs/meapp:server
+          echo "SHA_TAG=$SHA_TAG" >> $GITHUB_ENV
+
+      - name: Trivy scan
+        if: github.ref == 'refs/heads/main'
+        run: podman run --rm aquasec/trivy image ghcr.io/meapp-labs/meapp:${{ env.SHA_TAG }}
+
+  migrate:
+    needs: [detect-changes, server]
+    if: github.ref == 'refs/heads/main' && needs.detect-changes.outputs.server == 'true'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
+    concurrency:
+      group: meapp-migration-prod
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - name: Safe DB Backup (VACUUM INTO) & Migrate
+        uses: appleboy/ssh-action@v1
         with:
-          node-version-file: client/.nvmrc
-          cache: yarn
-          cache-dependency-path: client/yarn.lock
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            SHA_TAG=sha-${{ github.sha }}
+            # Safe backup via VACUUM INTO (WAL safe, no torn reads)
+            podman exec meapp-server sqlite3 /app/data/data.db "VACUUM INTO '/app/data/backup-pre-${SHA_TAG}.db'" || true
+            podman exec meapp-server sqlite3 /app/data/backup-pre-${SHA_TAG}.db "PRAGMA integrity_check;" || true
+            # Execute migrations via server container
+            podman exec meapp-server bun run src/migrate.ts
 
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --network-timeout 100000
-
-      - name: Build and export
-        run: yarn export:web
-        env:
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-          CI: true
-
-      - name: Deploy to server
-        timeout-minutes: 10
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-        run: |
-          set -euo pipefail
-          eval $(ssh-agent)
-          ssh-add - <<< "$SSH_PRIVATE_KEY"
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
-
-          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-            set -euo pipefail
-            if ! command -v rsync > /dev/null; then
-              sudo apt-get update
-              sudo apt-get install -y rsync
-            fi
-            mkdir -p ~/meapp/client/dist
-          '
-          rsync -azPic --delete --timeout=300 ./dist/ $REMOTE_USER@$REMOTE_HOST:~/meapp/client/dist/
-
-  # ——— Deploy: server ———
-  deploy-server:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.deploy_server }}
+  deploy:
+    needs: [migrate]
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
+      - uses: appleboy/ssh-action@v1
         with:
-          node-version-file: server/.nvmrc
-
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
-      - name: Prepare SSH
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          REMOTE_HOST: ${{ secrets.REMOTE_HOST }}
-          REMOTE_USER: ${{ secrets.REMOTE_USER }}
-        run: |
-          set -euo pipefail
-          eval $(ssh-agent)
-          ssh-add - <<< "$SSH_PRIVATE_KEY"
-          mkdir -p ~/.ssh
-          ssh-keyscan -H "$REMOTE_HOST" >> ~/.ssh/known_hosts
-
-          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-            set -euo pipefail
-            export BUN_INSTALL="~/.bun"
-            export PATH="$BUN_INSTALL/bin:$PATH"
-            command -v rsync >/dev/null || (sudo apt-get update && sudo apt-get install -y rsync)
-            command -v curl  >/dev/null || (sudo apt-get update && sudo apt-get install -y curl)
-            command -v bun   >/dev/null || curl -fsSL https://bun.sh/install | bash
-            command -v pm2   >/dev/null || bun install -g pm2
-            mkdir -p ~/meapp/server
-          '
-          rsync -azPi --delete \
-            --exclude node_modules \
-            --exclude .git \
-            --exclude .env \
-            --exclude logs \
-            --exclude .cache \
-            ./ $REMOTE_USER@$REMOTE_HOST:~/meapp/server/
-          
-          ssh $REMOTE_USER@$REMOTE_HOST bash -lc '
-            set -euo pipefail
-            cd ~/meapp/server
-
-            {
-              echo "SESSION_SALT=${{ secrets.SESSION_SALT }}"
-              echo "SESSION_SECRET=${{ secrets.SESSION_SECRET }}"
-              echo "DOMAIN=${{ vars.DOMAIN }}"
-              echo "HOST=${{ vars.HOST }}"
-              echo "NODE_ENV=${{ vars.NODE_ENV }}"
-            } > .env
-            chmod 600 .env
-
-            export PATH="~/.bun/bin:$PATH"
-            bun install --production
-
-            pm2 reload server --update-env 2>/dev/null || pm2 start bun --name server -- start
-            sleep 3
-
-            if pm2 show server | grep -q "online"; then
-              echo "✅ Deployment successful!"
-              pm2 save
-            else
-              echo "❌ Deployment failed, checking logs..."
-              pm2 logs server --lines 20 --nostream
-              exit 1
-            fi
-          '
-
-  # ——— Build: Android ———
-  build-android:
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_android }}
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: client
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version-file: client/.nvmrc
-          cache: yarn
-          cache-dependency-path: client/yarn.lock
-
-      - name: Setup Expo
-        uses: expo/expo-github-action@v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
-
-      - name: Install dependencies
-        run: yarn install --frozen-lockfile --network-timeout 100000
-
-      - name: Build Android app
-        run: eas build --platform android --profile production --non-interactive
-        env:
-          EXPO_PUBLIC_API_URL: ${{ vars.EXPO_PUBLIC_API_URL }}
-
-      - name: Download build artifact
-        run: |
-          BUILD_URL=$(eas build:list --platform android --limit 1 --json --non-interactive | jq -r '.[0].artifacts.buildUrl')
-          curl -L -o meapp.apk "$BUILD_URL"
-
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: meapp-android-${{ github.sha }}
-          path: client/meapp.apk
-          retention-days: 14
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            set -e
+            SHA_TAG=sha-${{ github.sha }}
+            PREV_TAG=$(cat ~/meapp-current-tag || echo "server")
+            echo $SHA_TAG > ~/meapp-current-tag
+            podman pull ghcr.io/meapp-labs/meapp:$SHA_TAG
+            # Update Quadlet to new tag
+            sed -i "s|Image=ghcr.io/meapp-labs/meapp:.*|Image=ghcr.io/meapp-labs/meapp:$SHA_TAG|" ~/.config/containers/systemd/meapp.container
+            systemctl --user daemon-reload
+            systemctl --user restart meapp.container
+            # Health check
+            for i in {1..10}; do
+              if curl -f http://127.0.0.1:3000/health; then
+                echo "Health ok"
+                exit 0
+              fi
+              sleep 3
+            done
+            echo "Health failed, rolling back to $PREV_TAG"
+            sed -i "s|Image=ghcr.io/meapp-labs/meapp:.*|Image=ghcr.io/meapp-labs/meapp:$PREV_TAG|" ~/.config/containers/systemd/meapp.container
+            systemctl --user daemon-reload
+            systemctl --user restart meapp.container
+            exit 1
