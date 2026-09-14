@@ -74,11 +74,4 @@ CREATE TABLE `users` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
-CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);--> statement-breakpoint
-CREATE TABLE `ws_tickets` (
-	`jti` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`room_id` text NOT NULL,
-	`used_at` integer,
-	`expires_at` integer NOT NULL
-);
+CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);
