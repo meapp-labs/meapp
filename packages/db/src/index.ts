@@ -1,4 +1,5 @@
 export { db, schema, sqlite, checkpoint } from './client.ts'
 export type { DB } from './client.ts'
 export { runMigrations } from './migrate.ts'
+export { nextSequence } from './sequence.ts'
 export * from './schema.ts'

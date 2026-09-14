@@ -23,15 +23,18 @@ CREATE TABLE `messages` (
 	`client_id` text NOT NULL,
 	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,
+	`sequence` integer NOT NULL,
 	`text` text NOT NULL,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE INDEX `idx_room_sequence` ON `messages` (`room_id`,`sequence`);--> statement-breakpoint
 CREATE INDEX `messages_room_idx` ON `messages` (`room_id`);--> statement-breakpoint
 CREATE INDEX `messages_user_idx` ON `messages` (`user_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `messages_user_client_unique` ON `messages` (`user_id`,`client_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `messages_room_sequence_unique` ON `messages` (`room_id`,`sequence`);--> statement-breakpoint
 CREATE TABLE `room_members` (
 	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,
@@ -60,6 +63,7 @@ CREATE TABLE `users` (
 	`email` text,
 	`username` text,
 	`name` text,
+	`nickname` text,
 	`password_hash` text NOT NULL,
 	`avatar_url` text,
 	`display_name` text,
@@ -70,4 +74,11 @@ CREATE TABLE `users` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
-CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);
+CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);--> statement-breakpoint
+CREATE TABLE `ws_tickets` (
+	`jti` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`room_id` text NOT NULL,
+	`used_at` integer,
+	`expires_at` integer NOT NULL
+);

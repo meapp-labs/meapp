@@ -1,7 +1,7 @@
 import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core'
 
 // ─────────────────────────────────────────────────────────────
-// users (V6 Podman Fixed)
+// users (V7 FINAL)
 // ─────────────────────────────────────────────────────────────
 
 export const users = sqliteTable('users', {
@@ -9,6 +9,7 @@ export const users = sqliteTable('users', {
   email: text('email').unique(),
   username: text('username').unique(),
   name: text('name'),
+  nickname: text('nickname'), // V7 expand phase
   passwordHash: text('password_hash').notNull(),
   avatarUrl: text('avatar_url'),
   displayName: text('display_name'),
@@ -47,7 +48,7 @@ export type Session = typeof sessions.$inferSelect
 export type NewSession = typeof sessions.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
-// rooms (conversations) (V6 Podman Fixed)
+// rooms (conversations) (V7 FINAL)
 // ─────────────────────────────────────────────────────────────
 
 export const rooms = sqliteTable('rooms', {
@@ -70,7 +71,7 @@ export type Conversation = Room
 export type NewConversation = NewRoom
 
 // ─────────────────────────────────────────────────────────────
-// room_members (participants) (V6 Podman Fixed)
+// room_members (participants) (V7 FINAL)
 // ─────────────────────────────────────────────────────────────
 
 export const roomMembers = sqliteTable(
@@ -103,27 +104,30 @@ export type Participant = RoomMember
 export type NewParticipant = NewRoomMember
 
 // ─────────────────────────────────────────────────────────────
-// messages (V6 Podman Fixed - FIX #4, FIX #9)
+// messages (V7 FINAL - FIX #4 idempotency, FIX #5 monotonic sequence)
 // ─────────────────────────────────────────────────────────────
 
 export const messages = sqliteTable(
   'messages',
   {
     id: text('id').primaryKey(),
-    clientId: text('client_id').notNull(), // FIX #9 - client-generated idempotency key
+    clientId: text('client_id').notNull(),
     roomId: text('room_id')
       .notNull()
       .references(() => rooms.id, { onDelete: 'cascade' }),
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
+    sequence: integer('sequence').notNull(), // FIX #5 - monotonic per room
     text: text('text').notNull(),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .$defaultFn(() => new Date()),
   },
   (t) => [
-    unique('messages_user_client_unique').on(t.userId, t.clientId), // FIX #4 idempotency
+    unique('messages_user_client_unique').on(t.userId, t.clientId),
+    unique('messages_room_sequence_unique').on(t.roomId, t.sequence),
+    index('idx_room_sequence').on(t.roomId, t.sequence),
     index('messages_room_idx').on(t.roomId),
     index('messages_user_idx').on(t.userId),
   ],
@@ -131,6 +135,21 @@ export const messages = sqliteTable(
 
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
+
+// ─────────────────────────────────────────────────────────────
+// ws_tickets (V7 FINAL - FIX #2 single-use tracking)
+// ─────────────────────────────────────────────────────────────
+
+export const wsTickets = sqliteTable('ws_tickets', {
+  jti: text('jti').primaryKey(), // JWT ID
+  userId: text('user_id').notNull(),
+  roomId: text('room_id').notNull(),
+  usedAt: integer('used_at', { mode: 'timestamp' }),
+  expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+})
+
+export type WsTicket = typeof wsTickets.$inferSelect
+export type NewWsTicket = typeof wsTickets.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
 // attachments

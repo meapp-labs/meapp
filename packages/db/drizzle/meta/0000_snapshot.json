@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "f684b42d-de68-4721-a6cc-b6bdcf443bec",
+  "id": "c59333b9-f781-40bf-9a18-84bdb22dbb88",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "attachments": {
@@ -168,6 +168,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "sequence": {
+          "name": "sequence",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "text": {
           "name": "text",
           "type": "text",
@@ -184,6 +191,14 @@
         }
       },
       "indexes": {
+        "idx_room_sequence": {
+          "name": "idx_room_sequence",
+          "columns": [
+            "room_id",
+            "sequence"
+          ],
+          "isUnique": false
+        },
         "messages_room_idx": {
           "name": "messages_room_idx",
           "columns": [
@@ -203,6 +218,14 @@
           "columns": [
             "user_id",
             "client_id"
+          ],
+          "isUnique": true
+        },
+        "messages_room_sequence_unique": {
+          "name": "messages_room_sequence_unique",
+          "columns": [
+            "room_id",
+            "sequence"
           ],
           "isUnique": true
         }
@@ -433,6 +456,13 @@
           "notNull": false,
           "autoincrement": false
         },
+        "nickname": {
+          "name": "nickname",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "password_hash": {
           "name": "password_hash",
           "type": "text",
@@ -499,6 +529,51 @@
           "isUnique": true
         }
       },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ws_tickets": {
+      "name": "ws_tickets",
+      "columns": {
+        "jti": {
+          "name": "jti",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "used_at": {
+          "name": "used_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
