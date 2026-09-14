@@ -11,6 +11,7 @@
         "@expo/metro-runtime": "^6.1.2",
         "@expo/vector-icons": "^15.0.2",
         "@hookform/resolvers": "^5.2.2",
+        "@meapp/shared": "workspace:*",
         "@react-native-async-storage/async-storage": "^2.2.0",
         "@react-navigation/bottom-tabs": "^7.3.10",
         "@react-navigation/elements": "^2.6.4",
@@ -73,6 +74,7 @@
         "@fastify/secure-session": "^8.2.0",
         "@fastify/swagger": "^9.5.2",
         "@fastify/swagger-ui": "^5.2.3",
+        "@meapp/shared": "workspace:*",
         "better-sqlite3": "^12.4.1",
         "fastify": "^5.6.1",
         "fastify-plugin": "^5.1.0",
@@ -97,6 +99,16 @@
         "typescript": "^5.9.3",
         "typescript-eslint": "^8.46.0",
         "vitest": "^4.0.0-beta.17",
+      },
+    },
+    "packages/shared": {
+      "name": "@meapp/shared",
+      "version": "0.0.1",
+      "dependencies": {
+        "zod": "^4.1.12",
+      },
+      "devDependencies": {
+        "typescript": "^5.9.3",
       },
     },
   },
@@ -456,6 +468,8 @@
     "@lukeed/ms": ["@lukeed/ms@2.0.2", "", {}, "sha512-9I2Zn6+NJLfaGoz9jN3lpwDgAYvfGeNYdbAIjJOqzs4Tpc+VU3Jqq4IofSUBKajiDS8k9fZIg18/z13mpk1bsA=="],
 
     "@meapp/server": ["@meapp/server@workspace:apps/server"],
+
+    "@meapp/shared": ["@meapp/shared@workspace:packages/shared"],
 
     "@napi-rs/wasm-runtime": ["@napi-rs/wasm-runtime@1.2.4", "", { "dependencies": { "@tybys/wasm-util": "^0.10.3" }, "peerDependencies": { "@emnapi/core": "^1.7.1 || ^2.0.0-alpha.4", "@emnapi/runtime": "^1.7.1 || ^2.0.0-alpha.4" } }, "sha512-AJxoUD2/15ESHbvpcyjU274nsAPLuOtPHCk0vKJM5pj//Fg/B1FXNWjPnXTT9PymCYYiHo4zPj0ZomXBKhoy7g=="],
 

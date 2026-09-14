@@ -11,6 +11,7 @@
     "lint:fix": "eslint --fix"
   },
   "dependencies": {
+    "@meapp/shared": "workspace:*",
     "@fastify/autoload": "^6.3.1",
     "@fastify/cors": "^11.1.0",
     "@fastify/redis": "^7.1.0",
