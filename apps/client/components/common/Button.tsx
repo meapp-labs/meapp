@@ -1,25 +1,24 @@
-import React from 'react';
 import {
   ActivityIndicator,
   Platform,
   StyleSheet,
-  TextStyle,
+  type TextStyle,
   TouchableOpacity,
-  ViewStyle,
-} from 'react-native';
+  type ViewStyle,
+} from 'react-native'
 
-import { theme } from '../../theme/theme';
-import { Text } from '../common/Text';
+import { theme } from '../../theme/theme'
+import { Text } from '../common/Text'
 
 interface CustomButtonProps {
-  title: string;
-  onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'outline';
-  size?: 'small' | 'medium' | 'large';
-  disabled?: boolean;
-  loading?: boolean;
-  style?: ViewStyle;
-  textStyle?: TextStyle;
+  title: string
+  onPress: () => void
+  variant?: 'primary' | 'secondary' | 'outline'
+  size?: 'small' | 'medium' | 'large'
+  disabled?: boolean
+  loading?: boolean
+  style?: ViewStyle
+  textStyle?: TextStyle
 }
 
 export default function Button({
@@ -47,18 +46,14 @@ export default function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={
-            variant === 'outline' ? theme.colors.primary : theme.colors.text
-          }
+          color={variant === 'outline' ? theme.colors.primary : theme.colors.text}
           size="small"
         />
       ) : (
-        <Text style={[styles.text, styles[`${variant}Text`], textStyle]}>
-          {title}
-        </Text>
+        <Text style={[styles.text, styles[`${variant}Text`], textStyle]}>{title}</Text>
       )}
     </TouchableOpacity>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -115,4 +110,4 @@ const styles = StyleSheet.create({
   },
 
   disabled: { opacity: 0.5 },
-});
+})

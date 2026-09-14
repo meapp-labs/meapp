@@ -1,5 +1,5 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useState } from 'react';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { useState } from 'react'
 import {
   FlatList,
   Modal,
@@ -8,35 +8,33 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { useConversationStore } from '@/lib/stores';
-import { useCreateConversation } from '@/services/conversations';
-import { useGetFriends } from '@/services/others';
-import { ConversationStorage } from '@/services/storage';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { useConversationStore } from '@/lib/stores'
+import { useCreateConversation } from '@/services/conversations'
+import { useGetFriends } from '@/services/others'
+import { ConversationStorage } from '@/services/storage'
+import { theme } from '@/theme/theme'
 
 export default function CreateGroup() {
-  const [showModal, setShowModal] = useState(false);
-  const [step, setStep] = useState<1 | 2>(1);
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([]);
-  const [groupName, setGroupName] = useState('');
+  const [showModal, setShowModal] = useState(false)
+  const [step, setStep] = useState<1 | 2>(1)
+  const [selectedFriends, setSelectedFriends] = useState<string[]>([])
+  const [groupName, setGroupName] = useState('')
 
-  const { data: friends = [] } = useGetFriends();
-  const { setSelectedConversation } = useConversationStore();
-  const { mutate: createGroup, isPending } = useCreateConversation();
+  const { data: friends = [] } = useGetFriends()
+  const { setSelectedConversation } = useConversationStore()
+  const { mutate: createGroup, isPending } = useCreateConversation()
 
   const handleToggleFriend = (friend: string) => {
     setSelectedFriends((prev) =>
-      prev.includes(friend)
-        ? prev.filter((f) => f !== friend)
-        : [...prev, friend],
-    );
-  };
+      prev.includes(friend) ? prev.filter((f) => f !== friend) : [...prev, friend],
+    )
+  }
 
   const handleCreate = () => {
-    if (!groupName.trim() || selectedFriends.length === 0) return;
+    if (!groupName.trim() || selectedFriends.length === 0) return
 
     createGroup(
       {
@@ -46,23 +44,23 @@ export default function CreateGroup() {
       },
       {
         onSuccess: (conversation) => {
-          setSelectedConversation(conversation);
-          void ConversationStorage.save(conversation.id);
-          handleClose();
+          setSelectedConversation(conversation)
+          void ConversationStorage.save(conversation.id)
+          handleClose()
         },
       },
-    );
-  };
+    )
+  }
 
   const handleClose = () => {
-    setShowModal(false);
-    setStep(1);
-    setSelectedFriends([]);
-    setGroupName('');
-  };
+    setShowModal(false)
+    setStep(1)
+    setSelectedFriends([])
+    setGroupName('')
+  }
 
   const renderFriend = ({ item: friend }: { item: string }) => {
-    const isSelected = selectedFriends.includes(friend);
+    const isSelected = selectedFriends.includes(friend)
     return (
       <TouchableOpacity
         style={[styles.friendItem, isSelected && styles.friendItemSelected]}
@@ -75,54 +73,37 @@ export default function CreateGroup() {
         />
         <Text style={styles.friendName}>{friend}</Text>
       </TouchableOpacity>
-    );
-  };
+    )
+  }
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.triggerButton}
-        onPress={() => setShowModal(true)}
-      >
+      <TouchableOpacity style={styles.triggerButton} onPress={() => setShowModal(true)}>
         <MaterialIcons name="groups" size={24} color={theme.colors.text} />
       </TouchableOpacity>
 
       <Modal transparent animationType="fade" visible={showModal}>
         <Pressable style={styles.overlay} onPress={handleClose}>
-          <Pressable
-            style={styles.modalContent}
-            onPress={(e) => e.stopPropagation()}
-          >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <View style={styles.header}>
-              <Text style={styles.title}>
-                {step === 1 ? 'New Group' : 'Group Details'}
-              </Text>
+              <Text style={styles.title}>{step === 1 ? 'New Group' : 'Group Details'}</Text>
             </View>
 
             {step === 1 ? (
               <View style={styles.stepContainer}>
-                <Text style={styles.description}>
-                  Select friends to add to the new group chat.
-                </Text>
+                <Text style={styles.description}>Select friends to add to the new group chat.</Text>
                 <View style={styles.listContainer}>
                   <FlatList
                     data={friends}
                     renderItem={renderFriend}
                     keyExtractor={(item) => item}
                     style={styles.friendList}
-                    ListEmptyComponent={
-                      <Text style={styles.emptyText}>No friends found.</Text>
-                    }
+                    ListEmptyComponent={<Text style={styles.emptyText}>No friends found.</Text>}
                   />
                 </View>
-                <Text style={styles.counter}>
-                  {selectedFriends.length} friend(s) selected
-                </Text>
+                <Text style={styles.counter}>{selectedFriends.length} friend(s) selected</Text>
                 <View style={styles.footerButtons}>
-                  <Pressable
-                    style={[styles.button, styles.cancelButton]}
-                    onPress={handleClose}
-                  >
+                  <Pressable style={[styles.button, styles.cancelButton]} onPress={handleClose}>
                     <Text style={styles.cancelButtonText}>Cancel</Text>
                   </Pressable>
                   <Pressable
@@ -141,15 +122,9 @@ export default function CreateGroup() {
             ) : (
               <View style={styles.stepContainer}>
                 <View style={styles.iconPreview}>
-                  <MaterialIcons
-                    name="groups"
-                    size={42}
-                    color={theme.colors.primary}
-                  />
+                  <MaterialIcons name="groups" size={42} color={theme.colors.primary} />
                 </View>
-                <Text style={styles.description}>
-                  Give your group a name to get started.
-                </Text>
+                <Text style={styles.description}>Give your group a name to get started.</Text>
                 <TextInput
                   style={styles.input}
                   placeholder="Group Name"
@@ -185,7 +160,7 @@ export default function CreateGroup() {
         </Pressable>
       </Modal>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -321,4 +296,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     padding: theme.spacing.xl,
   },
-});
+})

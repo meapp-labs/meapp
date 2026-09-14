@@ -1,20 +1,20 @@
-import { zodResolver } from '@hookform/resolvers/zod';
-import { router } from 'expo-router';
-import { useForm } from 'react-hook-form';
-import { StyleSheet, TouchableHighlight, View } from 'react-native';
-import Toast from 'react-native-toast-message';
+import { zodResolver } from '@hookform/resolvers/zod'
+import { router } from 'expo-router'
+import { useForm } from 'react-hook-form'
+import { StyleSheet, TouchableHighlight, View } from 'react-native'
+import Toast from 'react-native-toast-message'
 
-import Button from '@/components/common/Button';
-import { Text } from '@/components/common/Text';
-import { FormContainer } from '@/components/forms/FormContainer';
-import { FormField } from '@/components/forms/FormInput';
-import { extractErrorMessage } from '@/lib/axios';
-import { useRegisterUser } from '@/services/auth';
-import { theme } from '@/theme/theme';
-import { RegisterSchema, RegisterType } from '@/validation/userValidation';
+import Button from '@/components/common/Button'
+import { Text } from '@/components/common/Text'
+import { FormContainer } from '@/components/forms/FormContainer'
+import { FormField } from '@/components/forms/FormInput'
+import { extractErrorMessage } from '@/lib/axios'
+import { useRegisterUser } from '@/services/auth'
+import { theme } from '@/theme/theme'
+import { RegisterSchema, type RegisterType } from '@/validation/userValidation'
 
 export default function RegisterForm() {
-  const { mutate, isPending } = useRegisterUser();
+  const { mutate, isPending } = useRegisterUser()
 
   const {
     control,
@@ -28,7 +28,7 @@ export default function RegisterForm() {
       password: '',
       confirmPassword: '',
     },
-  });
+  })
 
   const onSubmit = handleSubmit((data: RegisterType) =>
     mutate(data, {
@@ -38,10 +38,10 @@ export default function RegisterForm() {
           type: 'error',
           text1: 'Registration Failed',
           text2: extractErrorMessage(error),
-        });
+        })
       },
     }),
-  );
+  )
 
   return (
     <FormContainer>
@@ -63,7 +63,7 @@ export default function RegisterForm() {
           error={errors.username}
           editable={!isPending}
           onSubmitEditing={() => {
-            void onSubmit();
+            void onSubmit()
           }}
         />
 
@@ -88,7 +88,7 @@ export default function RegisterForm() {
           isPassword
           editable={!isPending}
           onSubmitEditing={() => {
-            void onSubmit();
+            void onSubmit()
           }}
         />
 
@@ -101,21 +101,21 @@ export default function RegisterForm() {
           isPassword
           editable={!isPending}
           onSubmitEditing={() => {
-            void onSubmit();
+            void onSubmit()
           }}
         />
       </View>
       <Button
         title="Register"
         onPress={() => {
-          void onSubmit();
+          void onSubmit()
         }}
         loading={isPending}
         variant="primary"
         size="small"
       />
     </FormContainer>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -132,4 +132,4 @@ const styles = StyleSheet.create({
     color: theme.colors.error,
     ...theme.typography.caption,
   },
-});
+})

@@ -1,8 +1,8 @@
-import { PropsWithChildren } from 'react';
-import { StyleSheet, View } from 'react-native';
+import type { PropsWithChildren } from 'react'
+import { StyleSheet, View } from 'react-native'
 
 export default function CenteredContainer({ children }: PropsWithChildren) {
-  return <View style={styles.container}>{children}</View>;
+  return <View style={styles.container}>{children}</View>
 }
 
 const styles = StyleSheet.create({
@@ -11,4 +11,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+})

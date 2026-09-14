@@ -1,38 +1,35 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import React, { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons'
+import { useState } from 'react'
+import { Pressable, StyleSheet, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { useAuthStore, useConversationStore } from '@/lib/stores';
-import { ConversationStorage } from '@/services/storage';
-import { theme } from '@/theme/theme';
-import type { Conversation } from '@/types/models';
+import { Text } from '@/components/common/Text'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { ConversationStorage } from '@/services/storage'
+import { theme } from '@/theme/theme'
+import type { Conversation } from '@/types/models'
 
 type ConversationItemProps = {
-  conversation: Conversation;
-};
+  conversation: Conversation
+}
 
 function ConversationItem({ conversation }: ConversationItemProps) {
-  const [hovered, setHovered] = useState<boolean>(false);
-  const { selectedConversation, setSelectedConversation } =
-    useConversationStore();
-  const { username } = useAuthStore();
+  const [hovered, setHovered] = useState<boolean>(false)
+  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { username } = useAuthStore()
 
   // Filter out current user from display name
   const displayName =
     conversation.name ||
-    conversation.participants
-      .filter((p) => p !== username && p !== '')
-      .join(', ') ||
-    'Unknown';
-  const isSelected = selectedConversation?.id === conversation.id;
+    conversation.participants.filter((p) => p !== username && p !== '').join(', ') ||
+    'Unknown'
+  const isSelected = selectedConversation?.id === conversation.id
 
   const handleSelect = () => {
     if (!isSelected) {
-      setSelectedConversation(conversation);
-      void ConversationStorage.save(conversation.id);
+      setSelectedConversation(conversation)
+      void ConversationStorage.save(conversation.id)
     }
-  };
+  }
 
   return (
     <>
@@ -40,11 +37,7 @@ function ConversationItem({ conversation }: ConversationItemProps) {
         onPress={handleSelect}
         onHoverIn={() => setHovered(true)}
         onHoverOut={() => setHovered(false)}
-        style={[
-          styles.item,
-          hovered && styles.itemHovered,
-          isSelected && styles.itemSelected,
-        ]}
+        style={[styles.item, hovered && styles.itemHovered, isSelected && styles.itemSelected]}
       >
         <View style={styles.container}>
           <MaterialIcons
@@ -68,10 +61,10 @@ function ConversationItem({ conversation }: ConversationItemProps) {
         </View>
       </Pressable>
     </>
-  );
+  )
 }
 
-export default ConversationItem;
+export default ConversationItem
 
 const styles = StyleSheet.create({
   item: {
@@ -105,4 +98,4 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     marginRight: theme.spacing.xs,
   },
-});
+})

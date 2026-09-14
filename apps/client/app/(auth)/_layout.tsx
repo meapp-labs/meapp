@@ -1,7 +1,7 @@
-import { Stack } from 'expo-router';
-import Toast from 'react-native-toast-message';
+import { Stack } from 'expo-router'
+import Toast from 'react-native-toast-message'
 
-import { toastConfig } from '@/misc/toastConfig';
+import { toastConfig } from '@/misc/toastConfig'
 
 export default function AuthLayout() {
   return (
@@ -9,5 +9,5 @@ export default function AuthLayout() {
       <Stack screenOptions={{ headerShown: false }} />
       <Toast config={toastConfig} />
     </>
-  );
+  )
 }

@@ -1,12 +1,11 @@
-import React from 'react';
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, Text, View } from 'react-native'
 
-import { theme } from '@/theme/theme';
+import { theme } from '@/theme/theme'
 
 type LoaderProps = {
-  text?: string;
-  size?: 'small' | 'large';
-};
+  text?: string
+  size?: 'small' | 'large'
+}
 
 export function Loader({ text, size = 'large' }: LoaderProps) {
   return (
@@ -14,7 +13,7 @@ export function Loader({ text, size = 'large' }: LoaderProps) {
       <ActivityIndicator size={size} color={theme.colors.primary} />
       {text && <Text style={styles.text}>{text}</Text>}
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -29,4 +28,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.body.fontSize,
     color: theme.colors.textSecondary,
   },
-});
+})

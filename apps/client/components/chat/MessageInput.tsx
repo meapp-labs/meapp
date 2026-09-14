@@ -1,5 +1,5 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
+import { MaterialIcons } from '@expo/vector-icons'
+import { useRef, useState } from 'react'
 import {
   KeyboardAvoidingView,
   Platform,
@@ -7,30 +7,30 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-} from 'react-native';
+} from 'react-native'
 
-import Attachment from '@/components/chat/Attachment';
-import { useSendMessage } from '@/services/messages';
-import { theme } from '@/theme/theme';
+import Attachment from '@/components/chat/Attachment'
+import { useSendMessage } from '@/services/messages'
+import { theme } from '@/theme/theme'
 
 export default function MessageInput({
   conversationId,
 }: {
-  conversationId: string;
+  conversationId: string
 }) {
-  const [inputData, setInputData] = useState('');
-  const [showModal, setShowModal] = useState(false);
-  const inputRef = useRef<TextInput>(null);
+  const [inputData, setInputData] = useState('')
+  const [showModal, setShowModal] = useState(false)
+  const inputRef = useRef<TextInput>(null)
 
-  const { mutate } = useSendMessage({ conversationId });
+  const { mutate } = useSendMessage({ conversationId })
 
   const handleSend = () => {
     if (inputData.trim().length > 0) {
-      mutate({ text: inputData });
-      setInputData('');
-      inputRef.current?.focus();
+      mutate({ text: inputData })
+      setInputData('')
+      inputRef.current?.focus()
     }
-  };
+  }
 
   return (
     <KeyboardAvoidingView
@@ -60,7 +60,7 @@ export default function MessageInput({
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -85,4 +85,4 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: theme.spacing.md,
   },
-});
+})

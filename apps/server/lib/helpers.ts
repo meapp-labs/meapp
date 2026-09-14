@@ -1,4 +1,4 @@
-import { ApiError, ErrorCode } from '@/lib/errors.ts';
+import { ApiError, ErrorCode } from '@/lib/errors.ts'
 
 export async function handleAsyncOperation<T>(
   operation: () => Promise<T>,
@@ -6,14 +6,14 @@ export async function handleAsyncOperation<T>(
   errorCode: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
 ): Promise<T> {
   try {
-    return await operation();
+    return await operation()
   } catch (error) {
     if (error instanceof ApiError) {
-      throw error;
+      throw error
     }
     throw new ApiError(errorCode, errorMessage, 500, {
       originalError: error instanceof Error ? error.message : String(error),
-    });
+    })
   }
 }
 
@@ -23,13 +23,13 @@ export function handleSyncOperation<T>(
   errorCode: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
 ): T {
   try {
-    return operation();
+    return operation()
   } catch (error) {
     if (error instanceof ApiError) {
-      throw error;
+      throw error
     }
     throw new ApiError(errorCode, errorMessage, 500, {
       originalError: error instanceof Error ? error.message : String(error),
-    });
+    })
   }
 }

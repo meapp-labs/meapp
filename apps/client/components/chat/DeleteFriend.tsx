@@ -1,44 +1,39 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { Modal, Pressable, StyleSheet, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { Keys } from '@/lib/keys';
-import { queryClient } from '@/lib/queryInit';
-import { useRemoveFriend } from '@/services/others';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { Keys } from '@/lib/keys'
+import { queryClient } from '@/lib/queryInit'
+import { useRemoveFriend } from '@/services/others'
+import { theme } from '@/theme/theme'
 
 type DeleteFriendProps = {
-  friend: string;
-  onChange: (pressed: string | null, removed: string | null) => void;
-};
+  friend: string
+  onChange: (pressed: string | null, removed: string | null) => void
+}
 
 export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
   const { mutate, isPending } = useRemoveFriend({
     onSuccess: () => {
       void queryClient.refetchQueries({
         queryKey: [Keys.Query.GET_FRIENDS],
-      });
-      onChange(null, friend);
+      })
+      onChange(null, friend)
     },
-  });
+  })
 
   return (
     <Modal transparent animationType="fade" visible={true}>
       <Pressable style={styles.overlay} onPress={() => onChange(friend, null)}>
         <View style={styles.modalContent}>
           <View style={styles.iconContainer}>
-            <MaterialIcons
-              name="person-remove"
-              size={42}
-              color={theme.colors.error}
-            />
+            <MaterialIcons name="person-remove" size={42} color={theme.colors.error} />
           </View>
 
           <Text style={styles.title}>Remove Friend?</Text>
           <Text style={styles.description}>
-            Are you sure you want to remove{' '}
-            <Text style={styles.name}>{friend}</Text>? This action will hide the
-            conversation from your list.
+            Are you sure you want to remove <Text style={styles.name}>{friend}</Text>? This action
+            will hide the conversation from your list.
           </Text>
 
           <View style={styles.buttonContainer}>
@@ -54,15 +49,13 @@ export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
               onPress={() => mutate(friend)}
               disabled={isPending}
             >
-              <Text style={styles.confirmButtonText}>
-                {isPending ? 'Removing...' : 'Remove'}
-              </Text>
+              <Text style={styles.confirmButtonText}>{isPending ? 'Removing...' : 'Remove'}</Text>
             </Pressable>
           </View>
         </View>
       </Pressable>
     </Modal>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -140,4 +133,4 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: '600',
   },
-});
+})

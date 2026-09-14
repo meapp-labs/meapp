@@ -1,62 +1,53 @@
-import React, { useCallback, useEffect } from 'react';
-import {
-  BackHandler,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useCallback, useEffect } from 'react'
+import { BackHandler, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
-import Conversation from '@/components/Conversation';
-import { ChatHeader } from '@/components/chat/ChatHeader';
-import MessageInput from '@/components/chat/MessageInput';
-import { MessageList } from '@/components/chat/MessageList';
-import { Text } from '@/components/common/Text';
-import useBreakpoint from '@/hooks/useBreakpoint';
-import { useConversationStore } from '@/lib/stores';
-import { DocumentTitle } from '@/misc/DocumentTitle';
+import Conversation from '@/components/Conversation'
+import { ChatHeader } from '@/components/chat/ChatHeader'
+import MessageInput from '@/components/chat/MessageInput'
+import { MessageList } from '@/components/chat/MessageList'
+import { Text } from '@/components/common/Text'
+import useBreakpoint from '@/hooks/useBreakpoint'
+import { useConversationStore } from '@/lib/stores'
+import { DocumentTitle } from '@/misc/DocumentTitle'
 import {
   handleIncomingNotification,
   registerForPushNotificationsAsync,
   setupNotificationListeners,
-} from '@/services/notification';
-import { ConversationStorage } from '@/services/storage';
-import { theme } from '@/theme/theme';
+} from '@/services/notification'
+import { ConversationStorage } from '@/services/storage'
+import { theme } from '@/theme/theme'
 
 export default function ChatApp() {
-  const { selectedConversation, setSelectedConversation } =
-    useConversationStore();
-  const { isMobile } = useBreakpoint();
+  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { isMobile } = useBreakpoint()
 
   const returnAction = useCallback((): boolean => {
     if (selectedConversation !== null) {
-      setSelectedConversation(null);
-      void ConversationStorage.clear();
-      return true;
+      setSelectedConversation(null)
+      void ConversationStorage.clear()
+      return true
     }
-    return false;
-  }, [selectedConversation, setSelectedConversation]);
+    return false
+  }, [selectedConversation, setSelectedConversation])
 
   useEffect(() => {
-    const returnHandler = BackHandler.addEventListener(
-      'hardwareBackPress',
-      returnAction,
-    );
-    return () => returnHandler.remove();
-  }, [returnAction]);
+    const returnHandler = BackHandler.addEventListener('hardwareBackPress', returnAction)
+    return () => returnHandler.remove()
+  }, [returnAction])
 
   useEffect(() => {
-    void registerForPushNotificationsAsync();
-  }, []);
+    void registerForPushNotificationsAsync()
+  }, [])
 
   useEffect(() => {
     const cleanup = setupNotificationListeners((notification) =>
       handleIncomingNotification(notification, selectedConversation?.id),
-    );
-    return cleanup;
-  }, [selectedConversation]);
+    )
+    return cleanup
+  }, [selectedConversation])
 
-  const conversationId = selectedConversation?.id;
+  const conversationId = selectedConversation?.id
 
   return (
     <SafeAreaView style={styles.container}>
@@ -98,7 +89,7 @@ export default function ChatApp() {
         </>
       )}
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -111,4 +102,4 @@ const styles = StyleSheet.create({
     flex: 1,
     marginBottom: theme.spacing.sm,
   },
-});
+})

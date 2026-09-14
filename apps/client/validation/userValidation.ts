@@ -1,4 +1,4 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
 const error = {
   usernameShort: 'Username must be at least 3 characters long.',
@@ -9,9 +9,9 @@ const error = {
   passwordLong: 'Password must be less than 128 characters.',
   passwordsNoMatch: 'Passwords do not match.',
   passwordHasUsername: 'Password can not have username inside.',
-};
+}
 
-const passwordValidation = z.string();
+const passwordValidation = z.string()
 // .min(8, error.passwordShort)
 // .max(128, error.passwordLong);
 // .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
@@ -35,7 +35,7 @@ const usernameValidation = z
   .string()
   .min(3, error.usernameShort)
   .max(24, error.usernameLong)
-  .regex(/^[a-zA-Z0-9]+$/, error.usernameCharacters);
+  .regex(/^[a-zA-Z0-9]+$/, error.usernameCharacters)
 
 export const LoginSchema = z
   .object({
@@ -45,9 +45,9 @@ export const LoginSchema = z
   .refine((data) => !data.password.includes(data.username), {
     message: error.passwordHasUsername,
     path: ['password'],
-  });
+  })
 
-export type LoginType = z.infer<typeof LoginSchema>;
+export type LoginType = z.infer<typeof LoginSchema>
 
 export const RegisterSchema = z
   .object({
@@ -63,6 +63,6 @@ export const RegisterSchema = z
   .refine((data) => data.password === data.confirmPassword, {
     message: error.passwordsNoMatch,
     path: ['confirmPassword'],
-  });
+  })
 
-export type RegisterType = z.infer<typeof RegisterSchema>;
+export type RegisterType = z.infer<typeof RegisterSchema>

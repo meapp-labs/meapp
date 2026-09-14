@@ -4,18 +4,18 @@
 
 ## Summary of Real Bugs Fixed from Your Review
 
-| Bug | Severity | Root Cause | Fix in V8 |
-|-----|----------|------------|-----------|
-| Sequence race - SELECT MAX outside transaction, DEFERRED not IMMEDIATE | High - SQLITE_CONSTRAINT crash no retry | Drizzle `db.transaction()` defaults DEFERRED, insert outside tx | Raw `BEGIN IMMEDIATE` + INSERT inside same tx + retry loop |
-| Ticket ordering - redis SET NX result never checked, ticket returned even if Redis down | High - ticket valid without being recorded | JWT signed before Redis SET, no check of SET result | Sign -> SET -> check result === 'OK', if not, fail 503, retry jti on collision |
-| Unauth WS DoS - 5s window, no global cap, thousands of sockets can sit unauth | Medium - FD exhaustion | Only per-user cap, no global unauth cap | Global `unauthConnections` max 100, timeout 2s not 5s, per-IP limit |
-| Rate limiter path template - `limits[path]` uses actual path `/rooms/abc-123/messages` never matches `/rooms/:roomId/messages` | High - per-route limits never fire | `path` is resolved path, not pattern | Pattern matcher `getRouteKey()` with regex |
-| In-memory maps leak - `wsConnectionsPerUser` etc never deleted | Medium - memory leak | Only decremented, never deleted | Sweep every 5min + delete when 0 + Redis future |
-| Sequence gaps comment wrong - `UNIQUE(roomId, sequence) -- no gaps` but gaps possible after conflict | Low - misleading | On conflict, sequence burned, gap | Fix comment to "gaps possible, monotonic but not contiguous, cursor still works" |
-| ws_tickets SQLite table defined but never used (Redis used) | Design gap | Two mechanisms | Drop SQLite table, keep Redis only + optional async audit log |
-| Litestream + WAL + Podman volume locking across containers | Design gap | Migration container vs server container both access same bind mount | Document locking, run migration with server stopped or via `podman exec`, chaos test matrix includes migration |
-| CI backup `cp data.db` unsafe in WAL mode - torn read | High - corrupt backup | Plain cp while server writes | Use `VACUUM INTO` or `sqlite3 .backup` or Litestream snapshot |
-| Destructive migration guard only prose, no CI check | Medium - DROP COLUMN can slip | No enforcement | Add CI script grepping DROP COLUMN/DROP TABLE + require label |
+| Bug                                                                                                                            | Severity                                   | Root Cause                                                          | Fix in V8                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Sequence race - SELECT MAX outside transaction, DEFERRED not IMMEDIATE                                                         | High - SQLITE_CONSTRAINT crash no retry    | Drizzle `db.transaction()` defaults DEFERRED, insert outside tx     | Raw `BEGIN IMMEDIATE` + INSERT inside same tx + retry loop                                                     |
+| Ticket ordering - redis SET NX result never checked, ticket returned even if Redis down                                        | High - ticket valid without being recorded | JWT signed before Redis SET, no check of SET result                 | Sign -> SET -> check result === 'OK', if not, fail 503, retry jti on collision                                 |
+| Unauth WS DoS - 5s window, no global cap, thousands of sockets can sit unauth                                                  | Medium - FD exhaustion                     | Only per-user cap, no global unauth cap                             | Global `unauthConnections` max 100, timeout 2s not 5s, per-IP limit                                            |
+| Rate limiter path template - `limits[path]` uses actual path `/rooms/abc-123/messages` never matches `/rooms/:roomId/messages` | High - per-route limits never fire         | `path` is resolved path, not pattern                                | Pattern matcher `getRouteKey()` with regex                                                                     |
+| In-memory maps leak - `wsConnectionsPerUser` etc never deleted                                                                 | Medium - memory leak                       | Only decremented, never deleted                                     | Sweep every 5min + delete when 0 + Redis future                                                                |
+| Sequence gaps comment wrong - `UNIQUE(roomId, sequence) -- no gaps` but gaps possible after conflict                           | Low - misleading                           | On conflict, sequence burned, gap                                   | Fix comment to "gaps possible, monotonic but not contiguous, cursor still works"                               |
+| ws_tickets SQLite table defined but never used (Redis used)                                                                    | Design gap                                 | Two mechanisms                                                      | Drop SQLite table, keep Redis only + optional async audit log                                                  |
+| Litestream + WAL + Podman volume locking across containers                                                                     | Design gap                                 | Migration container vs server container both access same bind mount | Document locking, run migration with server stopped or via `podman exec`, chaos test matrix includes migration |
+| CI backup `cp data.db` unsafe in WAL mode - torn read                                                                          | High - corrupt backup                      | Plain cp while server writes                                        | Use `VACUUM INTO` or `sqlite3 .backup` or Litestream snapshot                                                  |
+| Destructive migration guard only prose, no CI check                                                                            | Medium - DROP COLUMN can slip              | No enforcement                                                      | Add CI script grepping DROP COLUMN/DROP TABLE + require label                                                  |
 
 ---
 
@@ -36,47 +36,80 @@ Same as V7 but with corrections:
 **`packages/db/src/schema.ts` V8:**
 
 ```ts
-import { sqliteTable, text, integer, primaryKey, unique, index } from 'drizzle-orm/sqlite-core'
+import {
+  sqliteTable,
+  text,
+  integer,
+  primaryKey,
+  unique,
+  index,
+} from "drizzle-orm/sqlite-core";
 
-export const users = sqliteTable('users', {
-  id: text('id').primaryKey(),
-  email: text('email').notNull().unique(),
-  name: text('name').notNull(),
-  nickname: text('nickname'), // expand phase, nullable
-  passwordHash: text('password_hash').notNull(),
-  avatarUrl: text('avatar_url'),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date())
-})
+export const users = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  name: text("name").notNull(),
+  nickname: text("nickname"), // expand phase, nullable
+  passwordHash: text("password_hash").notNull(),
+  avatarUrl: text("avatar_url"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
 
-export const rooms = sqliteTable('rooms', {
-  id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  createdBy: text('created_by').notNull().references(() => users.id),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date())
-})
+export const rooms = sqliteTable("rooms", {
+  id: text("id").primaryKey(),
+  name: text("name").notNull(),
+  createdBy: text("created_by")
+    .notNull()
+    .references(() => users.id),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
 
-export const roomMembers = sqliteTable('room_members', {
-  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  role: text('role').notNull().default('member'),
-  joinedAt: integer('joined_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date())
-}, (t) => ({
-  pk: primaryKey({ columns: [t.roomId, t.userId] })
-}))
+export const roomMembers = sqliteTable(
+  "room_members",
+  {
+    roomId: text("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    role: text("role").notNull().default("member"),
+    joinedAt: integer("joined_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => ({
+    pk: primaryKey({ columns: [t.roomId, t.userId] }),
+  }),
+);
 
-export const messages = sqliteTable('messages', {
-  id: text('id').primaryKey(),
-  clientId: text('client_id').notNull(),
-  roomId: text('room_id').notNull().references(() => rooms.id, { onDelete: 'cascade' }),
-  userId: text('user_id').notNull().references(() => users.id),
-  sequence: integer('sequence').notNull(),
-  text: text('text').notNull(),
-  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().$defaultFn(() => new Date())
-}, (t) => ({
-  uniqueUserClient: unique().on(t.userId, t.clientId),
-  uniqueRoomSequence: unique().on(t.roomId, t.sequence), // ensures no duplicates, but gaps possible after conflict/retry - FIX #6 comment
-  idxRoomSequence: index('idx_room_sequence').on(t.roomId, t.sequence)
-}))
+export const messages = sqliteTable(
+  "messages",
+  {
+    id: text("id").primaryKey(),
+    clientId: text("client_id").notNull(),
+    roomId: text("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id),
+    sequence: integer("sequence").notNull(),
+    text: text("text").notNull(),
+    createdAt: integer("created_at", { mode: "timestamp" })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => ({
+    uniqueUserClient: unique().on(t.userId, t.clientId),
+    uniqueRoomSequence: unique().on(t.roomId, t.sequence), // ensures no duplicates, but gaps possible after conflict/retry - FIX #6 comment
+    idxRoomSequence: index("idx_room_sequence").on(t.roomId, t.sequence),
+  }),
+);
 
 // FIX - Drop ws_tickets SQLite table, use Redis only. If you want audit, write async to logs, not this table.
 // Deleted: wsTickets table - was defined in V7 but never used, Redis is source of truth for single-use ticket
@@ -89,6 +122,7 @@ export const messages = sqliteTable('messages', {
 ## PHASE 2: Sequence Generation FIXED - Real Race Condition (Fix #1, #6)
 
 **OLD V7 (buggy):**
+
 ```ts
 // Drizzle transaction defaults DEFERRED, SELECT MAX outside write lock, insert outside tx
 const next = await db.transaction(async (tx) => {
@@ -102,22 +136,28 @@ await db.insert(...).values({ sequence: next }) // outside tx - race!
 
 ```ts
 // packages/db/src/sequence.ts V8 FINAL
-import { Database } from 'bun:sqlite'
+import { Database } from "bun:sqlite";
 
-type SequenceResult = { id: string; sequence: number } | null
+type SequenceResult = { id: string; sequence: number } | null;
 
-export const insertMessageWithSequence = async (db: Database, opts: {
-  roomId: string
-  userId: string
-  clientId: string
-  text: string
-}): Promise<SequenceResult> => {
+export const insertMessageWithSequence = async (
+  db: Database,
+  opts: {
+    roomId: string;
+    userId: string;
+    clientId: string;
+    text: string;
+  },
+): Promise<SequenceResult> => {
   // First check idempotency - if clientId exists, return existing (no new sequence burned)
-  const existing = db.query('SELECT id, sequence FROM messages WHERE user_id = ? AND client_id = ?')
-    .get(opts.userId, opts.clientId) as { id: string; sequence: number } | null
+  const existing = db
+    .query(
+      "SELECT id, sequence FROM messages WHERE user_id = ? AND client_id = ?",
+    )
+    .get(opts.userId, opts.clientId) as { id: string; sequence: number } | null;
 
   if (existing) {
-    return existing
+    return existing;
   }
 
   // Retry loop for UNIQUE(roomId, sequence) collision
@@ -125,43 +165,55 @@ export const insertMessageWithSequence = async (db: Database, opts: {
     try {
       // FIX: Use raw bun:sqlite with BEGIN IMMEDIATE to get write lock at start
       // Drizzle's db.transaction() is DEFERRED by default, not safe for MAX+INSERT
-      db.exec('BEGIN IMMEDIATE')
+      db.exec("BEGIN IMMEDIATE");
 
       try {
-        const maxRow = db.query('SELECT MAX(sequence) as maxSeq FROM messages WHERE room_id = ?')
-          .get(opts.roomId) as { maxSeq: number | null }
+        const maxRow = db
+          .query(
+            "SELECT MAX(sequence) as maxSeq FROM messages WHERE room_id = ?",
+          )
+          .get(opts.roomId) as { maxSeq: number | null };
 
-        const nextSeq = (maxRow?.maxSeq || 0) + 1
-        const id = crypto.randomUUID()
+        const nextSeq = (maxRow?.maxSeq || 0) + 1;
+        const id = crypto.randomUUID();
 
         db.query(
-          'INSERT INTO messages (id, client_id, room_id, user_id, sequence, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
-        ).run(id, opts.clientId, opts.roomId, opts.userId, nextSeq, opts.text, Date.now())
+          "INSERT INTO messages (id, client_id, room_id, user_id, sequence, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        ).run(
+          id,
+          opts.clientId,
+          opts.roomId,
+          opts.userId,
+          nextSeq,
+          opts.text,
+          Date.now(),
+        );
 
-        db.exec('COMMIT')
-        return { id, sequence: nextSeq }
+        db.exec("COMMIT");
+        return { id, sequence: nextSeq };
       } catch (e) {
-        db.exec('ROLLBACK')
-        throw e
+        db.exec("ROLLBACK");
+        throw e;
       }
     } catch (e: any) {
       // SQLITE_CONSTRAINT for UNIQUE(roomId, sequence) - another writer got same sequence
-      if (e.code === 'SQLITE_CONSTRAINT' || e.message?.includes('UNIQUE')) {
+      if (e.code === "SQLITE_CONSTRAINT" || e.message?.includes("UNIQUE")) {
         if (attempt < 2) {
           // Jittered backoff
-          const jitter = Math.random() * 20
-          await new Promise(r => setTimeout(r, 10 * (attempt + 1) + jitter))
-          continue
+          const jitter = Math.random() * 20;
+          await new Promise((r) => setTimeout(r, 10 * (attempt + 1) + jitter));
+          continue;
         }
       }
-      throw e
+      throw e;
     }
   }
-  return null
-}
+  return null;
+};
 ```
 
 **Why this fixes race:**
+
 - `BEGIN IMMEDIATE` acquires RESERVED lock at start, not at first write. Second concurrent BEGIN IMMEDIATE will get SQLITE_BUSY and retry (with busy_timeout 5000).
 - SELECT MAX + INSERT inside same transaction, no window for race
 - Retry loop handles UNIQUE violation if two transactions still collide (possible with WAL + busy_timeout)
@@ -174,6 +226,7 @@ export const insertMessageWithSequence = async (db: Database, opts: {
 ## PHASE 3: WS Ticket FIXED - Check Redis SET result (Fix #2)
 
 **OLD V7 (buggy):**
+
 ```ts
 await redis.set(`ws_ticket:${jti}`, ..., 'EX', 70, 'NX') // result never checked
 return { ticket } // even if Redis down or collision
@@ -183,51 +236,79 @@ return { ticket } // even if Redis down or collision
 
 ```ts
 // apps/server/src/routes/wsTicket.ts V8 FINAL
-import { Elysia, t } from 'elysia'
-import { authPlugin } from '../plugins/auth.js'
-import { jwt } from '@elysiajs/jwt'
-import { randomUUID } from 'crypto'
-import { canAccessRoom } from '../lib/authz.js'
+import { Elysia, t } from "elysia";
+import { authPlugin } from "../plugins/auth.js";
+import { jwt } from "@elysiajs/jwt";
+import { randomUUID } from "crypto";
+import { canAccessRoom } from "../lib/authz.js";
 
-export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
+export const wsTicketRoutes = new Elysia({ prefix: "/ws" })
   .use(authPlugin)
-  .use(jwt({ name: 'ticketJwt', secret: process.env.WS_TICKET_SECRET || process.env.JWT_SECRET!, exp: '60s' }))
-  .post('/ticket', async ({ user, body, ticketJwt, redis, set }) => {
-    if (!user) { set.status = 401; return { error: 'Unauthorized' } }
-    const { roomId } = body as { roomId: string }
-
-    const can = await canAccessRoom(user.id, roomId)
-    if (!can) { set.status = 403; return { error: 'Forbidden' } }
-
-    // Retry on jti collision (extremely unlikely with UUID, but correct)
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const jti = randomUUID()
-      const ticket = await ticketJwt.sign({ sub: user.id, roomId, jti, type: 'ws_ticket' })
-
-      try {
-        // FIX: Check result of SET NX
-        const result = await redis.set(`ws_ticket:${jti}`, JSON.stringify({ userId: user.id, roomId }), 'EX', 70, 'NX')
-        if (result !== 'OK') {
-          // Collision or already exists, retry with new jti
-          continue
-        }
-        return { ticket, expiresIn: 60, jti }
-      } catch (e) {
-        // FIX: Redis down - do NOT return ticket
-        console.error('Redis SET failed for ticket', e)
-        set.status = 503
-        return { error: 'Ticket service unavailable, retry' }
+  .use(
+    jwt({
+      name: "ticketJwt",
+      secret: process.env.WS_TICKET_SECRET || process.env.JWT_SECRET!,
+      exp: "60s",
+    }),
+  )
+  .post(
+    "/ticket",
+    async ({ user, body, ticketJwt, redis, set }) => {
+      if (!user) {
+        set.status = 401;
+        return { error: "Unauthorized" };
       }
-    }
+      const { roomId } = body as { roomId: string };
 
-    set.status = 500
-    return { error: 'Failed to create ticket after retries' }
-  }, {
-    body: t.Object({ roomId: t.String({ format: 'uuid' }) })
-  })
+      const can = await canAccessRoom(user.id, roomId);
+      if (!can) {
+        set.status = 403;
+        return { error: "Forbidden" };
+      }
+
+      // Retry on jti collision (extremely unlikely with UUID, but correct)
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const jti = randomUUID();
+        const ticket = await ticketJwt.sign({
+          sub: user.id,
+          roomId,
+          jti,
+          type: "ws_ticket",
+        });
+
+        try {
+          // FIX: Check result of SET NX
+          const result = await redis.set(
+            `ws_ticket:${jti}`,
+            JSON.stringify({ userId: user.id, roomId }),
+            "EX",
+            70,
+            "NX",
+          );
+          if (result !== "OK") {
+            // Collision or already exists, retry with new jti
+            continue;
+          }
+          return { ticket, expiresIn: 60, jti };
+        } catch (e) {
+          // FIX: Redis down - do NOT return ticket
+          console.error("Redis SET failed for ticket", e);
+          set.status = 503;
+          return { error: "Ticket service unavailable, retry" };
+        }
+      }
+
+      set.status = 500;
+      return { error: "Failed to create ticket after retries" };
+    },
+    {
+      body: t.Object({ roomId: t.String({ format: "uuid" }) }),
+    },
+  );
 ```
 
 **Fixes:**
+
 - Checks `result === 'OK'`, if null (key exists), retries new jti
 - If Redis throws (down), returns 503, does NOT return ticket that would be valid without being recorded
 - Ticket is single-use, 60s expiry, jti stored 70s
@@ -240,187 +321,177 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
 
 ```ts
 // apps/server/src/ws/chat.ts V8
-let unauthConnections = 0
-const MAX_UNAUTH_GLOBAL = 100
-const UNAUTH_TIMEOUT_MS = 2000 // was 5000, now 2s
-const perIpUnauth = new Map<string, number>()
+let unauthConnections = 0;
+const MAX_UNAUTH_GLOBAL = 100;
+const UNAUTH_TIMEOUT_MS = 2000; // was 5000, now 2s
+const perIpUnauth = new Map<string, number>();
 
-export const chatWs = new Elysia()
-  .use(authPlugin)
-  .ws('/ws', {
-    query: t.Object({ roomId: t.String({ format: 'uuid' }) }),
-    body: messageWsIncomingSchema,
-    open(ws) {
-      const user = (ws.data as { user: { id: string } | null }).user
-      const ip = (ws.data as { request: Request }).request.headers.get('x-forwarded-for') || 'unknown'
+export const chatWs = new Elysia().use(authPlugin).ws("/ws", {
+  query: t.Object({ roomId: t.String({ format: "uuid" }) }),
+  body: messageWsIncomingSchema,
+  open(ws) {
+    const user = (ws.data as { user: { id: string } | null }).user;
+    const ip =
+      (ws.data as { request: Request }).request.headers.get(
+        "x-forwarded-for",
+      ) || "unknown";
 
-      if (!user) {
-        // FIX #3 - global cap
-        if (unauthConnections >= MAX_UNAUTH_GLOBAL) {
-          ws.close(1013, 'Too many unauth connections')
-          return
-        }
-        const ipCount = perIpUnauth.get(ip) || 0
-        if (ipCount >= 10) {
-          ws.close(1013, 'Too many unauth per IP')
-          return
-        }
-        unauthConnections++
-        perIpUnauth.set(ip, ipCount + 1)
-
-        // Shorter timeout
-        setTimeout(() => {
-          const authUser = (ws.data as { authenticatedUserId?: string }).authenticatedUserId
-          if (!authUser) {
-            ws.send(JSON.stringify({ type: 'error', payload: { code: 'UNAUTHENTICATED', message: 'AUTH required' } }))
-            ws.close(4401, 'Auth timeout')
-            unauthConnections = Math.max(0, unauthConnections - 1)
-            perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
-          }
-        }, UNAUTH_TIMEOUT_MS)
-      } else {
-        // ... auth via cookie path
+    if (!user) {
+      // FIX #3 - global cap
+      if (unauthConnections >= MAX_UNAUTH_GLOBAL) {
+        ws.close(1013, "Too many unauth connections");
+        return;
       }
-    },
-    close(ws) {
-      // Decrement counters
-      const wasAuth = (ws.data as { authenticatedUserId?: string }).authenticatedUserId
-      if (!wasAuth) {
-        unauthConnections = Math.max(0, unauthConnections - 1)
-        const ip = (ws.data as { request: Request }).request.headers.get('x-forwarded-for') || 'unknown'
-        perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
+      const ipCount = perIpUnauth.get(ip) || 0;
+      if (ipCount >= 10) {
+        ws.close(1013, "Too many unauth per IP");
+        return;
       }
-      // ... existing per-user decrement
+      unauthConnections++;
+      perIpUnauth.set(ip, ipCount + 1);
+
+      // Shorter timeout
+      setTimeout(() => {
+        const authUser = (ws.data as { authenticatedUserId?: string })
+          .authenticatedUserId;
+        if (!authUser) {
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              payload: { code: "UNAUTHENTICATED", message: "AUTH required" },
+            }),
+          );
+          ws.close(4401, "Auth timeout");
+          unauthConnections = Math.max(0, unauthConnections - 1);
+          perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1));
+        }
+      }, UNAUTH_TIMEOUT_MS);
+    } else {
+      // ... auth via cookie path
     }
-  })
+  },
+  close(ws) {
+    // Decrement counters
+    const wasAuth = (ws.data as { authenticatedUserId?: string })
+      .authenticatedUserId;
+    if (!wasAuth) {
+      unauthConnections = Math.max(0, unauthConnections - 1);
+      const ip =
+        (ws.data as { request: Request }).request.headers.get(
+          "x-forwarded-for",
+        ) || "unknown";
+      perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1));
+    }
+    // ... existing per-user decrement
+  },
+});
 ```
 
 **Rate limiter pattern matcher (Fix #4):**
 
 ```ts
 // apps/server/src/plugins/rateLimit.ts V8 FIXED
-import { Elysia } from 'elysia'
+import { Elysia } from "elysia";
 
-type Bucket = { count: number; reset: number }
-const buckets = new Map<string, Bucket>()
+type Bucket = { count: number; reset: number };
+const buckets = new Map<string, Bucket>();
 
 // FIX #4 - pattern matcher, not exact path
 const routePatterns = [
-  { regex: /^\/auth\/login$/, key: '/auth/login', max: 5, windowMs: 60000 },
-  { regex: /^\/rooms\/[^/]+\/messages$/, key: '/rooms/:roomId/messages', max: 100, windowMs: 60000 },
-  { regex: /^\/ws\/ticket$/, key: '/ws/ticket', max: 20, windowMs: 60000 },
-]
+  { regex: /^\/auth\/login$/, key: "/auth/login", max: 5, windowMs: 60000 },
+  {
+    regex: /^\/rooms\/[^/]+\/messages$/,
+    key: "/rooms/:roomId/messages",
+    max: 100,
+    windowMs: 60000,
+  },
+  { regex: /^\/ws\/ticket$/, key: "/ws/ticket", max: 20, windowMs: 60000 },
+];
 
 const getRouteKeyAndLimit = (path: string) => {
-  const cleanPath = path.split('?')[0]
+  const cleanPath = path.split("?")[0];
   for (const r of routePatterns) {
     if (r.regex.test(cleanPath)) {
-      return r
+      return r;
     }
   }
-  return { key: 'default', max: 100, windowMs: 60000, regex: /.*/ }
-}
+  return { key: "default", max: 100, windowMs: 60000, regex: /.*/ };
+};
 
 // Periodic cleanup every 5min (Fix #5)
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, bucket] of buckets) {
-    if (bucket.reset < now - 60000) { // expired 1min ago
-      buckets.delete(key)
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, bucket] of buckets) {
+      if (bucket.reset < now - 60000) {
+        // expired 1min ago
+        buckets.delete(key);
+      }
     }
-  }
-}, 5 * 60 * 1000)
+  },
+  5 * 60 * 1000,
+);
 
-export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
-  .onBeforeHandle(({ user, request, set }) => {
-    const userId = (user as { id?: string })?.id || request.headers.get('x-forwarded-for') || 'anon'
-    const url = new URL(request.url)
-    const path = url.pathname
+export const rateLimitPlugin = new Elysia({ name: "rateLimit" }).onBeforeHandle(
+  ({ user, request, set }) => {
+    const userId =
+      (user as { id?: string })?.id ||
+      request.headers.get("x-forwarded-for") ||
+      "anon";
+    const url = new URL(request.url);
+    const path = url.pathname;
 
-    const matched = getRouteKeyAndLimit(path)
-    const bucketKey = `${userId}:${matched.key}`
-    const now = Date.now()
-    const bucket = buckets.get(bucketKey)
+    const matched = getRouteKeyAndLimit(path);
+    const bucketKey = `${userId}:${matched.key}`;
+    const now = Date.now();
+    const bucket = buckets.get(bucketKey);
 
     if (!bucket || bucket.reset < now) {
-      buckets.set(bucketKey, { count: 1, reset: now + matched.windowMs })
-      return
+      buckets.set(bucketKey, { count: 1, reset: now + matched.windowMs });
+      return;
     }
 
     if (bucket.count >= matched.max) {
-      set.status = 429
-      set.headers['Retry-After'] = Math.ceil((bucket.reset - now) / 1000).toString()
-      return { error: `Too many requests for ${matched.key}` }
+      set.status = 429;
+      set.headers["Retry-After"] = Math.ceil(
+        (bucket.reset - now) / 1000,
+      ).toString();
+      return { error: `Too many requests for ${matched.key}` };
     }
-    bucket.count++
-  })
+    bucket.count++;
+  },
+);
 ```
 
 **In-memory maps cleanup (Fix #5):**
 
 ```ts
 // For wsConnectionsPerUser, wsMessagesPerUser
-setInterval(() => {
-  const now = Date.now()
-  // Clean message rate buckets
-  for (const [userId, data] of wsMessagesPerUser) {
-    if (data.reset < now - 60000) {
-      wsMessagesPerUser.delete(userId)
+setInterval(
+  () => {
+    const now = Date.now();
+    // Clean message rate buckets
+    for (const [userId, data] of wsMessagesPerUser) {
+      if (data.reset < now - 60000) {
+        wsMessagesPerUser.delete(userId);
+      }
     }
-  }
-  // Clean connection counts that are 0
-  for (const [userId, count] of wsConnectionsPerUser) {
-    if (count <= 0) {
-      wsConnectionsPerUser.delete(userId)
+    // Clean connection counts that are 0
+    for (const [userId, count] of wsConnectionsPerUser) {
+      if (count <= 0) {
+        wsConnectionsPerUser.delete(userId);
+      }
     }
-  }
-  // Clean unauth per IP
-  for (const [ip, count] of perIpUnauth) {
-    if (count <= 0) perIpUnauth.delete(ip)
-  }
-}, 5 * 60 * 1000)
+    // Clean unauth per IP
+    for (const [ip, count] of perIpUnauth) {
+      if (count <= 0) perIpUnauth.delete(ip);
+    }
+  },
+  5 * 60 * 1000,
+);
 ```
 
----
-
-## PHASE 5: Backup FIXED - No Plain cp (Fix #8)
-
-**OLD (unsafe):**
-```bash
-cp ~/meapp-data/data.db ~/meapp-data/data.db.pre-SHA # torn read in WAL mode
-```
-
-**NEW V8 - VACUUM INTO or sqlite3 .backup:**
-
-```bash
-# Option 1: VACUUM INTO (atomic snapshot, works in WAL mode)
-podman exec meapp-server sqlite3 /app/data/data.db "VACUUM INTO '/app/data/backup-pre-${SHA}.db'"
-
-# Option 2: sqlite3 .backup (also safe)
-podman exec meapp-server sqlite3 /app/data/data.db ".backup '/app/data/backup-pre-${SHA}.db'"
-
-# Option 3: Litestream snapshot (best, if Litestream running)
-podman exec meapp-litestream litestream snapshots /data/data.db
-# or
-podman exec meapp-server sh -c "litestream snapshot /app/data/data.db s3://bucket/meapp.db"
-
-# Verify backup integrity
-podman exec meapp-server sqlite3 /app/data/backup-pre-${SHA}.db "PRAGMA integrity_check;"
-```
-
-**CI backup step V8:**
-
-```yaml
-- name: Backup DB safely
-  run: |
-    ssh user@host "
-      podman exec meapp-server sqlite3 /app/data/data.db \"VACUUM INTO '/app/data/backup-pre-${{ github.sha }}.db'\"
-      ls -lh ~/meapp-data/backup-pre-*.db
-      podman exec meapp-server sqlite3 /app/data/backup-pre-${{ github.sha }}.db 'PRAGMA integrity_check;'
-    "
-```
-
----
+No backup needed
 
 ## PHASE 6: Litestream + Podman Volume Locking (Fix #7 design gap)
 
@@ -444,6 +515,7 @@ podman exec meapp-server bun run src/migrate.ts
 ```
 
 **Chaos test matrix must include:**
+
 - Kill -9 server during write, restore via Litestream, measure RPO
 - Run migration while server handling writes (should fail with SQLITE_BUSY, retry)
 - Run two migrations concurrently (should be blocked by concurrency group)
@@ -468,7 +540,7 @@ if grep -r -i -E "DROP COLUMN|DROP TABLE|ALTER TABLE.*DROP" migrations/ --includ
   echo "❌ Destructive migration detected!"
   echo "If intentional, add label 'allow-destructive-migration' to PR and get 2 approvals"
   echo "And ensure it's Release N+2 (contract phase), not N or N+1"
-  
+
   # Check for label
   if [ "$ALLOW_DESTRUCTIVE" != "true" ]; then
     exit 1
@@ -492,6 +564,7 @@ echo "✅ No destructive migration or allowed"
 ## PHASE 8: Rate Limits Complete (New Requirement from Review)
 
 **HTTP:**
+
 - POST /auth/login: 5/min per IP
 - POST /ws/ticket: 20/min per user
 - GET /rooms/:roomId/messages: 100/min per user
@@ -499,6 +572,7 @@ echo "✅ No destructive migration or allowed"
 - Default: 100/min per user
 
 **WS:**
+
 - Connections per user: 3 max
 - Connections per IP unauth: 10 max, global unauth: 100 max, timeout 2s
 - Messages per user: 10 per 10s
@@ -507,6 +581,7 @@ echo "✅ No destructive migration or allowed"
 - Subscriptions per user: 10 rooms max
 
 **Body limits:**
+
 - JSON body: 100KB max (messages)
 - Uploads (future): 10MB max
 

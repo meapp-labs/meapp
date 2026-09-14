@@ -1,27 +1,21 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native'
 
-import { theme } from '@/theme/theme';
+import { theme } from '@/theme/theme'
 
-import { Text } from '../common/Text';
+import { Text } from '../common/Text'
 
 export type Props = {
-  setShowModal: (value: boolean) => void;
-  showModal: boolean;
-};
+  setShowModal: (value: boolean) => void
+  showModal: boolean
+}
 
 const modalOptions = [
   { id: '1', title: 'Delete from contacts' },
   { id: '2', title: 'Some option' },
   { id: '3', title: 'Some other option' },
   { id: '4', title: 'Some other, other option' },
-];
+]
 
 export default function Attachment({ showModal, setShowModal }: Props) {
   return (
@@ -58,7 +52,7 @@ export default function Attachment({ showModal, setShowModal }: Props) {
         </View>
       </Modal>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -77,4 +71,4 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     cursor: 'auto',
   },
-});
+})

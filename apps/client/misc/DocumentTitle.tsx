@@ -1,5 +1,5 @@
-import Head from 'expo-router/head';
-import { Platform } from 'react-native';
+import Head from 'expo-router/head'
+import { Platform } from 'react-native'
 
 export function DocumentTitle({ title }: { title: string }) {
   return (
@@ -8,5 +8,5 @@ export function DocumentTitle({ title }: { title: string }) {
         <title>{`MeApp - ${title}`}</title>
       </Head>
     )
-  );
+  )
 }

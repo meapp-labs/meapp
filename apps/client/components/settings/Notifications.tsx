@@ -1,24 +1,24 @@
-import { useState } from 'react';
-import { StyleSheet, Switch, View } from 'react-native';
+import { useState } from 'react'
+import { StyleSheet, Switch, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { theme } from '@/theme/theme'
 
 declare module 'react-native' {
   interface SwitchProps {
-    activeThumbColor?: string;
+    activeThumbColor?: string
   }
 }
 
 export function Notifications() {
-  const [isEnabled, setIsEnabled] = useState<Record<string, boolean>>({});
+  const [isEnabled, setIsEnabled] = useState<Record<string, boolean>>({})
 
   const handleToggle = (id: string) => {
     setIsEnabled((prev) => ({
       ...prev,
       [id]: !prev[id],
-    }));
-  };
+    }))
+  }
 
   return (
     <View>
@@ -36,19 +36,15 @@ export function Notifications() {
               false: theme.colors.borderSecondary,
               true: theme.colors.secondary,
             }}
-            activeThumbColor={
-              isEnabled[item.label] ? theme.colors.text : theme.colors.card
-            }
-            thumbColor={
-              isEnabled[item.label] ? theme.colors.text : theme.colors.card
-            }
+            activeThumbColor={isEnabled[item.label] ? theme.colors.text : theme.colors.card}
+            thumbColor={isEnabled[item.label] ? theme.colors.text : theme.colors.card}
             value={!!isEnabled[item.label]}
             onValueChange={() => handleToggle(item.label)}
           />
         </View>
       ))}
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -72,10 +68,10 @@ const styles = StyleSheet.create({
   itemDescription: {
     marginBottom: theme.spacing.md,
   },
-});
+})
 
 const placeholderDesc =
-  'We will send you notifications to inform you of any updates and/or changes as events occur for you or your business in MeApp. Select which notifications you want to receive below:';
+  'We will send you notifications to inform you of any updates and/or changes as events occur for you or your business in MeApp. Select which notifications you want to receive below:'
 
 const placeholderOptions: { label: string; description: string }[] = [
   {
@@ -84,8 +80,7 @@ const placeholderOptions: { label: string; description: string }[] = [
   },
   {
     label: 'Sales',
-    description:
-      'When relevant sales-related activity occurs such as when an invoice is overdue.',
+    description: 'When relevant sales-related activity occurs such as when an invoice is overdue.',
   },
   {
     label: 'Payments',
@@ -101,4 +96,4 @@ const placeholderOptions: { label: string; description: string }[] = [
     label: 'Bills',
     description: 'When you need to be reminded of upcoming and/or late bills.',
   },
-];
+]

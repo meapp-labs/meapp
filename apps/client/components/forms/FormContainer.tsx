@@ -1,12 +1,6 @@
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  View,
-  ViewProps,
-} from 'react-native';
+import { KeyboardAvoidingView, Platform, StyleSheet, View, type ViewProps } from 'react-native'
 
-import { theme } from '@/theme/theme';
+import { theme } from '@/theme/theme'
 
 export function FormContainer({ children, style, ...props }: ViewProps) {
   return (
@@ -18,7 +12,7 @@ export function FormContainer({ children, style, ...props }: ViewProps) {
         {children}
       </View>
     </KeyboardAvoidingView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -35,4 +29,4 @@ const styles = StyleSheet.create({
     shadowRadius: 15,
     elevation: 15,
   },
-});
+})

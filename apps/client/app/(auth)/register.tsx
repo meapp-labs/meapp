@@ -1,10 +1,10 @@
-import { StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { StyleSheet } from 'react-native'
+import { SafeAreaView } from 'react-native-safe-area-context'
 
-import CenteredContainer from '@/components/common/CenteredContainer';
-import RegisterForm from '@/components/forms/RegisterForm';
-import { DocumentTitle } from '@/misc/DocumentTitle';
-import { theme } from '@/theme/theme';
+import CenteredContainer from '@/components/common/CenteredContainer'
+import RegisterForm from '@/components/forms/RegisterForm'
+import { DocumentTitle } from '@/misc/DocumentTitle'
+import { theme } from '@/theme/theme'
 
 export default function RegisterScreen() {
   return (
@@ -14,7 +14,7 @@ export default function RegisterScreen() {
         <RegisterForm />
       </CenteredContainer>
     </SafeAreaView>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -22,4 +22,4 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
     flexGrow: 1,
   },
-});
+})

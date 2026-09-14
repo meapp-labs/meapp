@@ -1,5 +1,6 @@
 export { db, schema, sqlite, checkpoint } from './client.ts'
 export type { DB } from './client.ts'
+export { eq, and, or, desc, asc, max } from 'drizzle-orm'
 export { runMigrations } from './migrate.ts'
 export { insertMessageWithSequence, nextSequence } from './sequence.ts'
 export type { SequenceResult } from './sequence.ts'

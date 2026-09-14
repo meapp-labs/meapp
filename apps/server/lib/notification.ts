@@ -1,27 +1,25 @@
 export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
-} as const;
+} as const
 
 export type ExpoPushMessage = {
-  to: string | string[];
-  data?: Record<string, unknown>;
-  title?: string;
-  body?: string;
-  channelId?: string;
-};
+  to: string | string[]
+  data?: Record<string, unknown>
+  title?: string
+  body?: string
+  channelId?: string
+}
 
 export type ExpoPushNotificationOptions = {
-  expoPushToken: string;
-  senderUsername: string;
-  messageText: string;
-  messageIndex: number;
-  timestamp: string;
-  channelId?: string;
-};
+  expoPushToken: string
+  senderUsername: string
+  messageText: string
+  messageIndex: number
+  timestamp: string
+  channelId?: string
+}
 
-export async function sendPushNotification(
-  options: ExpoPushNotificationOptions,
-): Promise<void> {
+export async function sendPushNotification(options: ExpoPushNotificationOptions): Promise<void> {
   const {
     expoPushToken,
     senderUsername,
@@ -29,7 +27,7 @@ export async function sendPushNotification(
     messageIndex,
     timestamp,
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
-  } = options;
+  } = options
 
   const message: ExpoPushMessage = {
     to: expoPushToken,
@@ -42,7 +40,7 @@ export async function sendPushNotification(
       timestamp,
     },
     channelId,
-  };
+  }
 
   await fetch('https://exp.host/--/api/v2/push/send', {
     method: 'POST',
@@ -52,5 +50,5 @@ export async function sendPushNotification(
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(message),
-  });
+  })
 }

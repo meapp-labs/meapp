@@ -1,7 +1,7 @@
-import { randomUUID } from 'crypto';
-import type { FastifyInstance } from 'fastify';
-import type { ZodTypeProvider } from 'fastify-type-provider-zod';
-import z from 'zod';
+import { randomUUID } from 'crypto'
+import type { FastifyInstance } from 'fastify'
+import type { ZodTypeProvider } from 'fastify-type-provider-zod'
+import z from 'zod'
 
 import {
   ApiError,
@@ -9,10 +9,10 @@ import {
   createAuthError,
   createUserNotFoundError,
   handleError,
-} from '@/lib/errors.ts';
-import { sendPushNotification } from '@/lib/notification.ts';
-import type { Conversation, Message } from '@/services/redis.service.ts';
-import { usernameSchema } from '@/validation/validation.ts';
+} from '@/lib/errors.ts'
+import { sendPushNotification } from '@/lib/notification.ts'
+import type { Conversation, Message } from '@/services/redis.service.ts'
+import { usernameSchema } from '@/validation/validation.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Schemas
@@ -22,42 +22,39 @@ const createConversationSchema = z.object({
   type: z.enum(['dm', 'group']),
   participants: z.array(usernameSchema).min(1).max(50),
   name: z.string().max(100).optional(),
-});
+})
 
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid(),
-  text: z
-    .string()
-    .min(1, 'Message text cannot be empty')
-    .max(2000, 'Message too long'),
-});
+  text: z.string().min(1, 'Message text cannot be empty').max(2000, 'Message too long'),
+})
 
 const getMessagesSchema = z.object({
   conversationId: z.string().uuid(),
   after: z
     .string()
     .regex(/^\d+$/, 'Must be a non-negative integer string')
-    .transform((val) => parseInt(val, 10))
+    .transform((val) => Number.parseInt(val, 10))
     .optional(),
   before: z
     .string()
     .regex(/^[1-9]\d*$/, 'Must be a positive integer string')
-    .transform((val) => parseInt(val, 10))
+    .transform((val) => Number.parseInt(val, 10))
     .optional(),
   limit: z
     .string()
     .regex(/^[1-9]\d*$/, 'Must be a positive integer')
-    .transform((val) => Math.min(parseInt(val, 10), 100))
+    .transform((val) => Math.min(Number.parseInt(val, 10), 100))
     .optional()
     .default(50),
-});
+})
 
 // ─────────────────────────────────────────────────────────────
 // Routes
 // ─────────────────────────────────────────────────────────────
 
 export function messageRoutes(server: FastifyInstance) {
-  const { redisService } = server;
+  const { redisService } = server
 
   // ─────────────────────────────────────────────────────────────
   // Create Conversation
@@ -71,20 +68,20 @@ export function messageRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { type, participants, name } = request.body;
-        const { username } = request;
+        const { type, participants, name } = request.body
+        const { username } = request
 
         // Add current user to participants if not already included
         const allParticipants = participants.includes(username)
           ? participants
-          : [username, ...participants];
+          : [username, ...participants]
 
         // Verify all participants exist
         for (const participant of allParticipants) {
           if (participant !== username) {
-            const exists = await redisService.checkUserExists(participant);
+            const exists = await redisService.checkUserExists(participant)
             if (!exists) {
-              throw createUserNotFoundError(participant);
+              throw createUserNotFoundError(participant)
             }
           }
         }
@@ -96,18 +93,18 @@ export function messageRoutes(server: FastifyInstance) {
               ErrorCode.VALIDATION_ERROR,
               'DM must have exactly 2 participants',
               400,
-            );
+            )
           }
 
           const existingId = await redisService.findDmConversation(
             allParticipants[0] as string,
             allParticipants[1] as string,
-          );
+          )
 
           if (existingId) {
-            const existing = await redisService.getConversation(existingId);
-            reply.code(200).send(existing);
-            return;
+            const existing = await redisService.getConversation(existingId)
+            reply.code(200).send(existing)
+            return
           }
         }
 
@@ -118,9 +115,9 @@ export function messageRoutes(server: FastifyInstance) {
           isGroup: type === 'group',
           ...(type === 'group' && name ? { name } : {}),
           createdAt: new Date().toISOString(),
-        };
+        }
 
-        await redisService.createConversation(conversation);
+        await redisService.createConversation(conversation)
 
         // For DMs, store lookup
         if (type === 'dm') {
@@ -128,35 +125,31 @@ export function messageRoutes(server: FastifyInstance) {
             allParticipants[0] as string,
             allParticipants[1] as string,
             conversation.id,
-          );
+          )
         }
 
-        reply.code(201).send(conversation);
+        reply.code(201).send(conversation)
       } catch (error) {
-        const response = handleError(error, server);
-        reply.code(response.statusCode).send(response);
+        const response = handleError(error, server)
+        reply.code(response.statusCode).send(response)
       }
     },
-  );
+  )
 
   // ─────────────────────────────────────────────────────────────
   // Get User's Conversations
   // ─────────────────────────────────────────────────────────────
 
-  server.get(
-    '/conversations',
-    { preHandler: [server.authenticate] },
-    async (request, reply) => {
-      try {
-        const { username } = request;
-        const conversations = await redisService.getUserConversations(username);
-        reply.code(200).send(conversations);
-      } catch (error) {
-        const response = handleError(error, server);
-        reply.code(500).send(response);
-      }
-    },
-  );
+  server.get('/conversations', { preHandler: [server.authenticate] }, async (request, reply) => {
+    try {
+      const { username } = request
+      const conversations = await redisService.getUserConversations(username)
+      reply.code(200).send(conversations)
+    } catch (error) {
+      const response = handleError(error, server)
+      reply.code(500).send(response)
+    }
+  })
 
   // ─────────────────────────────────────────────────────────────
   // Send Message
@@ -170,27 +163,18 @@ export function messageRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { conversationId, text } = request.body;
-        const { username } = request;
+        const { conversationId, text } = request.body
+        const { username } = request
 
         // Verify user is participant
-        const isParticipant = await redisService.isParticipant(
-          conversationId,
-          username,
-        );
+        const isParticipant = await redisService.isParticipant(conversationId, username)
         if (!isParticipant) {
-          throw createAuthError(
-            'You are not a participant in this conversation',
-          );
+          throw createAuthError('You are not a participant in this conversation')
         }
 
-        const conversation = await redisService.getConversation(conversationId);
+        const conversation = await redisService.getConversation(conversationId)
         if (!conversation) {
-          throw new ApiError(
-            ErrorCode.ITEM_NOT_FOUND,
-            'Conversation not found',
-            404,
-          );
+          throw new ApiError(ErrorCode.ITEM_NOT_FOUND, 'Conversation not found', 404)
         }
 
         const message: Message = {
@@ -199,16 +183,16 @@ export function messageRoutes(server: FastifyInstance) {
           text,
           type: 'text',
           timestamp: new Date().toISOString(),
-        };
+        }
 
         // Get message index before saving
-        const messageIndex = await redisService.getMessageCount(conversationId);
-        await redisService.saveMessage(conversationId, message);
+        const messageIndex = await redisService.getMessageCount(conversationId)
+        await redisService.saveMessage(conversationId, message)
 
         // Send push notifications to other participants
         for (const participant of conversation.participants) {
           if (participant !== username) {
-            const pushToken = await redisService.getPushToken(participant);
+            const pushToken = await redisService.getPushToken(participant)
             if (pushToken) {
               void sendPushNotification({
                 expoPushToken: pushToken,
@@ -216,7 +200,7 @@ export function messageRoutes(server: FastifyInstance) {
                 messageText: text,
                 messageIndex,
                 timestamp: message.timestamp,
-              });
+              })
             }
           }
         }
@@ -224,13 +208,13 @@ export function messageRoutes(server: FastifyInstance) {
         reply.send({
           index: messageIndex,
           ...message,
-        });
+        })
       } catch (error) {
-        const response = handleError(error, server);
-        reply.code(response.statusCode).send(response);
+        const response = handleError(error, server)
+        reply.code(response.statusCode).send(response)
       }
     },
-  );
+  )
 
   // ─────────────────────────────────────────────────────────────
   // Get Messages
@@ -244,61 +228,49 @@ export function messageRoutes(server: FastifyInstance) {
     },
     async (request, reply) => {
       try {
-        const { username } = request;
-        const { conversationId, after, before, limit } = request.query;
+        const { username } = request
+        const { conversationId, after, before, limit } = request.query
 
         // Verify user is participant
-        const isParticipant = await redisService.isParticipant(
-          conversationId,
-          username,
-        );
+        const isParticipant = await redisService.isParticipant(conversationId, username)
         if (!isParticipant) {
-          throw createAuthError(
-            'You are not a participant in this conversation',
-          );
+          throw createAuthError('You are not a participant in this conversation')
         }
 
-        const totalCount = await redisService.getMessageCount(conversationId);
+        const totalCount = await redisService.getMessageCount(conversationId)
 
-        let start: number;
-        let end: number;
+        let start: number
+        let end: number
 
         if (after !== undefined) {
-          start = after + 1;
-          end = start + limit - 1;
+          start = after + 1
+          end = start + limit - 1
         } else if (before !== undefined) {
-          end = before - 1;
-          start = Math.max(0, end - limit + 1);
+          end = before - 1
+          start = Math.max(0, end - limit + 1)
         } else {
-          end = -1;
-          start = Math.max(0, totalCount - limit);
+          end = -1
+          start = Math.max(0, totalCount - limit)
         }
 
-        const messagesRaw = await redisService.getMessages(
-          conversationId,
-          start,
-          end,
-        );
+        const messagesRaw = await redisService.getMessages(conversationId, start, end)
 
         const messages = messagesRaw.map((msg, index) => ({
           index: start + index,
           ...(JSON.parse(msg) as Message),
-        }));
+        }))
 
-        const hasMore =
-          after !== undefined
-            ? start + messages.length < totalCount
-            : start > 0;
+        const hasMore = after !== undefined ? start + messages.length < totalCount : start > 0
 
         reply.send({
           messages,
           hasMore,
           totalCount,
-        });
+        })
       } catch (error) {
-        const response = handleError(error, server);
-        reply.code(response.statusCode).send(response);
+        const response = handleError(error, server)
+        reply.code(response.statusCode).send(response)
       }
     },
-  );
+  )
 }

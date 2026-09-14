@@ -18,14 +18,14 @@ const colors = {
   overlay: 'rgba(0, 0, 0, 0.60)', // Modal backdrop dimming
   primaryHover: '#FBBF24', // Lighter amber for hover interactions
   primaryDisabled: '#78350F', // Disabled amber state
-};
+}
 
 const typography = {
   h1: { fontSize: 28 },
   h2: { fontSize: 22 },
   body: { fontSize: 16 },
   caption: { fontSize: 12 },
-};
+}
 
 const spacing = {
   xs: 4,
@@ -33,10 +33,10 @@ const spacing = {
   md: 16,
   lg: 24,
   xl: 32,
-};
+}
 
 export const theme = {
   colors,
   typography,
   spacing,
-};
+}

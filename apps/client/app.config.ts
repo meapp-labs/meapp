@@ -1,8 +1,8 @@
-const IS_PROD = process.env['APP_VARIANT'] === 'production';
+const IS_PROD = process.env['APP_VARIANT'] === 'production'
 
 const config = IS_PROD
   ? { packageName: 'com.meapp', appName: 'MeApp' }
-  : { packageName: 'com.meapp.dev', appName: 'MeApp (dev)' };
+  : { packageName: 'com.meapp.dev', appName: 'MeApp (dev)' }
 
 export default {
   expo: {
@@ -67,4 +67,4 @@ export default {
       reactCompiler: true,
     },
   },
-};
+}

@@ -1,76 +1,60 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons'
+import { useState } from 'react'
+import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native'
 
-import DeleteFriend from '@/components/chat/DeleteFriend';
-import { Text } from '@/components/common/Text';
-import { useAuthStore, useConversationStore } from '@/lib/stores';
-import { ConversationStorage } from '@/services/storage';
-import { theme } from '@/theme/theme';
+import DeleteFriend from '@/components/chat/DeleteFriend'
+import { Text } from '@/components/common/Text'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { ConversationStorage } from '@/services/storage'
+import { theme } from '@/theme/theme'
 
 /**
  * Get display name for the conversation header
  */
 function getDisplayName(
   conversation: {
-    participants: string[];
-    name?: string;
-    isGroup: boolean;
+    participants: string[]
+    name?: string
+    isGroup: boolean
   } | null,
   currentUsername: string,
 ): string {
-  if (!conversation) return '';
-  if (conversation.name) return conversation.name;
-  const other = conversation.participants.find((p) => p !== currentUsername);
-  return other || 'Chat';
+  if (!conversation) return ''
+  if (conversation.name) return conversation.name
+  const other = conversation.participants.find((p) => p !== currentUsername)
+  return other || 'Chat'
 }
 
 export function ChatHeader() {
-  const { selectedConversation, setSelectedConversation } =
-    useConversationStore();
-  const { username } = useAuthStore();
-  const [showMenu, setShowMenu] = useState(false);
-  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { username } = useAuthStore()
+  const [showMenu, setShowMenu] = useState(false)
+  const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const handlePress = () => {
-    setSelectedConversation(null);
-    void ConversationStorage.clear();
-  };
+    setSelectedConversation(null)
+    void ConversationStorage.clear()
+  }
 
   const handleDelete = () => {
-    setShowMenu(false);
-    setSelectedConversation(null);
-    void ConversationStorage.clear();
-  };
+    setShowMenu(false)
+    setSelectedConversation(null)
+    void ConversationStorage.clear()
+  }
 
-  const displayName = getDisplayName(selectedConversation, username);
-  const isGroup = selectedConversation?.isGroup ?? false;
+  const displayName = getDisplayName(selectedConversation, username)
+  const isGroup = selectedConversation?.isGroup ?? false
   // For DM, finding the other participant name for the delete modal
-  const otherParticipant =
-    selectedConversation?.participants.find((p) => p !== username) || '';
+  const otherParticipant = selectedConversation?.participants.find((p) => p !== username) || ''
 
   return (
     <View style={styles.container}>
       <View style={styles.innerContainer}>
         <TouchableOpacity onPress={handlePress}>
-          <MaterialIcons
-            name="arrow-back"
-            size={34}
-            color={theme.colors.text}
-          />
+          <MaterialIcons name="arrow-back" size={34} color={theme.colors.text} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.contactInfo}>
-          <MaterialIcons
-            name={isGroup ? 'groups' : 'face'}
-            size={34}
-            color={theme.colors.text}
-          />
+          <MaterialIcons name={isGroup ? 'groups' : 'face'} size={34} color={theme.colors.text} />
           <Text style={styles.contactName}>{displayName}</Text>
         </TouchableOpacity>
       </View>
@@ -86,23 +70,16 @@ export function ChatHeader() {
           animationType="fade"
           onRequestClose={() => setShowMenu(false)}
         >
-          <Pressable
-            style={styles.menuOverlay}
-            onPress={() => setShowMenu(false)}
-          >
+          <Pressable style={styles.menuOverlay} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
-                  setShowMenu(false);
-                  setShowDeleteModal(true);
+                  setShowMenu(false)
+                  setShowDeleteModal(true)
                 }}
               >
-                <MaterialIcons
-                  name="person-remove"
-                  size={20}
-                  color={theme.colors.error}
-                />
+                <MaterialIcons name="person-remove" size={20} color={theme.colors.error} />
                 <Text style={{ color: theme.colors.error }}>
                   {isGroup ? 'Leave Group' : 'Remove Friend'}
                 </Text>
@@ -116,13 +93,13 @@ export function ChatHeader() {
         <DeleteFriend
           friend={otherParticipant}
           onChange={(_, removed) => {
-            if (removed) handleDelete();
-            setShowDeleteModal(false);
+            if (removed) handleDelete()
+            setShowDeleteModal(false)
           }}
         />
       )}
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -168,4 +145,4 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     padding: theme.spacing.xs,
   },
-});
+})

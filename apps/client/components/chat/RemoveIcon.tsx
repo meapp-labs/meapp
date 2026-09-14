@@ -1,17 +1,17 @@
-import { Ionicons } from '@expo/vector-icons';
-import { TouchableOpacity } from 'react-native';
+import { Ionicons } from '@expo/vector-icons'
+import { TouchableOpacity } from 'react-native'
 
-import { useConversationStore } from '@/lib/stores';
-import { theme } from '@/theme/theme';
-import type { Conversation } from '@/types/models';
+import { useConversationStore } from '@/lib/stores'
+import { theme } from '@/theme/theme'
+import type { Conversation } from '@/types/models'
 
 export type RemoveIconProps = {
-  conversation: Conversation;
-  setRemoveId: (value: string) => void;
-};
+  conversation: Conversation
+  setRemoveId: (value: string) => void
+}
 
 export function RemoveIcon({ conversation, setRemoveId }: RemoveIconProps) {
-  const { selectedConversation } = useConversationStore();
+  const { selectedConversation } = useConversationStore()
 
   return (
     <TouchableOpacity
@@ -23,12 +23,7 @@ export function RemoveIcon({ conversation, setRemoveId }: RemoveIconProps) {
       ]}
       onPress={() => setRemoveId(conversation.id)}
     >
-      <Ionicons
-        name="person-remove"
-        size={22}
-        color="white"
-        style={{ opacity: 0.1 }}
-      />
+      <Ionicons name="person-remove" size={22} color="white" style={{ opacity: 0.1 }} />
     </TouchableOpacity>
-  );
+  )
 }

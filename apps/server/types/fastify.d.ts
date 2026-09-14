@@ -1,27 +1,24 @@
-import '@fastify/secure-session';
-import 'fastify';
+import '@fastify/secure-session'
+import 'fastify'
 
-import type { Platform } from '@/routes/auth.ts';
-import type { RedisService } from '@/services/redis.service.ts';
+import type { Platform } from '@/routes/auth.ts'
+import type { RedisService } from '@/services/redis.service.ts'
 
 declare module 'fastify' {
   interface FastifyInstance {
-    authenticate: (
-      request: FastifyRequest,
-      reply: FastifyReply,
-    ) => Promise<void>;
-    redisService: RedisService;
+    authenticate: (request: FastifyRequest, reply: FastifyReply) => Promise<void>
+    redisService: RedisService
   }
 
   interface FastifyRequest {
-    username: string;
-    platform: Platform;
+    username: string
+    platform: Platform
   }
 }
 
 declare module '@fastify/secure-session' {
   interface SessionData {
-    username: string;
-    platform: Platform;
+    username: string
+    platform: Platform
   }
 }

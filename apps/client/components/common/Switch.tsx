@@ -1,20 +1,18 @@
-import React from 'react';
 import {
   Switch as RNSwitch,
   StyleSheet,
-  SwitchProps,
+  type SwitchProps,
   TouchableOpacity,
-  ViewStyle,
-} from 'react-native';
+  type ViewStyle,
+} from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { theme } from '@/theme/theme'
 
-interface CustomSwitchProps
-  extends Omit<SwitchProps, 'trackColor' | 'thumbColor'> {
-  label?: string;
-  labelPosition?: 'left' | 'right';
-  style?: ViewStyle;
+interface CustomSwitchProps extends Omit<SwitchProps, 'trackColor' | 'thumbColor'> {
+  label?: string
+  labelPosition?: 'left' | 'right'
+  style?: ViewStyle
 }
 
 export default function Switch({
@@ -28,9 +26,9 @@ export default function Switch({
 }: CustomSwitchProps) {
   const handleToggle = () => {
     if (!disabled && onValueChange) {
-      void onValueChange(!value);
+      void onValueChange(!value)
     }
-  };
+  }
 
   const switchElement = (
     <RNSwitch
@@ -44,10 +42,10 @@ export default function Switch({
       disabled={disabled}
       {...props}
     />
-  );
+  )
 
   if (!label) {
-    return switchElement;
+    return switchElement
   }
 
   return (
@@ -61,7 +59,7 @@ export default function Switch({
       {switchElement}
       {labelPosition === 'right' && <Text style={styles.label}>{label}</Text>}
     </TouchableOpacity>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -73,4 +71,4 @@ const styles = StyleSheet.create({
   label: {
     ...theme.typography.body,
   },
-});
+})

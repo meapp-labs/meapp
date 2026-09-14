@@ -15,4 +15,4 @@ export const Keys = {
     REMOVE_FRIEND: 'remove-other',
     PUSH_TOKEN: 'push-token',
   },
-};
+}

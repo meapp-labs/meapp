@@ -1,63 +1,63 @@
-import { QueryClientProvider } from '@tanstack/react-query';
-import { Stack } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Platform, PlatformOSType } from 'react-native';
-import Toast from 'react-native-toast-message';
+import { QueryClientProvider } from '@tanstack/react-query'
+import { Stack } from 'expo-router'
+import { useEffect, useState } from 'react'
+import { Platform, type PlatformOSType } from 'react-native'
+import Toast from 'react-native-toast-message'
 
-import { Loader } from '@/components/Loader';
-import { postFetcher } from '@/lib/axios';
-import { Keys } from '@/lib/keys';
-import { queryClient } from '@/lib/queryInit';
-import { logStartupInfo } from '@/lib/startupInfo';
-import { useAuthStore } from '@/lib/stores';
-import { toastConfig } from '@/misc/toastConfig';
-import { RememberMeStorage } from '@/services/storage';
+import { Loader } from '@/components/Loader'
+import { postFetcher } from '@/lib/axios'
+import { Keys } from '@/lib/keys'
+import { queryClient } from '@/lib/queryInit'
+import { logStartupInfo } from '@/lib/startupInfo'
+import { useAuthStore } from '@/lib/stores'
+import { toastConfig } from '@/misc/toastConfig'
+import { RememberMeStorage } from '@/services/storage'
 
 // Log startup information when the app loads
-logStartupInfo();
+logStartupInfo()
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
-  const setUsername = useAuthStore((state) => state.setUsername);
-  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const setUsername = useAuthStore((state) => state.setUsername)
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true)
 
   useEffect(() => {
     const checkSession = async () => {
-      const rememberMe = await RememberMeStorage.get();
+      const rememberMe = await RememberMeStorage.get()
 
       if (!rememberMe) {
-        setIsCheckingAuth(false);
-        return;
+        setIsCheckingAuth(false)
+        return
       }
 
       try {
-        const response = await postFetcher<
-          { username: string },
-          { platform: PlatformOSType }
-        >(Keys.Query.ME, {
-          platform: Platform.OS,
-        });
-        setUsername(response.username);
+        const response = await postFetcher<{ username: string }, { platform: PlatformOSType }>(
+          Keys.Query.ME,
+          {
+            platform: Platform.OS,
+          },
+        )
+        setUsername(response.username)
       } catch {
         // Session invalid or expired - clear remember me flag
-        await RememberMeStorage.clear();
+        await RememberMeStorage.clear()
       } finally {
-        setIsCheckingAuth(false);
+        setIsCheckingAuth(false)
       }
-    };
+    }
 
-    void checkSession();
-  }, [setUsername]);
+    void checkSession()
+  }, [setUsername])
 
   if (isCheckingAuth) {
-    return <Loader text="MeApping..." />;
+    return <Loader text="MeApping..." />
   }
 
-  return <>{children}</>;
+  return <>{children}</>
 }
 
 export default function RootLayout() {
-  const username = useAuthStore((state) => state.username);
-  const isAuthenticated = !!username;
+  const username = useAuthStore((state) => state.username)
+  const isAuthenticated = !!username
 
   return (
     <QueryClientProvider client={queryClient}>
@@ -76,5 +76,5 @@ export default function RootLayout() {
       </AuthProvider>
       <Toast config={toastConfig} />
     </QueryClientProvider>
-  );
+  )
 }

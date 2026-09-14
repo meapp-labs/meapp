@@ -1,44 +1,39 @@
-import { MaterialIcons } from '@expo/vector-icons';
-import { memo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons'
+import { memo } from 'react'
+import { StyleSheet, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import useBreakpoint from '@/hooks/useBreakpoint';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import useBreakpoint from '@/hooks/useBreakpoint'
+import { theme } from '@/theme/theme'
 
 export type BaseMessage = {
-  index: string;
-  from: string;
-  text: string;
-  timestamp: string;
-};
+  index: string
+  from: string
+  text: string
+  timestamp: string
+}
 
 type MessageProps = {
-  message: BaseMessage;
-  time: string;
-};
+  message: BaseMessage
+  time: string
+}
 
 const timeFormatter = new Intl.DateTimeFormat('default', {
   hour: '2-digit',
   minute: '2-digit',
   hourCycle: 'h23',
-});
+})
 
 const dateFormatter = new Intl.DateTimeFormat('en-US', {
   month: 'long',
   day: 'numeric',
-});
+})
 
 const MessageBubble = {
   Received: memo(function ReceivedMessage({ message, time }: MessageProps) {
-    const { isDesktop, width } = useBreakpoint();
+    const { isDesktop, width } = useBreakpoint()
     return (
-      <View
-        style={[
-          styles.messageGroupContainer,
-          isDesktop && { maxWidth: width * 0.35 },
-        ]}
-      >
+      <View style={[styles.messageGroupContainer, isDesktop && { maxWidth: width * 0.35 }]}>
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
         <View style={styles.messageTextWrapper}>
           <Text selectable style={styles.receivedMessageContainer}>
@@ -47,10 +42,10 @@ const MessageBubble = {
         </View>
         <Text style={styles.time}>{time}</Text>
       </View>
-    );
+    )
   }),
   Sent: memo(function SentMessage({ message, time }: MessageProps) {
-    const { isDesktop, width } = useBreakpoint();
+    const { isDesktop, width } = useBreakpoint()
     return (
       <View
         style={[
@@ -66,28 +61,28 @@ const MessageBubble = {
           </Text>
         </View>
       </View>
-    );
+    )
   }),
   Wrapper: memo(function MessageWrapper({
     message,
     prevTimestamp,
     currentUsername,
   }: {
-    message: BaseMessage;
-    prevTimestamp: string | undefined;
-    currentUsername: string;
+    message: BaseMessage
+    prevTimestamp: string | undefined
+    currentUsername: string
   }) {
-    const date = new Date(message.timestamp);
-    const prevDate = prevTimestamp ? new Date(prevTimestamp) : null;
+    const date = new Date(message.timestamp)
+    const prevDate = prevTimestamp ? new Date(prevTimestamp) : null
 
-    const time = timeFormatter.format(date);
-    const messageDate = dateFormatter.format(date);
+    const time = timeFormatter.format(date)
+    const messageDate = dateFormatter.format(date)
 
     const isDifferentDay =
       !prevDate ||
       prevDate.getFullYear() !== date.getFullYear() ||
       prevDate.getMonth() !== date.getMonth() ||
-      prevDate.getDate() !== date.getDate();
+      prevDate.getDate() !== date.getDate()
 
     return (
       <>
@@ -96,13 +91,11 @@ const MessageBubble = {
         ) : (
           <MessageBubble.Received message={message} time={time} />
         )}
-        {isDifferentDay && (
-          <Text style={styles.messageDate}>{messageDate}</Text>
-        )}
+        {isDifferentDay && <Text style={styles.messageDate}>{messageDate}</Text>}
       </>
-    );
+    )
   }),
-};
+}
 
 const styles = StyleSheet.create({
   messageDate: {
@@ -138,6 +131,6 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: theme.spacing.md,
   },
-});
+})
 
-export default MessageBubble;
+export default MessageBubble

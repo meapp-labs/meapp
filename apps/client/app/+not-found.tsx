@@ -1,7 +1,7 @@
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { theme } from '@/theme/theme'
 
 export default function NotFoundScreen() {
   return (
@@ -10,7 +10,7 @@ export default function NotFoundScreen() {
         <Text>This screen does not exist.</Text>
       </View>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -21,4 +21,4 @@ const styles = StyleSheet.create({
     padding: 20,
     backgroundColor: theme.colors.background,
   },
-});
+})

@@ -1,11 +1,6 @@
-import {
-  BaseToast,
-  BaseToastProps,
-  ErrorToast,
-  InfoToast,
-} from 'react-native-toast-message';
+import { BaseToast, type BaseToastProps, ErrorToast, InfoToast } from 'react-native-toast-message'
 
-import { theme } from '@/theme/theme';
+import { theme } from '@/theme/theme'
 
 export const toastConfig = {
   success: (props: BaseToastProps) => (
@@ -79,4 +74,4 @@ export const toastConfig = {
       text2NumberOfLines={3}
     />
   ),
-};
+}

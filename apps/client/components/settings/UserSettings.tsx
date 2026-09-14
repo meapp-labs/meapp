@@ -1,28 +1,22 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import React, { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  TouchableHighlight,
-  View,
-} from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import type React from 'react'
+import { useState } from 'react'
+import { Modal, Pressable, ScrollView, StyleSheet, TouchableHighlight, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { theme } from '@/theme/theme'
 
-import { Notifications } from './Notifications';
+import { Notifications } from './Notifications'
 
 type UserSettingsProps = {
-  showSettings: boolean;
-  setShowSettings: (value: boolean) => void;
-};
+  showSettings: boolean
+  setShowSettings: (value: boolean) => void
+}
 
 const optionsPlaceholder: {
-  name: string;
-  icon: React.ComponentProps<typeof MaterialIcons>['name'];
-  component?: React.ComponentType;
+  name: string
+  icon: React.ComponentProps<typeof MaterialIcons>['name']
+  component?: React.ComponentType
 }[] = [
   { name: 'Personal Info', icon: 'person-outline' },
   { name: 'Emails & Password', icon: 'key' },
@@ -33,13 +27,10 @@ const optionsPlaceholder: {
   },
   { name: 'Blocked Users', icon: 'block' },
   { name: 'Account Settings', icon: 'settings' },
-];
-export default function UserSettings({
-  showSettings,
-  setShowSettings,
-}: UserSettingsProps) {
-  const [pressed, setPressed] = useState<string | null>('Notifications');
-  const selected = optionsPlaceholder.find((opt) => opt.name === pressed);
+]
+export default function UserSettings({ showSettings, setShowSettings }: UserSettingsProps) {
+  const [pressed, setPressed] = useState<string | null>('Notifications')
+  const selected = optionsPlaceholder.find((opt) => opt.name === pressed)
   return (
     <>
       <TouchableHighlight onPress={() => setShowSettings(true)}>
@@ -54,12 +45,8 @@ export default function UserSettings({
         >
           <View style={styles.container}>
             <View style={[styles.content, styles.shadow]}>
-              <ScrollView
-                style={[styles.innerContainer, styles.containerBorder]}
-              >
-                <Text style={styles.optionsHeader}>
-                  User profile management
-                </Text>
+              <ScrollView style={[styles.innerContainer, styles.containerBorder]}>
+                <Text style={styles.optionsHeader}>User profile management</Text>
                 <ScrollView
                   style={{ flex: 1 }}
                   contentContainerStyle={{
@@ -70,28 +57,18 @@ export default function UserSettings({
                   {optionsPlaceholder.map((item) => (
                     <Pressable
                       key={item.name}
-                      style={[
-                        styles.option,
-                        pressed === item.name && styles.optionPressed,
-                      ]}
+                      style={[styles.option, pressed === item.name && styles.optionPressed]}
                       onPress={() => setPressed(item.name)}
                     >
                       <View style={styles.iconsWtext}>
                         <MaterialIcons
                           name={item.icon}
                           size={20}
-                          color={
-                            pressed === item.name
-                              ? theme.colors.secondary
-                              : 'white'
-                          }
+                          color={pressed === item.name ? theme.colors.secondary : 'white'}
                         />
                         <Text
                           style={{
-                            color:
-                              pressed === item.name
-                                ? theme.colors.secondary
-                                : 'white',
+                            color: pressed === item.name ? theme.colors.secondary : 'white',
                           }}
                         >
                           {item.name}
@@ -117,7 +94,7 @@ export default function UserSettings({
         </Modal>
       )}
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -185,4 +162,4 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.md,
     marginBottom: theme.spacing.md,
   },
-});
+})

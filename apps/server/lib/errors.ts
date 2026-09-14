@@ -1,5 +1,5 @@
-import type { FastifyInstance } from 'fastify';
-import { z } from 'zod';
+import type { FastifyInstance } from 'fastify'
+import { z } from 'zod'
 
 // Error Types
 export enum ErrorCode {
@@ -41,28 +41,28 @@ export enum ErrorCode {
 }
 
 export class ApiError extends Error {
-  public readonly code: ErrorCode;
-  public readonly statusCode: number;
-  public readonly details?: Record<string, unknown>;
-  public readonly timestamp: string;
+  public readonly code: ErrorCode
+  public readonly statusCode: number
+  public readonly details?: Record<string, unknown>
+  public readonly timestamp: string
 
   constructor(
     code: ErrorCode,
     message: string,
-    statusCode: number = 500,
+    statusCode = 500,
     details?: Record<string, unknown>,
   ) {
-    super(message);
-    this.name = 'ApiError';
-    this.code = code;
-    this.statusCode = statusCode;
+    super(message)
+    this.name = 'ApiError'
+    this.code = code
+    this.statusCode = statusCode
     if (details) {
-      this.details = details;
+      this.details = details
     }
-    this.timestamp = new Date().toISOString();
+    this.timestamp = new Date().toISOString()
 
     // Maintains proper stack trace for where our error was thrown
-    Error.captureStackTrace(this, ApiError);
+    Error.captureStackTrace(this, ApiError)
   }
 
   toJSON() {
@@ -74,35 +74,26 @@ export class ApiError extends Error {
         details: this.details,
         timestamp: this.timestamp,
       },
-    };
+    }
   }
 }
 
 // Specific error classes
 export class AuthenticationError extends ApiError {
-  constructor(
-    message: string = 'Authentication failed',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.UNAUTHORIZED, message, 401, details);
+  constructor(message = 'Authentication failed', details?: Record<string, unknown>) {
+    super(ErrorCode.UNAUTHORIZED, message, 401, details)
   }
 }
 
 export class ValidationError extends ApiError {
-  constructor(
-    message: string = 'Validation failed',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.VALIDATION_ERROR, message, 400, details);
+  constructor(message = 'Validation failed', details?: Record<string, unknown>) {
+    super(ErrorCode.VALIDATION_ERROR, message, 400, details)
   }
 }
 
 export class RateLimitError extends ApiError {
-  constructor(
-    message: string = 'Too many requests',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.TOO_MANY_ATTEMPTS, message, 429, details);
+  constructor(message = 'Too many requests', details?: Record<string, unknown>) {
+    super(ErrorCode.TOO_MANY_ATTEMPTS, message, 429, details)
   }
 }
 
@@ -110,87 +101,68 @@ export class UserError extends ApiError {
   constructor(
     code: ErrorCode,
     message: string,
-    statusCode: number = 400,
+    statusCode = 400,
     details?: Record<string, unknown>,
   ) {
-    super(code, message, statusCode, details);
+    super(code, message, statusCode, details)
   }
 }
 
 export class DatabaseError extends ApiError {
-  constructor(
-    message: string = 'Database operation failed',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.DATABASE_ERROR, message, 500, details);
+  constructor(message = 'Database operation failed', details?: Record<string, unknown>) {
+    super(ErrorCode.DATABASE_ERROR, message, 500, details)
   }
 }
 
 export class NotFoundError extends ApiError {
-  constructor(
-    resource: string = 'Resource',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.ITEM_NOT_FOUND, `${resource} not found`, 404, details);
+  constructor(resource = 'Resource', details?: Record<string, unknown>) {
+    super(ErrorCode.ITEM_NOT_FOUND, `${resource} not found`, 404, details)
   }
 }
 
 export class SessionError extends ApiError {
-  constructor(
-    message: string = 'Session operation failed',
-    details?: Record<string, unknown>,
-  ) {
-    super(ErrorCode.SESSION_ERROR, message, 500, details);
+  constructor(message = 'Session operation failed', details?: Record<string, unknown>) {
+    super(ErrorCode.SESSION_ERROR, message, 500, details)
   }
 }
 
 // Error factory functions
-export const createAuthError = (
-  message?: string,
-  details?: Record<string, unknown>,
-) => new AuthenticationError(message, details);
+export const createAuthError = (message?: string, details?: Record<string, unknown>) =>
+  new AuthenticationError(message, details)
 
-export const createValidationError = (
-  message?: string,
-  details?: Record<string, unknown>,
-) => new ValidationError(message, details);
+export const createValidationError = (message?: string, details?: Record<string, unknown>) =>
+  new ValidationError(message, details)
 
-export const createRateLimitError = (
-  message?: string,
-  details?: Record<string, unknown>,
-) => new RateLimitError(message, details);
+export const createRateLimitError = (message?: string, details?: Record<string, unknown>) =>
+  new RateLimitError(message, details)
 
 export const createUserExistsError = (username: string) =>
   new UserError(ErrorCode.USER_ALREADY_EXISTS, 'User already exists', 409, {
     username,
-  });
+  })
 
 export const createUserNotFoundError = (username: string) =>
   new UserError(ErrorCode.USER_NOT_FOUND, 'User not found', 404, {
     username,
-  });
+  })
 
 export const createDatabaseError = (operation: string, originalError?: Error) =>
   new DatabaseError(`Database ${operation} failed`, {
     operation,
     originalError: originalError?.message,
-  });
+  })
 
 export const createSessionError = (operation: string, originalError?: Error) =>
   new SessionError(`Session ${operation} failed`, {
     operation,
     originalError: originalError?.message,
-  });
+  })
 
 // Global error handler
 export function handleError(error: unknown, server: FastifyInstance): ApiError {
   if (error instanceof ApiError) {
-    server.log.error(
-      `API Error [${error.code}]:`,
-      error.message,
-      error.details,
-    );
-    return error;
+    server.log.error({ details: error.details, code: error.code }, error.message)
+    return error
   }
 
   // Handle Zod validation errors
@@ -201,13 +173,9 @@ export function handleError(error: unknown, server: FastifyInstance): ApiError {
         message: err.message,
         code: err.code,
       })),
-    });
-    server.log.error(
-      'Validation Error:',
-      validationError.message,
-      validationError.details,
-    );
-    return validationError;
+    })
+    server.log.error({ details: validationError.details }, validationError.message)
+    return validationError
   }
 
   // Handle unexpected errors
@@ -218,12 +186,8 @@ export function handleError(error: unknown, server: FastifyInstance): ApiError {
     {
       originalError: error instanceof Error ? error.message : String(error),
     },
-  );
+  )
 
-  server.log.error(
-    'Unexpected Error:',
-    internalError.message,
-    internalError.details,
-  );
-  return internalError;
+  server.log.error({ details: internalError.details }, internalError.message)
+  return internalError
 }

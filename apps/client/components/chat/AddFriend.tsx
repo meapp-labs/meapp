@@ -1,62 +1,45 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useState } from 'react';
-import {
-  Modal,
-  Pressable,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { useState } from 'react'
+import { Modal, Pressable, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
 
-import { Text } from '@/components/common/Text';
-import { useConversationStore } from '@/lib/stores';
-import { useAddFriend } from '@/services/others';
-import { ConversationStorage } from '@/services/storage';
-import { theme } from '@/theme/theme';
+import { Text } from '@/components/common/Text'
+import { useConversationStore } from '@/lib/stores'
+import { useAddFriend } from '@/services/others'
+import { ConversationStorage } from '@/services/storage'
+import { theme } from '@/theme/theme'
 
 export default function AddFriend() {
-  const [showModal, setShowModal] = useState(false);
-  const [username, setUsername] = useState('');
-  const { setSelectedConversation } = useConversationStore();
+  const [showModal, setShowModal] = useState(false)
+  const [username, setUsername] = useState('')
+  const { setSelectedConversation } = useConversationStore()
 
   const { mutate, isPending, isError, isSuccess, error, reset } = useAddFriend({
     onSuccess: (conversation) => {
-      setSelectedConversation(conversation);
-      void ConversationStorage.save(conversation.id);
-      setShowModal(false);
-      setUsername('');
-      reset();
+      setSelectedConversation(conversation)
+      void ConversationStorage.save(conversation.id)
+      setShowModal(false)
+      setUsername('')
+      reset()
     },
-  });
+  })
 
   const handleAdd = () => {
     if (username.trim()) {
-      mutate(username);
+      mutate(username)
     }
-  };
+  }
 
   return (
     <>
-      <TouchableOpacity
-        style={styles.triggerButton}
-        onPress={() => setShowModal(true)}
-      >
+      <TouchableOpacity style={styles.triggerButton} onPress={() => setShowModal(true)}>
         <MaterialIcons name="person-add" size={24} color={theme.colors.text} />
       </TouchableOpacity>
 
       <Modal transparent animationType="fade" visible={showModal}>
         <Pressable style={styles.overlay} onPress={() => setShowModal(false)}>
-          <Pressable
-            style={styles.modalContent}
-            onPress={(e) => e.stopPropagation()}
-          >
+          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
             <View style={styles.iconContainer}>
-              <MaterialIcons
-                name="person-add"
-                size={42}
-                color={theme.colors.primary}
-              />
+              <MaterialIcons name="person-add" size={42} color={theme.colors.primary} />
             </View>
 
             <Text style={styles.title}>Add Friend</Text>
@@ -76,14 +59,11 @@ export default function AddFriend() {
 
             {isError && (
               <Text style={styles.errorText}>
-                {error?.response?.data?.message ??
-                  'User not found or already added'}
+                {error?.response?.data?.message ?? 'User not found or already added'}
               </Text>
             )}
 
-            {isSuccess && (
-              <Text style={styles.successText}>Friend added successfully!</Text>
-            )}
+            {isSuccess && <Text style={styles.successText}>Friend added successfully!</Text>}
 
             <View style={styles.buttonContainer}>
               <Pressable
@@ -98,16 +78,14 @@ export default function AddFriend() {
                 onPress={handleAdd}
                 disabled={isPending || !username.trim() || isSuccess}
               >
-                <Text style={styles.confirmButtonText}>
-                  {isPending ? 'Adding...' : 'Add'}
-                </Text>
+                <Text style={styles.confirmButtonText}>{isPending ? 'Adding...' : 'Add'}</Text>
               </Pressable>
             </View>
           </Pressable>
         </Pressable>
       </Modal>
     </>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -211,4 +189,4 @@ const styles = StyleSheet.create({
     color: 'black',
     fontWeight: '600',
   },
-});
+})

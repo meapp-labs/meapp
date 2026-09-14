@@ -1,18 +1,18 @@
-import Constants from 'expo-constants';
-import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
-import Toast from 'react-native-toast-message';
+import Constants from 'expo-constants'
+import * as Notifications from 'expo-notifications'
+import { Platform } from 'react-native'
+import Toast from 'react-native-toast-message'
 
-import { postFetcher } from '@/lib/axios';
-import { Keys } from '@/lib/keys';
-import { queryClient } from '@/lib/queryInit';
-import { MessagesResponse } from '@/services/messages';
-import { theme } from '@/theme/theme';
-import type { Message } from '@/types/models';
+import { postFetcher } from '@/lib/axios'
+import { Keys } from '@/lib/keys'
+import { queryClient } from '@/lib/queryInit'
+import type { MessagesResponse } from '@/services/messages'
+import { theme } from '@/theme/theme'
+import type { Message } from '@/types/models'
 
 export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
-} as const;
+} as const
 
 Notifications.setNotificationHandler({
   handleNotification: () => {
@@ -24,28 +24,28 @@ Notifications.setNotificationHandler({
       shouldSetBadge: false,
       shouldShowBanner: false,
       shouldShowList: false,
-    });
+    })
   },
-});
+})
 
 export function handleIncomingNotification(
   notification: Notifications.Notification,
   currentConversationId?: string | null,
 ) {
-  const { title, body, data } = notification.request.content;
+  const { title, body, data } = notification.request.content
 
   if (title && data) {
     const messageData = data as {
-      id?: string;
-      conversationId?: string;
-      from: string;
-      text: string;
-      index: number;
-      timestamp: string;
-    };
+      id?: string
+      conversationId?: string
+      from: string
+      text: string
+      index: number
+      timestamp: string
+    }
 
     // Need conversationId to update the right cache
-    const conversationId = messageData.conversationId;
+    const conversationId = messageData.conversationId
     if (!conversationId) {
       // Can't update cache without conversationId
       Toast.show({
@@ -54,8 +54,8 @@ export function handleIncomingNotification(
         text2: body || '',
         position: 'top',
         visibilityTime: 4000,
-      });
-      return;
+      })
+      return
     }
 
     const newMessage: Message = {
@@ -65,11 +65,11 @@ export function handleIncomingNotification(
       type: 'text',
       index: messageData.index,
       timestamp: messageData.timestamp,
-    };
+    }
 
     queryClient.setQueryData<{
-      pages: MessagesResponse[];
-      pageParams: { after?: number; before?: number }[];
+      pages: MessagesResponse[]
+      pageParams: { after?: number; before?: number }[]
     }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
       if (!old || !old.pages[0]) {
         return {
@@ -81,10 +81,10 @@ export function handleIncomingNotification(
             },
           ],
           pageParams: [{}],
-        };
+        }
       }
 
-      const updatedMessages = [...old.pages[0].messages, newMessage];
+      const updatedMessages = [...old.pages[0].messages, newMessage]
 
       return {
         ...old,
@@ -97,11 +97,11 @@ export function handleIncomingNotification(
           ...old.pages.slice(1),
         ],
         pageParams: old.pageParams,
-      };
-    });
+      }
+    })
 
     if (currentConversationId === conversationId) {
-      return;
+      return
     }
   }
 
@@ -111,75 +111,65 @@ export function handleIncomingNotification(
     text2: body || '',
     position: 'top',
     visibilityTime: 4000,
-  });
+  })
 }
 
 export function setupNotificationListeners(
   onNotificationReceived: (notification: Notifications.Notification) => void,
 ) {
-  const subscription = Notifications.addNotificationReceivedListener(
-    onNotificationReceived,
-  );
+  const subscription = Notifications.addNotificationReceivedListener(onNotificationReceived)
 
   return () => {
-    subscription.remove();
-  };
+    subscription.remove()
+  }
 }
 
 export async function registerForPushNotificationsAsync() {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync(
-      NOTIFICATION_CHANNELS.MESSAGES,
-      {
-        name: 'Messages',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 400, 100, 400],
-        lightColor: theme.colors.primary,
-        sound: 'default',
-        enableLights: true,
-        enableVibrate: true,
-        showBadge: true,
-        lockscreenVisibility:
-          Notifications.AndroidNotificationVisibility.PUBLIC,
-        bypassDnd: false,
-        description: 'Notifications for new messages',
-      },
-    );
+    await Notifications.setNotificationChannelAsync(NOTIFICATION_CHANNELS.MESSAGES, {
+      name: 'Messages',
+      importance: Notifications.AndroidImportance.HIGH,
+      vibrationPattern: [0, 400, 100, 400],
+      lightColor: theme.colors.primary,
+      sound: 'default',
+      enableLights: true,
+      enableVibrate: true,
+      showBadge: true,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+      bypassDnd: false,
+      description: 'Notifications for new messages',
+    })
 
-    const { status: existingStatus } =
-      await Notifications.getPermissionsAsync();
-    let finalStatus = existingStatus;
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
     if (existingStatus !== Notifications.PermissionStatus.GRANTED) {
-      const { status } = await Notifications.requestPermissionsAsync();
-      finalStatus = status;
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
     }
     if (finalStatus !== Notifications.PermissionStatus.GRANTED) {
-      return;
+      return
     }
 
     const expoConfig = Constants?.expoConfig as
       | { extra?: { eas?: { projectId?: string } } }
-      | undefined;
-    const easConfig = Constants?.easConfig as
-      | { projectId?: string }
-      | undefined;
+      | undefined
+    const easConfig = Constants?.easConfig as { projectId?: string } | undefined
 
-    const projectId =
-      expoConfig?.extra?.['eas']?.projectId ?? easConfig?.projectId;
+    const projectId = expoConfig?.extra?.['eas']?.projectId ?? easConfig?.projectId
 
     if (!projectId) {
-      return;
+      return
     }
     try {
       const pushToken = await Notifications.getExpoPushTokenAsync({
         projectId,
-      });
-      console.log(pushToken);
-      const pushTokenString = pushToken.data;
+      })
+      console.log(pushToken)
+      const pushTokenString = pushToken.data
 
-      await postFetcher(Keys.Mutation.PUSH_TOKEN, { token: pushTokenString });
+      await postFetcher(Keys.Mutation.PUSH_TOKEN, { token: pushTokenString })
     } catch {
-      return;
+      return
     }
   }
 }

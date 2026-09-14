@@ -1,13 +1,13 @@
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { StyleSheet, TextInput, View } from 'react-native';
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { StyleSheet, TextInput, View } from 'react-native'
 
-import { UserAvatar } from '@/components/UserAvatar';
-import { theme } from '@/theme/theme';
+import { UserAvatar } from '@/components/UserAvatar'
+import { theme } from '@/theme/theme'
 
 type TopMenuProps = {
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
-};
+  searchQuery: string
+  onSearchChange: (query: string) => void
+}
 
 export default function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
   return (
@@ -23,16 +23,12 @@ export default function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
             onChangeText={onSearchChange}
           />
           <View style={styles.searchIcon}>
-            <MaterialIcons
-              name="search"
-              size={24}
-              color={theme.colors.textSecondary}
-            />
+            <MaterialIcons name="search" size={24} color={theme.colors.textSecondary} />
           </View>
         </View>
       </View>
     </View>
-  );
+  )
 }
 
 const styles = StyleSheet.create({
@@ -66,4 +62,4 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: theme.spacing.md,
   },
-});
+})
