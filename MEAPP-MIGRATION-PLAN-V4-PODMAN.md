@@ -1,82 +1,50 @@
-# MeApp Migration to Elysia - Podman Edition (Dev + Prod) - AI Execution Plan
+# MeApp Migration to Elysia - V5 Podman Fixed (Sept 2026) - AI Execution Plan
 
 > Repo: https://github.com/meapp-labs/meapp
-> Goal: Elysia + Eden + shared types + Podman for BOTH dev and prod + OTA + Web kept (iOS, Android, Web)
+> This is V4 FIXED with 12 holes patched from deep audit. Use this, not V4.
 
-## 0. General Instructions for AI
+## 0. General Instructions for AI - UPDATED FOR SEPT 2026
 
-**You MUST use Podman everywhere, not Docker. No `docker` commands, only `podman`.**
+**Stack:**
+- Runtime: Bun 1.4.2 (pin exact, lockfileVersion 2, hoisted linker for Expo)
+- Server: Elysia 1.3.x (NOT 1.2, breaking changes!), @elysiajs/cors@1.3, @elysiajs/swagger@1.3, @elysiajs/eden@1.3 (treaty v2), @elysiajs/cookie@1.3, @elysiajs/jwt@1.3
+- DB: bun:sqlite + drizzle-orm, WAL + busy_timeout + Litestream backup
+- Infra: Podman 5.4+ with pasta+netavark, Quadlet, Caddy 2, Redis 7
+- Client: Expo SDK 54 (STAY on Old Arch for this migration, newArchEnabled false), RN 0.81, Expo Router universal (ios/android/web), @elysiajs/eden, TanStack Query 5, Zustand 4, Zod 3, Biome, bun:test
 
-**Stack after audit:**
-- Runtime: Bun 1.4.2 (root runtime)
-- Server: `elysia@1.2`, `@elysiajs/cors`, `@elysiajs/swagger`, `@elysiajs/eden`, `@elysiajs/cookie`, `@elysiajs/jwt`, `@elysiajs/websocket`
-- DB: `bun:sqlite` via `drizzle-orm/bun-sqlite` (REMOVE better-sqlite3, it's native addon broken on Bun)
-- Infra: Podman 5.x, podman-compose or `podman compose` (built-in), Quadlet for prod, Redis 7, Caddy 2 for reverse proxy + auto HTTPS
-- Client: Expo 54, RN 0.81, Expo Router (universal iOS/Android/Web), `@elysiajs/eden`, TanStack Query 5, Zustand 4, Zod 3, expo-secure-store + localStorage fallback
-- Tooling: Bun workspaces, Biome (replaces ESLint+Prettier, faster), `bun:test` (replaces Vitest), `bun audit`
-
-**Coding rules (from CLAUDE.md):**
-- Use `type` not `interface`
-- No default exports
-- No `any`, strict TS, await promises
-- Use theme.ts
-- Comments only complex logic
-
-**Check other replacements before using old tools:**
-- pm2 -> Quadlet systemd (Podman) [BETTER]
-- Nginx -> Caddy [BETTER for auto HTTPS]
-- ESLint+Prettier -> Biome [BETTER, 10x faster, single binary]
-- Vitest -> bun:test [BETTER, native]
-- Socket.IO -> Elysia WS [BETTER, typed, lighter]
-- Axios -> Eden Treaty [BETTER, shared types]
-- better-sqlite3 -> bun:sqlite + Drizzle [BETTER, works on Bun]
-- Docker Desktop -> Podman Desktop [BETTER for rootless, or equal]
+**Critical Sept 2026 rules:**
+- Use `podman` only, never `docker`
+- Must install `passt` everywhere (dev, CI, VPS) or Podman bridge fails
+- Use `type` not `interface`, no default exports, no any, await promises
+- Use `linker = "hoisted"` in bunfig.toml for Expo compatibility (isolated breaks Expo)
+- Elysia 1.3: No `api.index`, no WS chaining
 
 ---
 
-## PHASE 0: Podman Setup for Dev + Prod
+## PHASE 0: Podman + Bun 1.4 Setup (FIXED)
 
-**Why Podman for dev too:** No daemon, rootless, same commands in CI and local, works with Dockerfiles.
-
-**Commands - On dev machine (Linux):**
+**Install Podman with pasta (FIX for Hole #3):**
 ```bash
-# Ubuntu/Debian
-sudo apt update
-sudo apt install podman podman-compose caddy -y
-podman --version # must be >=5.0
-
-# Rootless setup
+# Ubuntu/Debian - REQUIRED for Podman 5.x
+sudo apt update && sudo apt install -y podman passt netavark aardvark-dns slirp4netns caddy
 sudo loginctl enable-linger $USER
 podman system migrate
-podman info --format "{{.Host.Security.Rootless}}" # must be true
+which pasta # must exist
+podman info --format '{{.Host.Security.RootlessNetworkCmd}}' # must be pasta
 
-# Alias for muscle memory (optional)
-echo "alias docker=podman" >> ~/.bashrc
-echo "alias docker-compose='podman-compose'" >> ~/.bashrc
+# Fedora
+sudo dnf install -y podman passt netavark aardvark-dns
 
-# Test
-podman run --rm -it docker.io/library/alpine echo "podman works rootless"
-```
-
-**On Mac/Windows dev machine:**
-```bash
-brew install podman
+# macOS
+brew install podman passt
 podman machine init --cpus 4 --memory 4096 --disk-size 50
 podman machine start
-podman info
 
-# Or install Podman Desktop GUI (replaces Docker Desktop)
-# https://podman-desktop.io/downloads
+# Test
+podman run --rm -p 3000:3000 docker.io/library/alpine echo "ok" # must not fail with pasta error
 ```
 
-**On VPS (prod):**
-```bash
-sudo apt update && sudo apt install podman caddy -y
-sudo loginctl enable-linger $USER
-podman system migrate
-```
-
-**Root monorepo setup (same as V3 but podman):**
+**Monorepo + Bun 1.4 fixes (FIX for Hole #1):**
 ```bash
 mkdir -p apps packages
 [ -d client ] && mv client apps/client || true
@@ -88,116 +56,125 @@ cat > package.json <<'JSON'
   "name": "meapp",
   "private": true,
   "type": "module",
+  "packageManager": "bun@1.4.2",
   "workspaces": ["apps/*", "packages/*"],
+  "trustedDependencies": ["@expo/*", "expo", "sharp", "msw"],
   "scripts": {
     "dev": "podman compose -f compose.dev.yaml up",
     "dev:server": "bun --filter @meapp/server dev",
     "dev:client": "bun --filter client dev",
     "dev:web": "bun --filter client web",
     "lint": "bunx @biomejs/biome check --write ./apps ./packages"
-  }
+  },
+  "overrides": { "typescript": "^5.8.0" }
 }
 JSON
+
+cat > bunfig.toml <<'TOML'
+[install]
+linker = "hoisted"
+auto = true
+
+[install.lockfile]
+version = 2
+
+[install.cache]
+disableManifest = false
+TOML
+
+# Delete old lockfiles
+rm -f bun.lockb bun.lock apps/*/bun.lock
+bun install # creates v2 lockfile
 ```
+
+**Verify:** `cat bun.lock | grep lockfileVersion` should show 2, `podman info` shows rootless true.
 
 ---
 
-## PHASE 1: Tooling Replacement - Biome + bun:test
+## PHASE 1: Tooling - Biome + bun:test
 
-**Why Biome is better than ESLint+Prettier for you:** Single binary, 10x faster, works in .githooks pre-commit, no config hell. Perfect for 2 friends.
+Same as V4, but with TS 5.8 pin.
 
-**Files to change:**
-- Delete `.eslintrc*`, `.prettierrc*`, `.eslintignore`
-- Delete `apps/client/.eslintrc`, `apps/server/.eslintrc`
-- Edit `.githooks/pre-commit`
-
-**Commands:**
 ```bash
 bun add -D -g @biomejs/biome
 cat > biome.json <<'JSON'
 {
   "$schema": "https://biomejs.dev/schemas/1.9.0/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "ignoreUnknown": false, "include": ["apps/**/*", "packages/**/*"] },
+  "files": { "include": ["apps/**/*", "packages/**/*"] },
   "formatter": { "enabled": true, "indentStyle": "space", "indentWidth": 2 },
   "linter": { "enabled": true, "rules": { "recommended": true } },
   "javascript": { "formatter": { "quoteStyle": "single", "semicolon": "asNeeded" } }
 }
 JSON
-
-cat > .githooks/pre-commit <<'SH'
-#!/bin/sh
-bunx @biomejs/biome check --write --staged
-SH
-chmod +x .githooks/pre-commit
 ```
 
-**Replace Vitest with bun:test in `apps/server`:**
-```bash
-cd apps/server
-bun remove vitest @vitest/coverage-v8
-# bun:test is built-in, no install
-# Change test scripts
-```
-Edit `apps/server/package.json`:
-```json
-{ "scripts": { "test": "bun test", "test:watch": "bun test --watch" } }
-```
-Convert `describe/it` imports: `import { describe, it, expect } from 'bun:test'` (same API).
+Replace Vitest with `bun:test` in server package.json: `"test": "bun test"`
 
 ---
 
-## PHASE 2: Shared + DB Packages (Same as V3)
+## PHASE 2: Shared + DB Packages (FIXED WAL)
 
-**Create packages/shared and packages/db exactly as V3, but with Biome.**
+Same as V3/V4 for schemas, but DB client FIXED:
 
-Commands same as V3 PHASE 1. Do not import `bun:sqlite` in shared, only Zod.
+**`packages/db/src/client.ts` FIXED:**
+```ts
+import { Database } from 'bun:sqlite'
+import { drizzle } from 'drizzle-orm/bun-sqlite'
+import * as schema from './schema.js'
+const dbPath = process.env.DATABASE_URL || './data.db'
+const sqlite = new Database(dbPath)
+sqlite.exec('PRAGMA journal_mode = WAL;')
+sqlite.exec('PRAGMA busy_timeout = 5000;')
+sqlite.exec('PRAGMA synchronous = NORMAL;')
+// Graceful checkpoint on exit
+process.on('beforeExit', () => {
+  try { sqlite.exec('PRAGMA wal_checkpoint(TRUNCATE);') } catch {}
+})
+export const db = drizzle(sqlite, { schema })
+export { schema }
+```
 
-**Files:**
-- `packages/shared/src/schemas/auth.ts`, `user.ts`, `message.ts`, `room.ts`, `index.ts`
-- `packages/shared/src/types/index.ts`
-- `packages/db/src/schema.ts`, `client.ts`, `index.ts`, `drizzle.config.ts`
-
-**Verify:** `bun install && bunx @biomejs/biome check packages/shared`
+Add migration runner `packages/db/src/migrate.ts` that runs on server startup.
 
 ---
 
-## PHASE 3: Fix better-sqlite3 -> bun:sqlite + Drizzle
-
-Same as V3 PHASE 2, but Podman version.
+## PHASE 3: Remove better-sqlite3 + Audit Native Addons
 
 ```bash
 cd apps/server
+# Audit native addons - Bun 1.4 NODE_MODULE_VERSION 147, must rebuild
+bun pm ls | xargs -I {} sh -c 'ls node_modules/{}/binding.gyp 2>/dev/null && echo {}' || true
 bun remove better-sqlite3 @types/better-sqlite3
 bun add drizzle-orm
 bun add -d drizzle-kit
 cd ../..
 ```
 
-Search and replace all `db.prepare` -> Drizzle.
+Replace all `db.prepare` with Drizzle as in V4.
 
 ---
 
-## PHASE 4: Podman Dev Environment (NEW - Replaces docker-compose.dev)
+## PHASE 4: Podman Dev Compose (FIXED with pasta)
 
-**Why Podman for dev:** Hot reload with volumes, Redis in container, no local Redis install needed.
-
-**Create `compose.dev.yaml` at root (Podman Compose):**
+**`compose.dev.yaml` FIXED:**
 ```yaml
 services:
   redis:
     image: docker.io/library/redis:7-alpine
     container_name: meapp-redis-dev
     ports: ["6379:6379"]
-    volumes: ["meapp-redis-data:/data"]
+    volumes: ["meapp-redis-data:/data:Z"]
     restart: unless-stopped
+    # Podman 5 pasta fix - ensure bridge works
+    networks: [meapp-net]
 
   server:
     build:
       context: .
       dockerfile: apps/server/Dockerfile.dev
     container_name: meapp-server-dev
-    ports: ["3000:3000"]
+    ports: ["3000:3000"] # rootless, cannot be <1024, use 3000 not 80
     volumes:
       - ./apps/server:/app/apps/server:z
       - ./packages:/app/packages:z
@@ -213,14 +190,19 @@ services:
     depends_on: [redis]
     command: ["bun", "--watch", "src/index.ts"]
     restart: unless-stopped
+    networks: [meapp-net]
+
+networks:
+  meapp-net:
+    driver: bridge
 
 volumes:
   meapp-redis-data:
 ```
 
-**Create `apps/server/Dockerfile.dev` (for dev with watch):**
+**`apps/server/Dockerfile.dev`:**
 ```dockerfile
-FROM docker.io/oven/bun:1.4 AS base
+FROM docker.io/oven/bun:1.4.2 AS base
 WORKDIR /app
 COPY package.json bun.lock bunfig.toml ./
 COPY packages ./packages
@@ -231,44 +213,28 @@ EXPOSE 3000
 CMD ["bun", "--watch", "apps/server/src/index.ts"]
 ```
 
-**Commands for dev:**
+**Dev commands:**
 ```bash
-# Start infra + server with hot reload
-podman compose -f compose.dev.yaml up
-
-# Or with podman-compose
-podman-compose -f compose.dev.yaml up
-
-# Logs
+podman compose -f compose.dev.yaml up -d
 podman logs -f meapp-server-dev
-podman logs -f meapp-redis-dev
-
-# Stop
-podman compose -f compose.dev.yaml down
-
-# Clean
-podman system prune -f
+# client native for HMR
+bun --filter client dev
+bun --filter client web
 ```
-
-**Client dev (native + web) stays native for HMR speed:**
-```bash
-# In another terminal, still native (fastest)
-bun --filter client dev        # Expo start for native
-bun --filter client web        # Expo web on :8081
-
-# If you REALLY want client in Podman too (slower HMR but fully containerized):
-# Create apps/client/Dockerfile.dev with expo, but NOT recommended for 2 friends
-```
-
-**Why not put Expo in Podman for dev?** Expo needs to expose Metro bundler, watch files, and tunnel to phone via QR. Podman adds VM overhead on Mac/Windows, slows HMR. Best practice: Infra (Redis) in Podman, app code (Bun + Expo) natively with `bun --watch`. You still get Podman benefits for prod parity.
 
 ---
 
-## PHASE 5: Migrate Fastify -> Elysia (Server)
+## PHASE 5: Fastify -> Elysia 1.3 (FIXED BREAKING CHANGES)
 
-Same as V3 PHASE 3 & 4, but ensure `apps/server/src/index.ts` uses Podman-friendly host `0.0.0.0`.
+**Install:**
+```bash
+cd apps/server
+bun remove fastify @fastify/cors @fastify/cookie @fastify/session @fastify/swagger @fastify/autoload socket.io
+bun add elysia@1.3 @elysiajs/cors@1.3 @elysiajs/swagger@1.3 @elysiajs/cookie@1.3 @elysiajs/jwt@1.3 @elysiajs/websocket@1.3
+cd ../..
+```
 
-**File `apps/server/src/index.ts`:**
+**`apps/server/src/index.ts` FIXED for 1.3:**
 ```ts
 import { Elysia } from 'elysia'
 import { cors } from '@elysiajs/cors'
@@ -283,7 +249,7 @@ import { messageRoutes } from './routes/messages.js'
 import { chatWs } from './ws/chat.js'
 
 export const app = new Elysia()
-  .use(cors({ origin: (req) => true, credentials: true }))
+  .use(cors({ origin: ['http://localhost:8081', 'http://localhost:19006', 'https://meapp.yourdomain.com'], credentials: true }))
   .use(swagger({ path: '/documentation' }))
   .use(cookie())
   .use(redisPlugin)
@@ -293,28 +259,87 @@ export const app = new Elysia()
   .use(roomRoutes)
   .use(messageRoutes)
   .use(chatWs)
-  .get('/health', () => ({ status: 'ok', uptime: process.uptime(), podman: true }))
+  .get('/health', () => ({ status: 'ok', uptime: process.uptime(), podman: true, bun: Bun.version }))
   .listen({ port: Number(process.env.PORT) || 3000, hostname: '0.0.0.0' })
 
 export type App = typeof app
-console.log(`🦊 Elysia + Podman at http://${app.server?.hostname}:${app.server?.port}`)
+console.log(`🦊 Elysia 1.3 + Bun ${Bun.version} + Podman at http://${app.server?.hostname}:${app.server?.port}`)
+```
+
+**Routes - same as V4 but ensure no default exports, use `type` not `interface`.**
+
+---
+
+## PHASE 6: Socket.IO -> Elysia WS FIXED (No Chaining)
+
+**`apps/server/src/ws/chat.ts` FIXED for 1.3 (no chaining):**
+```ts
+import { Elysia } from 'elysia'
+import { messageWsSchema, createMessageSchema } from '@meapp/shared'
+import { db, schema } from '@meapp/db'
+import { randomUUID } from 'crypto'
+
+export const chatWs = new Elysia()
+  .ws('/ws', {
+    query: t.Object({ roomId: t.String() }),
+    body: messageWsSchema,
+    open(ws) {
+      const roomId = (ws.data.query as any).roomId
+      if (roomId) {
+        ws.subscribe(`room:${roomId}`) // FIXED: no chaining in 1.3
+      }
+    },
+    async message(ws, msg) {
+      const roomId = (ws.data.query as any).roomId
+      if (msg.type === 'typing') {
+        // FIXED: separate calls
+        ws.publish(`room:${msg.roomId}`, { type: 'typing', userId: (ws as any).userId, roomId: msg.roomId })
+        return
+      }
+      if (msg.type === 'message') {
+        const parsed = createMessageSchema.parse((msg as any).payload)
+        const id = randomUUID()
+        const userId = (ws as any).userId || 'anon'
+        await db.insert(schema.messages).values({ id, roomId: parsed.roomId, userId, text: parsed.text, createdAt: new Date() })
+        const full = { id, ...parsed, userId, createdAt: new Date() }
+        // FIXED: no chaining
+        ws.publish(`room:${msg.roomId}`, { type: 'message', payload: full })
+        // TODO: Redis pub/sub for multi-instance
+      }
+    },
+    close(ws) {
+      const roomId = (ws.data.query as any).roomId
+      if (roomId) {
+        ws.unsubscribe(`room:${roomId}`)
+      }
+    }
+  })
+```
+
+**Client WS `apps/client/src/lib/ws.ts`:**
+Same as V4, but add idempotency:
+```ts
+export const createChatWS = (roomId: string, onMessage: (m: any) => void) => {
+  const base = process.env.EXPO_PUBLIC_WS_URL || 'ws://localhost:3000'
+  const ws = new WebSocket(`${base.replace('http','ws')}/ws?roomId=${roomId}`)
+  ws.onmessage = (e) => {
+    try { onMessage(JSON.parse(e.data)) } catch {}
+  }
+  return {
+    ws,
+    sendMessage: (text: string, clientId = crypto.randomUUID()) => {
+      ws.send(JSON.stringify({ type: 'message', roomId, payload: { roomId, text, clientId } }))
+    },
+    close: () => ws.close()
+  }
+}
 ```
 
 ---
 
-## PHASE 6: Socket.IO -> Elysia WS
+## PHASE 7: Client Axios -> Eden Treaty v2 FIXED + Universal Storage
 
-Same as V3 PHASE 5, but add Redis pub/sub for multi-instance (Podman will run 1 instance, but prepare for 2).
-
-File `apps/server/src/ws/chat.ts` same as V3, with optional Redis publish.
-
----
-
-## PHASE 7: Client Axios -> Eden Treaty (Universal Web + Native)
-
-Same as V3 PHASE 6 & 7, with universal storage.
-
-**File `apps/client/src/lib/storage.ts`:**
+**`apps/client/src/lib/storage.ts`:**
 ```ts
 import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
@@ -325,27 +350,59 @@ export const storage = {
 }
 ```
 
-**File `apps/client/src/lib/api.ts`:**
+**`apps/client/src/lib/api.ts` FIXED for Elysia 1.3 treaty v2 + httpOnly cookie for web:**
 ```ts
 import { treaty } from '@elysiajs/eden'
 import type { App } from '@meapp/server/src/index.ts'
+import { Platform } from 'react-native'
 import { storage } from './storage.js'
+
 export const api = treaty<App>(process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000', {
   fetch: { credentials: 'include' } as any,
   headers: async () => {
-    const token = await storage.get('token')
-    return token ? { Authorization: `Bearer ${token}` } : {}
+    // For native, use Authorization header, for web use httpOnly cookie (no header needed)
+    if (Platform.OS !== 'web') {
+      const token = await storage.get('token')
+      return token ? { Authorization: `Bearer ${token}` } : {}
+    }
+    return {}
   }
 })
+// Usage: const { data, error } = await api.rooms.get()
+// In 1.3, root index is removed, so api.get() not api.index.get()
 ```
+
+**Migrate hooks:** `axios.get('/rooms')` -> `api.rooms.get()` with `{ data, error }` handling.
 
 ---
 
-## PHASE 8: Prod Infra - Podman Quadlet + Caddy (Replaces pm2 + Nginx)
+## PHASE 8: Client Universal + Expo SDK 54 Final Legacy Fix
 
-**Why Caddy instead of Nginx:** Auto HTTPS via Let's Encrypt, 1-line config, works rootless with Podman.
+**Stay on SDK 54 Old Arch for this migration:**
 
-**On VPS, create `~/Caddyfile`:**
+In `apps/client/app.json`:
+```json
+{
+  "expo": {
+    "newArchEnabled": false,
+    "platforms": ["ios","android","web"],
+    "updates": {
+      "url": "https://u.expo.dev/<projectId>",
+      "fallbackToCacheTimeout": 0
+    },
+    "runtimeVersion": { "policy": "appVersion" },
+    "extra": { "eas": { "projectId": "<id>" } }
+  }
+}
+```
+
+**Note:** SDK 54 is final release that includes Legacy Architecture. SDK 55 drops legacy. Do NOT upgrade to SDK 55 in same PR.
+
+---
+
+## PHASE 9: Prod Infra - Podman Quadlet + Caddy (FIXED pasta + ports)
+
+**Caddyfile `~/Caddyfile`:**
 ```
 meapp.yourdomain.com {
   reverse_proxy localhost:3000
@@ -357,7 +414,7 @@ meapp-web.yourdomain.com {
 }
 ```
 
-**Create Quadlet for server `~/.config/containers/systemd/meapp.container`:**
+**Quadlet `~/.config/containers/systemd/meapp.container` FIXED (no <1024 port):**
 ```ini
 [Unit]
 Description=MeApp Elysia Server
@@ -382,39 +439,49 @@ TimeoutStartSec=900
 WantedBy=default.target
 ```
 
-**Create Quadlet for Redis `~/.config/containers/systemd/meapp-redis.container`:**
+**Quadlet Redis:**
 ```ini
 [Unit]
 Description=MeApp Redis
-
 [Container]
 Image=docker.io/library/redis:7-alpine
 ContainerName=meapp-redis
 PublishPort=6379:6379
 Volume=meapp-redis-data:/data:Z
-
 [Install]
 WantedBy=default.target
 ```
 
-**Commands on VPS:**
+**Optional Litestream backup sidecar `meapp-litestream.container`:**
+```ini
+[Unit]
+Description=MeApp Litestream Backup
+After=meapp.container
+[Container]
+Image=docker.io/litestream/litestream:0.3
+ContainerName=meapp-litestream
+Volume=%h/meapp-data:/data:Z
+Exec=litestream replicate /data/data.db s3://your-bucket/meapp.db
+EnvironmentFile=%h/litestream.env
+[Install]
+WantedBy=default.target
+```
+
+**VPS commands:**
 ```bash
 mkdir -p ~/.config/containers/systemd
-# copy .container files there
+# copy files
 systemctl --user daemon-reload
 systemctl --user enable --now meapp-redis.container
 systemctl --user enable --now meapp.container
 systemctl --user status meapp.container
 journalctl --user -u meapp -f
-
-# Auto-update
 podman auto-update --dry-run
-systemctl --user enable podman-auto-update.timer
 ```
 
-**Dockerfile for prod `apps/server/Dockerfile`:**
+**Dockerfile prod `apps/server/Dockerfile`:**
 ```dockerfile
-FROM docker.io/oven/bun:1.4 AS base
+FROM docker.io/oven/bun:1.4.2 AS base
 WORKDIR /app
 COPY package.json bun.lock bunfig.toml ./
 COPY packages ./packages
@@ -426,33 +493,20 @@ EXPOSE 3000
 CMD ["bun", "src/index.ts"]
 ```
 
-**Build + push from CI:**
-```bash
-podman build -t ghcr.io/meapp-labs/meapp:server -f apps/server/Dockerfile .
-podman push ghcr.io/meapp-labs/meapp:server
-```
-
 ---
 
-## PHASE 9: CI/CD with Podman
+## PHASE 10: CI/CD Podman (FIXED pasta install)
 
-**File `.github/workflows/cicd.yml`:**
-
+**`.github/workflows/cicd.yml`:**
 ```yaml
 name: CI/CD Podman
-
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
 jobs:
   detect-changes:
     runs-on: ubuntu-latest
-    outputs:
-      client: ${{ steps.filter.outputs.client }}
-      server: ${{ steps.filter.outputs.server }}
+    outputs: { client: ${{ steps.filter.outputs.client }}, server: ${{ steps.filter.outputs.server }} }
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -461,7 +515,6 @@ jobs:
           filters: |
             client: apps/client/**
             server: apps/server/**
-
   client:
     needs: detect-changes
     if: needs.detect-changes.outputs.client == 'true'
@@ -469,21 +522,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+        with: { bun-version: 1.4.2 }
+      - run: bun install --frozen-lockfile
       - run: bunx @biomejs/biome check ./apps/client
       - run: bun --filter client export:web
-      - name: Deploy web via rsync
-        if: github.ref == 'refs/heads/main'
-        run: |
-          rsync -avz apps/client/dist/ user@server:/var/www/meapp-web/dist/
-      - name: EAS OTA
-        if: github.ref == 'refs/heads/main'
+      - if: github.ref == 'refs/heads/main'
+        run: rsync -avz apps/client/dist/ user@server:/var/www/meapp-web/dist/
+      - if: github.ref == 'refs/heads/main'
         run: |
           npm install -g eas-cli
           eas update --branch production --message ${{ github.sha }} --non-interactive
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-
+        env: { EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }} }
   server:
     needs: detect-changes
     if: needs.detect-changes.outputs.server == 'true'
@@ -491,18 +540,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
-      - run: bun install
+        with: { bun-version: 1.4.2 }
+      - name: Install Podman deps (FIX pasta)
+        run: sudo apt update && sudo apt install -y podman passt netavark aardvark-dns
+      - run: bun install --frozen-lockfile
       - run: bunx @biomejs/biome check ./apps/server
       - run: bun --filter @meapp/server test
-      - name: Build and push with Podman
-        if: github.ref == 'refs/heads/main'
+      - if: github.ref == 'refs/heads/main'
         run: |
-          sudo apt update && sudo apt install podman -y
           echo ${{ secrets.GITHUB_TOKEN }} | podman login ghcr.io -u ${{ github.actor }} --password-stdin
           podman build -t ghcr.io/meapp-labs/meapp:server -f apps/server/Dockerfile .
           podman push ghcr.io/meapp-labs/meapp:server
-      - name: Deploy via Quadlet
-        if: github.ref == 'refs/heads/main'
+      - if: github.ref == 'refs/heads/main'
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SERVER_HOST }}
@@ -511,55 +560,43 @@ jobs:
           script: |
             podman pull ghcr.io/meapp-labs/meapp:server
             systemctl --user restart meapp.container
-            podman auto-update
 ```
 
 ---
 
-## PHASE 10: Testing, Security, Performance
+## PHASE 11: Security + Observability
 
-```bash
-bun --filter @meapp/server test
-bunx @biomejs/biome check --write ./apps ./packages
-bun audit
-podman run --rm -it --security-opt=no-new-privileges ghcr.io/meapp-labs/meapp:server bun audit
-```
+- Add `bun audit` and `bun pm check` in CI
+- Add per-user rate limit in Redis, not just IP
+- Add security headers via Elysia `onAfterHandle`
+- Add `pino` logger + `/metrics` endpoint
 
 ---
 
-## PHASE 11: Other Better Replacements Checked
+## PHASE 12: Future - SDK 55 New Arch Migration (Separate PR)
 
-| Old | Replacement | Why Better | Use? |
-|-----|-------------|------------|------|
-| pm2 | Quadlet systemd | Rootless, auto-restart, logs via journalctl, no Node process manager needed | YES |
-| Nginx | Caddy | Auto HTTPS, 3 lines config, Podman friendly | YES for prod |
-| ESLint+Prettier | Biome | 10x faster, single tool, Rust, works in githooks | YES |
-| Vitest | bun:test | Native, 5x faster, no config | YES |
-| better-sqlite3 | bun:sqlite + Drizzle | Works on Bun, no native addon | YES |
-| Axios | Eden Treaty | Shared types, no manual types | YES |
-| Socket.IO | Elysia WS | Typed, lighter, 35MB vs 250MB per 10k | YES |
-| Docker Desktop | Podman Desktop | Rootless, no license, Quadlet | YES for Linux, optional Mac/Win |
-| Redis (optional) | Could use PGlite or Dragonfly | Not needed yet, keep Redis simple | KEEP Redis |
-| SQLite file | Turso/libSQL | Edge replication | LATER, keep SQLite now |
+After Elysia stable:
+- Upgrade to Expo SDK 55 (drops legacy arch), enable Hermes v1 + bytecode diffing (75% smaller OTA)
+- Migrate to New Architecture
 
 ---
 
-## Final Verification (Podman Dev)
+## Final Verification (Podman Fixed)
 
 ```bash
-podman --version
+podman --version # 5.4+
+which pasta # must exist
 podman compose -f compose.dev.yaml up -d
 podman logs -f meapp-server-dev
-# in other terminal
 bun --filter client web # http://localhost:8081
-bun --filter client start # Expo native
-curl http://localhost:3000/health # should return {status:"ok", podman:true}
+curl http://localhost:3000/health # {status:"ok", podman:true, bun:"1.4.2"}
 podman compose -f compose.dev.yaml down
 ```
 
-- [ ] No docker command used, only podman
+- [ ] No docker command, only podman
+- [ ] bun.lock version 2, linker hoisted
 - [ ] No better-sqlite3, no socket.io, no axios
+- [ ] api.get() not api.index.get() (Elysia 1.3)
+- [ ] WS no chaining
 - [ ] Web + native both work
-- [ ] Quadlet files exist
-- [ ] Biome replaces ESLint
-- [ ] Eden types work
+- [ ] Pasta installed everywhere

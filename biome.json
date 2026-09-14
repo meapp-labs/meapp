@@ -12,7 +12,8 @@
       "**/node_modules/**",
       "**/dist/**",
       "**/.expo/**",
-      "**/build/**"
+      "**/build/**",
+      "**/drizzle/**"
     ]
   },
   "formatter": {
@@ -45,5 +46,17 @@
       "trailingCommas": "all",
       "arrowParentheses": "always"
     }
-  }
+  },
+  "overrides": [
+    {
+      "include": ["**/*.config.ts", "**/*.config.js", "**/apps/client/app/**/*"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDefaultExport": "off"
+          }
+        }
+      }
+    }
+  ]
 }

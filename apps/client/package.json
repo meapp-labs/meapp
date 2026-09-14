@@ -9,10 +9,10 @@
     "build:android:dev": "cross-env APP_VARIANT=development eas build --platform android --profile development --local",
     "build:android:prev": "cross-env APP_VARIANT=preview eas build --platform android --profile preview --local",
     "build:android:prod": "cross-env APP_VARIANT=production eas build --platform android --profile production --local",
-    "lint": "eslint .",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --check . --ignore-path .gitignore",
-    "format:fix": "prettier --write . --ignore-path .gitignore"
+    "lint": "bunx @biomejs/biome check .",
+    "lint:fix": "bunx @biomejs/biome check --write .",
+    "format": "bunx @biomejs/biome format .",
+    "format:fix": "bunx @biomejs/biome format --write ."
   },
   "engines": {
     "bun": ">=1.4"

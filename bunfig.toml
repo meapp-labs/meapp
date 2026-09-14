@@ -1,5 +1,9 @@
 [install]
+linker = "hoisted"
 auto = true
+
+[install.lockfile]
+version = 2
 
 [install.cache]
 disableManifest = false

@@ -13,6 +13,8 @@ export type {
   Platform,
   PushTokenInput,
   RegisterInput,
+  Room,
+  CreateRoomInput,
   SendMessageInput,
   User,
 } from '../schemas/index.ts'
