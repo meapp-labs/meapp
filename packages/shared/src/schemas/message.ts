@@ -45,6 +45,14 @@ export const messageWsIncomingSchema = z.discriminatedUnion('type', [
       token: z.string().optional(),
     }),
   }),
+  z.object({
+    type: z.literal('subscribe'),
+    payload: z.object({ roomId: z.string().uuid() }),
+  }),
+  z.object({
+    type: z.literal('unsubscribe'),
+    payload: z.object({ roomId: z.string().uuid() }),
+  }),
 ])
 
 export type MessageWsIncoming = z.infer<typeof messageWsIncomingSchema>
@@ -66,6 +74,14 @@ export const messageWsOutgoingSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('authenticated'),
     payload: z.object({ userId: z.string().uuid() }),
+  }),
+  z.object({
+    type: z.literal('subscribed'),
+    payload: z.object({ roomId: z.string().uuid() }),
+  }),
+  z.object({
+    type: z.literal('unsubscribed'),
+    payload: z.object({ roomId: z.string().uuid() }),
   }),
   z.object({
     type: z.literal('error'),

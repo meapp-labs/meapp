@@ -6,7 +6,7 @@ import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
 
 // ─────────────────────────────────────────────────────────────
-// Connection & Rate Limit State (V8 Phase 4 - Fix #3, #4, #5)
+// Connection & Rate Limit State (V8 Phase 4 & Phase 8 - Fix #3, #4, #5)
 // ─────────────────────────────────────────────────────────────
 
 let unauthConnections = 0
@@ -17,6 +17,8 @@ const perIpUnauth = new Map<string, number>()
 const wsConnectionsPerUser = new Map<string, number>()
 const wsMessagesPerUser = new Map<string, { count: number; reset: number }>()
 const wsTypingPerUser = new Map<string, { count: number; reset: number }>()
+// V8 Phase 8: Subscriptions per user: 10 rooms max
+const wsRoomRefCountsPerUser = new Map<string, Map<string, number>>()
 
 // Periodic cleanup every 5 minutes to prevent memory leaks (Fix #5)
 const wsCleanupInterval = setInterval(
@@ -46,6 +48,12 @@ const wsCleanupInterval = setInterval(
         perIpUnauth.delete(ip)
       }
     }
+
+    for (const [userId, rooms] of wsRoomRefCountsPerUser) {
+      if (rooms.size === 0) {
+        wsRoomRefCountsPerUser.delete(userId)
+      }
+    }
   },
   5 * 60 * 1000,
 )
@@ -56,6 +64,58 @@ type WsState = {
   authenticatedUserId?: string | undefined
   ip: string
   authTimeoutTimer?: ReturnType<typeof setTimeout> | undefined
+  subscribedRooms: Set<string>
+}
+
+type WsSubscriber = {
+  subscribe: (topic: string) => void
+  unsubscribe: (topic: string) => void
+}
+
+const addRoomSubscription = (
+  userId: string,
+  roomId: string,
+  ws: WsSubscriber,
+  state: WsState,
+): boolean => {
+  let userRooms = wsRoomRefCountsPerUser.get(userId)
+  if (!userRooms) {
+    userRooms = new Map<string, number>()
+    wsRoomRefCountsPerUser.set(userId, userRooms)
+  }
+
+  const currentCount = userRooms.get(roomId) || 0
+  if (currentCount === 0 && userRooms.size >= 10) {
+    return false
+  }
+
+  userRooms.set(roomId, currentCount + 1)
+  state.subscribedRooms.add(roomId)
+  ws.subscribe(`room:${roomId}`)
+  return true
+}
+
+const removeRoomSubscription = (
+  userId: string,
+  roomId: string,
+  ws: WsSubscriber,
+  state: WsState,
+): void => {
+  ws.unsubscribe(`room:${roomId}`)
+  state.subscribedRooms.delete(roomId)
+
+  const userRooms = wsRoomRefCountsPerUser.get(userId)
+  if (userRooms) {
+    const count = userRooms.get(roomId) || 0
+    if (count <= 1) {
+      userRooms.delete(roomId)
+    } else {
+      userRooms.set(roomId, count - 1)
+    }
+    if (userRooms.size === 0) {
+      wsRoomRefCountsPerUser.delete(userId)
+    }
+  }
 }
 
 const wsStates = new WeakMap<object, WsState>()
@@ -80,6 +140,18 @@ const incomingMessageBody = t.Union([
     payload: t.Object({
       ticket: t.Optional(t.String()),
       token: t.Optional(t.String()),
+    }),
+  }),
+  t.Object({
+    type: t.Literal('subscribe'),
+    payload: t.Object({
+      roomId: t.String({ format: 'uuid' }),
+    }),
+  }),
+  t.Object({
+    type: t.Literal('unsubscribe'),
+    payload: t.Object({
+      roomId: t.String({ format: 'uuid' }),
     }),
   }),
 ])
@@ -110,7 +182,7 @@ export const chatWs = new Elysia()
       const roomId = query.roomId
       const ip = request.headers.get('x-forwarded-for') || 'unknown'
 
-      const state: WsState = { ip }
+      const state: WsState = { ip, subscribedRooms: new Set<string>() }
       wsStates.set(ws, state)
 
       // If user was derived from HttpOnly cookie (Web flow)
@@ -139,9 +211,24 @@ export const chatWs = new Elysia()
             return
           }
 
+          // V8 Phase 8: Max 10 room subscriptions per user
+          const subscribed = addRoomSubscription(user.id, roomId, ws, state)
+          if (!subscribed) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                payload: {
+                  code: 'RATE_LIMIT',
+                  message: 'Maximum 10 room subscriptions per user exceeded',
+                },
+              }),
+            )
+            ws.close(4429, 'Too many subscriptions')
+            return
+          }
+
           wsConnectionsPerUser.set(user.id, conns + 1)
           state.authenticatedUserId = user.id
-          ws.subscribe(`room:${roomId}`)
           ws.send(JSON.stringify({ type: 'authenticated', payload: { userId: user.id } }))
         })
       } else {
@@ -265,21 +352,36 @@ export const chatWs = new Elysia()
             return
           }
 
-          wsConnectionsPerUser.set(userId, conns + 1)
-
-          // Mark authenticated and clean unauth counters
           if (state) {
             state.authenticatedUserId = userId
             if (state.authTimeoutTimer) {
               clearTimeout(state.authTimeoutTimer)
               state.authTimeoutTimer = undefined
             }
+
+            // V8 Phase 8: Max 10 room subscriptions per user
+            const subscribed = addRoomSubscription(userId, roomId, ws, state)
+            if (!subscribed) {
+              ws.send(
+                JSON.stringify({
+                  type: 'error',
+                  payload: {
+                    code: 'RATE_LIMIT',
+                    message: 'Maximum 10 room subscriptions per user exceeded',
+                  },
+                }),
+              )
+              ws.close(4429, 'Too many subscriptions')
+              return
+            }
           }
+
+          wsConnectionsPerUser.set(userId, conns + 1)
+
           unauthConnections = Math.max(0, unauthConnections - 1)
           const ip = state?.ip || 'unknown'
           perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
 
-          ws.subscribe(`room:${roomId}`)
           ws.send(JSON.stringify({ type: 'authenticated', payload: { userId } }))
         } catch {
           ws.send(
@@ -305,10 +407,67 @@ export const chatWs = new Elysia()
         return
       }
 
+      // V8 Phase 8: Handle subscribe event
+      if (msg.type === 'subscribe') {
+        const targetRoom = msg.payload.roomId
+        const can = await canAccessRoom(userId, targetRoom)
+        if (!can) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'FORBIDDEN', message: 'Not member of room' },
+            }),
+          )
+          return
+        }
+
+        if (state) {
+          const subscribed = addRoomSubscription(userId, targetRoom, ws, state)
+          if (!subscribed) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                payload: {
+                  code: 'RATE_LIMIT',
+                  message: 'Maximum 10 room subscriptions per user exceeded',
+                },
+              }),
+            )
+            return
+          }
+        }
+
+        ws.send(
+          JSON.stringify({
+            type: 'subscribed',
+            payload: { roomId: targetRoom },
+          }),
+        )
+        return
+      }
+
+      // V8 Phase 8: Handle unsubscribe event
+      if (msg.type === 'unsubscribe') {
+        const targetRoom = msg.payload.roomId
+        if (state) {
+          removeRoomSubscription(userId, targetRoom, ws, state)
+        } else {
+          ws.unsubscribe(`room:${targetRoom}`)
+        }
+
+        ws.send(
+          JSON.stringify({
+            type: 'unsubscribed',
+            payload: { roomId: targetRoom },
+          }),
+        )
+        return
+      }
+
       // Handle typing events
       if (msg.type === 'typing') {
         const targetRoom = msg.payload.roomId
-        if (targetRoom !== roomId) {
+        if (targetRoom !== roomId && !state?.subscribedRooms.has(targetRoom)) {
           ws.send(
             JSON.stringify({
               type: 'error',
@@ -341,7 +500,7 @@ export const chatWs = new Elysia()
       // Handle message events
       if (msg.type === 'message') {
         const payload = msg.payload
-        if (payload.roomId !== roomId) {
+        if (payload.roomId !== roomId && !state?.subscribedRooms.has(payload.roomId)) {
           ws.send(
             JSON.stringify({
               type: 'error',
@@ -461,13 +620,19 @@ export const chatWs = new Elysia()
         unauthConnections = Math.max(0, unauthConnections - 1)
         const ip = state?.ip || 'unknown'
         perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
+        ws.unsubscribe(`room:${roomId}`)
       } else {
         const userId = state.authenticatedUserId
         const conns = wsConnectionsPerUser.get(userId) || 1
         wsConnectionsPerUser.set(userId, Math.max(0, conns - 1))
+
+        if (state) {
+          for (const rId of Array.from(state.subscribedRooms)) {
+            removeRoomSubscription(userId, rId, ws, state)
+          }
+        }
       }
 
-      ws.unsubscribe(`room:${roomId}`)
       wsStates.delete(ws)
     },
   })
