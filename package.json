@@ -1,0 +1,12 @@
+{
+  "name": "meapp",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev:server": "bun --filter @meapp/server dev",
+    "dev:client": "bun --filter client dev",
+    "lint": "bun --filter '*' lint:fix",
+    "format": "bun --filter '*' format:fix"
+  }
+}

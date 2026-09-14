@@ -2,12 +2,8 @@
 echo "Precommit hook"
 set -e
 
-cd server
-bun format:fix
-bun lint:fix
-git add .
+# Lint and format all workspaces from repo root
+bun run format
+bun run lint
 
-cd ../client
-yarn format:fix
-yarn lint:fix
 git add .

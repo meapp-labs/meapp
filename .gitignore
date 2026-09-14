@@ -46,6 +46,12 @@
 **/dump.rdb
 **/appendonly.aof
 
+# SQLite database files
+*.db
+*.sqlite
+**/**.db-shm
+**/**.db-wal
+
 # Compiled / generated files
 **/*.min.js
 **/*.bundle.js
