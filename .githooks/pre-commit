@@ -1,9 +1,4 @@
 #!/bin/sh
-echo "Precommit hook"
 set -e
-
-# Lint and format all workspaces from repo root
-bun run format
-bun run lint
-
+bunx @biomejs/biome check --write --staged
 git add .

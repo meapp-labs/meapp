@@ -1,6 +1,6 @@
-import { z } from 'zod';
+import { z } from 'zod'
 
-import { usernameSchema } from './auth.ts';
+import { usernameSchema } from './auth.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Conversation Schemas
@@ -23,9 +23,9 @@ export const conversationSchema = z.object({
   archivedBy: z.array(z.string()).optional(),
   pinnedBy: z.array(z.string()).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
-});
+})
 
-export type Conversation = z.infer<typeof conversationSchema>;
+export type Conversation = z.infer<typeof conversationSchema>
 
 // ─────────────────────────────────────────────────────────────
 // Request Schemas
@@ -35,6 +35,6 @@ export const createConversationSchema = z.object({
   type: z.enum(['dm', 'group']),
   participants: z.array(usernameSchema).min(1).max(50),
   name: z.string().max(100).optional(),
-});
+})
 
-export type CreateConversationInput = z.infer<typeof createConversationSchema>;
+export type CreateConversationInput = z.infer<typeof createConversationSchema>

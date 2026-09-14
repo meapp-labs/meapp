@@ -15,19 +15,17 @@ export type {
   RegisterInput,
   SendMessageInput,
   User,
-} from '../schemas/index.ts';
+} from '../schemas/index.ts'
 
 // ─────────────────────────────────────────────────────────────
 // API response envelope
 // ─────────────────────────────────────────────────────────────
 
 export type ApiError = {
-  code: string;
-  message: string;
-  statusCode: number;
-  details?: Record<string, unknown>;
-};
+  code: string
+  message: string
+  statusCode: number
+  details?: Record<string, unknown>
+}
 
-export type ApiResponse<T> =
-  | { ok: true; data: T }
-  | { ok: false; error: ApiError };
+export type ApiResponse<T> = { ok: true; data: T } | { ok: false; error: ApiError }

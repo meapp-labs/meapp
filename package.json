@@ -3,10 +3,14 @@
   "private": true,
   "type": "module",
   "workspaces": ["apps/*", "packages/*"],
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.0"
+  },
   "scripts": {
+    "dev": "podman compose -f compose.dev.yaml up",
     "dev:server": "bun --filter @meapp/server dev",
     "dev:client": "bun --filter client dev",
-    "lint": "bun --filter '*' lint:fix",
-    "format": "bun --filter '*' format:fix"
+    "dev:web": "bun --filter client web",
+    "lint": "bunx @biomejs/biome check --write ./apps ./packages"
   }
 }
