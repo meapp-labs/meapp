@@ -1,12 +1,19 @@
 import { z } from 'zod'
 
 // ─────────────────────────────────────────────────────────────
-// Message Schemas
+// Message Schemas (V6 Podman Fixed)
 // ─────────────────────────────────────────────────────────────
 
-export const messageTypeSchema = z.enum(['text', 'image', 'file', 'audio', 'video', 'system'])
+export const messageSchema = z.object({
+  id: z.string().uuid(),
+  clientId: z.string().uuid(), // FIX #9 - clientId in model
+  roomId: z.string().uuid(),
+  userId: z.string().uuid(),
+  text: z.string().min(1).max(4000),
+  createdAt: z.coerce.date(),
+})
 
-export type MessageType = z.infer<typeof messageTypeSchema>
+export type Message = z.infer<typeof messageSchema>
 
 export const attachmentSchema = z.object({
   id: z.string().uuid(),
@@ -19,63 +26,59 @@ export const attachmentSchema = z.object({
 
 export type Attachment = z.infer<typeof attachmentSchema>
 
-export const messageSchema = z.object({
-  id: z.string().uuid(),
-  /** Message index in conversation (assigned by server) */
-  index: z.number().int().nonnegative(),
-  from: z.string(),
-  text: z.string(),
-  type: messageTypeSchema,
-  timestamp: z.string().datetime(),
-  editedAt: z.string().datetime().optional(),
-  deletedAt: z.string().datetime().optional(),
-  threadId: z.string().uuid().optional(),
-  threadReplyCount: z.number().int().nonnegative().optional(),
-  /** { "👍": ["alice", "bob"] } */
-  reactions: z.record(z.string(), z.array(z.string())).optional(),
-  attachments: z.array(attachmentSchema).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
+export const createMessageSchema = z.object({
+  roomId: z.string().uuid(),
+  text: z.string().min(1).max(4000),
+  clientId: z.string().uuid(), // client-generated idempotency key
 })
 
-export type Message = z.infer<typeof messageSchema>
+export type CreateMessageInput = z.infer<typeof createMessageSchema>
+
+export const messageWsIncomingSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('message'), payload: createMessageSchema }),
+  z.object({ type: z.literal('typing'), payload: z.object({ roomId: z.string().uuid() }) }),
+  z.object({ type: z.literal('auth'), payload: z.object({ token: z.string() }) }), // for native
+])
+
+export type MessageWsIncoming = z.infer<typeof messageWsIncomingSchema>
+
+export const messageWsOutgoingSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('message'), payload: messageSchema }),
+  z.object({
+    type: z.literal('typing'),
+    payload: z.object({ roomId: z.string().uuid(), userId: z.string().uuid() }),
+  }),
+  z.object({
+    type: z.literal('ack'),
+    payload: z.object({ clientId: z.string().uuid(), id: z.string().uuid() }),
+  }),
+  z.object({
+    type: z.literal('error'),
+    payload: z.object({ code: z.string(), message: z.string() }),
+  }),
+])
+
+export type MessageWsOutgoing = z.infer<typeof messageWsOutgoingSchema>
 
 // ─────────────────────────────────────────────────────────────
-// Request / Response Schemas
+// Query & Compatibility Schemas
 // ─────────────────────────────────────────────────────────────
-
-export const sendMessageSchema = z.object({
-  conversationId: z.string().uuid(),
-  text: z.string().min(1, 'Message text cannot be empty').max(2000, 'Message too long'),
-})
-
-export type SendMessageInput = z.infer<typeof sendMessageSchema>
 
 export const getMessagesQuerySchema = z.object({
-  conversationId: z.string().uuid(),
-  after: z
-    .string()
-    .regex(/^\d+$/, 'Must be a non-negative integer string')
-    .transform((val) => Number.parseInt(val, 10))
-    .optional(),
-  before: z
-    .string()
-    .regex(/^[1-9]\d*$/, 'Must be a positive integer string')
-    .transform((val) => Number.parseInt(val, 10))
-    .optional(),
-  limit: z
-    .string()
-    .regex(/^[1-9]\d*$/, 'Must be a positive integer')
-    .transform((val) => Math.min(Number.parseInt(val, 10), 100))
-    .optional()
-    .default(50),
+  roomId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().optional(),
+  after: z.string().optional(),
+  before: z.string().optional(),
+  limit: z.number().int().positive().max(100).optional().default(50),
 })
 
 export type GetMessagesQuery = z.infer<typeof getMessagesQuerySchema>
 
+export const sendMessageSchema = createMessageSchema
+export type SendMessageInput = CreateMessageInput
+
 export const messagesResponseSchema = z.object({
   messages: z.array(messageSchema),
-  hasMore: z.boolean(),
-  totalCount: z.number().int().nonnegative(),
 })
 
 export type MessagesResponse = z.infer<typeof messagesResponseSchema>

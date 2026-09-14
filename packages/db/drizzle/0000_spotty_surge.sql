@@ -10,46 +10,40 @@ CREATE TABLE `attachments` (
 );
 --> statement-breakpoint
 CREATE INDEX `attachments_message_idx` ON `attachments` (`message_id`);--> statement-breakpoint
-CREATE TABLE `conversations` (
+CREATE TABLE `rooms` (
 	`id` text PRIMARY KEY NOT NULL,
-	`name` text,
-	`is_group` integer DEFAULT false NOT NULL,
+	`name` text NOT NULL,
+	`created_by` text NOT NULL,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
 CREATE TABLE `messages` (
 	`id` text PRIMARY KEY NOT NULL,
-	`index` integer NOT NULL,
-	`conversation_id` text NOT NULL,
-	`from_user_id` text NOT NULL,
-	`type` text DEFAULT 'text' NOT NULL,
+	`client_id` text NOT NULL,
+	`room_id` text NOT NULL,
+	`user_id` text NOT NULL,
 	`text` text NOT NULL,
-	`reactions` text,
-	`metadata` text,
-	`thread_id` text,
 	`created_at` integer NOT NULL,
-	`edited_at` integer,
-	`deleted_at` integer,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade,
-	FOREIGN KEY (`from_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE INDEX `messages_conversation_idx` ON `messages` (`conversation_id`);--> statement-breakpoint
-CREATE INDEX `messages_conversation_index_idx` ON `messages` (`conversation_id`,`index`);--> statement-breakpoint
-CREATE INDEX `messages_from_user_idx` ON `messages` (`from_user_id`);--> statement-breakpoint
-CREATE TABLE `participants` (
-	`conversation_id` text NOT NULL,
+CREATE INDEX `messages_room_idx` ON `messages` (`room_id`);--> statement-breakpoint
+CREATE INDEX `messages_user_idx` ON `messages` (`user_id`);--> statement-breakpoint
+CREATE UNIQUE INDEX `messages_user_client_unique` ON `messages` (`user_id`,`client_id`);--> statement-breakpoint
+CREATE TABLE `room_members` (
+	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,
+	`role` text DEFAULT 'member' NOT NULL,
 	`joined_at` integer NOT NULL,
-	`last_read_index` integer DEFAULT 0 NOT NULL,
-	FOREIGN KEY (`conversation_id`) REFERENCES `conversations`(`id`) ON UPDATE no action ON DELETE cascade,
+	PRIMARY KEY(`room_id`, `user_id`),
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
 	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `participants_conversation_idx` ON `participants` (`conversation_id`);--> statement-breakpoint
-CREATE INDEX `participants_user_idx` ON `participants` (`user_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `participants_pk` ON `participants` (`conversation_id`,`user_id`);--> statement-breakpoint
+CREATE INDEX `room_members_room_idx` ON `room_members` (`room_id`);--> statement-breakpoint
+CREATE INDEX `room_members_user_idx` ON `room_members` (`user_id`);--> statement-breakpoint
 CREATE TABLE `sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`user_id` text NOT NULL,
@@ -63,14 +57,17 @@ CREATE UNIQUE INDEX `sessions_token_unique` ON `sessions` (`token`);--> statemen
 CREATE INDEX `sessions_user_id_idx` ON `sessions` (`user_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
-	`username` text NOT NULL,
+	`email` text,
+	`username` text,
+	`name` text,
 	`password_hash` text NOT NULL,
-	`display_name` text,
 	`avatar_url` text,
+	`display_name` text,
 	`platform` text,
 	`push_token` text,
 	`created_at` integer NOT NULL,
-	`updated_at` integer NOT NULL
+	`updated_at` integer
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);--> statement-breakpoint
 CREATE UNIQUE INDEX `users_username_unique` ON `users` (`username`);

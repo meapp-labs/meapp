@@ -4,7 +4,7 @@
   "type": "module",
   "packageManager": "bun@1.4.2",
   "workspaces": ["apps/*", "packages/*"],
-  "trustedDependencies": ["@expo/*", "expo", "sharp", "msw"],
+  "trustedDependencies": ["sharp", "msw", "expo", "expo-modules-autolinking"],
   "devDependencies": {
     "@biomejs/biome": "^1.9.0"
   },
@@ -13,7 +13,8 @@
     "dev:server": "bun --filter @meapp/server dev",
     "dev:client": "bun --filter client dev",
     "dev:web": "bun --filter client web",
-    "lint": "bunx @biomejs/biome check --write ./apps ./packages"
+    "lint": "bunx @biomejs/biome check --write ./apps ./packages",
+    "typecheck": "tsc --noEmit"
   },
-  "overrides": { "typescript": "^5.8.0" }
+  "overrides": { "typescript": "^5.8.3" }
 }

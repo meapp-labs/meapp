@@ -1,0 +1,41 @@
+services:
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: meapp-redis-dev
+    # FIX #7 - bind to loopback only, not public
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: ["meapp-redis-data:/data:Z"]
+    restart: unless-stopped
+    networks: [meapp-net]
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile.dev
+    container_name: meapp-server-dev
+    ports: ["127.0.0.1:3000:3000"] # FIX #7 - loopback only, Caddy fronts it
+    volumes:
+      - ./apps/server:/app/apps/server:z
+      - ./packages:/app/packages:z
+      - ./package.json:/app/package.json:z
+      - ./bun.lock:/app/bun.lock:z
+      - meapp-server-data:/app/data:Z # FIX #5 - persistent SQLite
+      - /app/apps/server/node_modules
+      - /app/node_modules
+    env_file: apps/server/.env.local
+    environment:
+      - NODE_ENV=development
+      - DATABASE_URL=/app/data/data.db # FIX #6 - matches volume
+      - REDIS_URL=redis://redis:6379
+    depends_on: [redis]
+    command: ["bun", "--watch", "src/index.ts"]
+    restart: unless-stopped
+    networks: [meapp-net]
+
+networks:
+  meapp-net:
+    driver: bridge
+
+volumes:
+  meapp-redis-data:
+  meapp-server-data: # FIX #5
