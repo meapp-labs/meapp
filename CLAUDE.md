@@ -1,11 +1,11 @@
 # MeApp - Communicator Application
 
 ## Project Overview
-Full-stack communicator app with React Native (Expo) client and Fastify server.
+Full-stack communicator app with a React Native (Expo) client and an Elysia server.
 
 ## Tech Stack
 
-### Client (/client)
+### Client (apps/client)
 - **Framework**: Expo 54, React 19, React Native 0.81
 - **Routing**: Expo Router (file-based)
 - **State**: Zustand (client state), TanStack Query (server state), React Native Async Storage
@@ -13,21 +13,21 @@ Full-stack communicator app with React Native (Expo) client and Fastify server.
 - **HTTP**: Axios
 - **Platforms**: iOS, Android, Web
 
-### Server (/server)
+### Server (apps/server)
 - **Runtime**: Bun (>=24.3.0)
-- **Framework**: Fastify 5
-- **WebSockets**: Socket.IO
-- **Database**: SQLite (better-sqlite3)
-- **Cache/Sessions**: Redis
-- **Validation**: Zod schemas
-- **Testing**: Vitest
+- **Framework**: Elysia 1.4 (migrated off Fastify)
+- **WebSockets**: Elysia WebSocket, ticket-authenticated via `POST /ws/ticket`
+- **Database**: SQLite via `bun:sqlite` + Drizzle ORM (`packages/db`)
+- **Cache/Sessions**: Redis (ioredis) for app data; sessions are a signed JWT in an HttpOnly cookie
+- **Validation**: Zod schemas from `@meapp/shared` (plus Elysia TypeBox for query params)
+- **Testing**: `bun:test` (Bun's built-in runner)
 
 ## Quick Start
 
 ### Prerequisites
-- Node.js/npm (for client)
-- Bun (for server)
-- Redis (for server sessions)
+- Bun >= 1.4 (client and server)
+- Node.js >= 24.3 (server runtime target)
+- Redis (server data store)
 
 ### Initial Setup
 ```bash
@@ -35,49 +35,51 @@ Full-stack communicator app with React Native (Expo) client and Fastify server.
 git config core.hooksPath .githooks
 
 # Client
-cd client
-npm install
-npm start
+cd apps/client
+bun install
+bun start
 
 # Server (in new terminal)
-cd server
+cd apps/server
 bun install
-cp .env.example .env.local  # Edit with SESSION_SECRET and SESSION_SALT
+cp .env.example .env.local  # Set REDIS_URL and JWT_SECRET
 redis-server                # Start Redis
 bun dev
 ```
 
 ## Common Commands
 
-### Client Commands (in /client)
+### Client Commands (in apps/client)
 ```bash
-npm start              # Start Expo dev server
-npm run android        # Run on Android
-npm run ios            # Run on iOS
-npm run web            # Run on web
-npm run export:web     # Export web build
-npm run lint:fix       # Fix linting
-npm run format:fix     # Fix formatting
+bun start              # Start Expo dev server
+bun run export:web     # Export static web build
+bun run build:android:dev   # Local EAS Android dev build
+bun run build:android:prod  # Local EAS Android production build
+bun run lint           # Lint (Biome)
+bun run lint:fix       # Fix linting
+bun run format:fix     # Fix formatting
 ```
 
-### Server Commands (in /server)
+### Server Commands (in apps/server)
 ```bash
 bun dev                # Dev server with hot reload
 bun start              # Production server
 bun test               # Run tests
 bun test:watch         # Tests in watch mode
-bun lint:fix           # Fix linting
-bun format:fix         # Fix formatting
+bun run migrate        # Run database migrations
+# Linting/formatting/typecheck run from the repo root: bun lint, bun typecheck
 ```
 
 ## Project Structure
 ```
-/client                - React Native Expo app
+apps/client           - React Native Expo app
   /app                 - Expo Router pages (file-based routing)
-/server                - Fastify API server
-  server.ts            - Main entry point
-  /plugins             - Fastify plugins (auto-loaded)
-  /routes              - API routes (auto-loaded)
+apps/server           - Elysia API server
+  src/index.ts         - Entry point: plugins, error mapping, route mounting
+  src/plugins/         - redis, auth (session JWTs), rateLimit
+  src/routes/          - REST endpoints under /api plus the WS ticket route
+packages/db            - Drizzle schema, migrations and SQLite client
+packages/shared        - Zod schemas and inferred types shared by client and server
 /.githooks             - Pre-commit hooks (lint/format)
 /.github/workflows     - CI/CD pipeline
 ```
@@ -92,13 +94,13 @@ bun format:fix         # Fix formatting
 
 ### Server
 - **Port**: http://localhost:3000 (default)
-- **API Docs**: Swagger UI at `/documentation`
-- **Sessions**: Secure sessions via Redis backend
-- **Auto-loading**: Plugins and routes auto-loaded by Fastify
+- **API Docs**: Swagger UI at `/swagger`
+- **Sessions**: Signed JWT (`JWT_SECRET`) in an HttpOnly `access_token` cookie, 30 day expiry
+- **Routes**: one module per resource in `src/routes/`, each mounted at `/api`; errors normalise to `{ message, code }`
 
 ## Development Notes
-- Server requires Redis running locally (`redis-server`)
-- Server needs `.env.local` with `SESSION_SECRET` and `SESSION_SALT`
+- Server requires Redis locally (`REDIS_URL`); the API tests skip themselves when it is absent
+- Server reads `.env.local`: `PORT`, `HOST`, `REDIS_URL`, `JWT_SECRET` (+ optional `DOMAIN`, `WS_TICKET_SECRET`)
 - Git hooks run linting/formatting checks pre-commit
 - CI/CD auto-deploys to remote server on push to main
 - Server managed by PM2 in production

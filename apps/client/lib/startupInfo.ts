@@ -21,7 +21,7 @@ interface StartupInfo {
  */
 export function getStartupInfo(): StartupInfo {
   const manifest = Constants.expoConfig
-  const nativeAppVersion = Constants.nativeAppVersion as string | undefined
+  const nativeAppVersion = (Constants as unknown as { nativeAppVersion?: string }).nativeAppVersion
 
   return {
     appName: Constants.expoConfig?.name || 'unknown',

@@ -2,7 +2,7 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useState } from 'react'
 import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native'
 
-import DeleteFriend from '@/components/chat/DeleteFriend'
+import { DeleteFriend } from '@/components/chat/DeleteFriend'
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { ConversationStorage } from '@/services/storage'
@@ -92,7 +92,7 @@ export function ChatHeader() {
       {showDeleteModal && (
         <DeleteFriend
           friend={otherParticipant}
-          onChange={(_, removed) => {
+          onChange={(_pressed: string | null, removed: string | null) => {
             if (removed) handleDelete()
             setShowDeleteModal(false)
           }}

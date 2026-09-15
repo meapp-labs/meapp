@@ -3,7 +3,7 @@ import { memo } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
-import useBreakpoint from '@/hooks/useBreakpoint'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { theme } from '@/theme/theme'
 
 export type BaseMessage = {

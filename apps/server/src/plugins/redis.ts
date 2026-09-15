@@ -1,9 +1,10 @@
 import { Elysia } from 'elysia'
 import Redis from 'ioredis'
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://127.0.0.1:6379'
+import { env } from '../lib/config.ts'
+import { RedisService } from '../services/redis.service.ts'
 
-export const redis = new Redis(REDIS_URL, {
+export const redis = new Redis(env.REDIS_URL, {
   maxRetriesPerRequest: 3,
   lazyConnect: true,
 })
@@ -13,4 +14,6 @@ redis.connect().catch((err: Error) => {
   console.warn('[Redis] Connection warning (running in degraded offline mode):', err.message)
 })
 
-export const redisPlugin = new Elysia({ name: 'redis' }).decorate('redis', redis)
+export const redisPlugin = new Elysia({ name: 'redis' })
+  .decorate('redis', redis)
+  .decorate('redisService', new RedisService(redis))

@@ -116,7 +116,12 @@ export function useGetMessages({
   >({
     queryKey: [Keys.Query.GET_MESSAGES, conversationId],
     queryFn: async ({ pageParam }) => {
-      const params: Record<string, string> = {
+      const params: {
+        conversationId: string
+        limit: string
+        after?: string
+        before?: string
+      } = {
         conversationId,
         limit: '16',
       }

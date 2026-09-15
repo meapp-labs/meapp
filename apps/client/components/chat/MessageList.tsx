@@ -2,7 +2,7 @@ import React from 'react'
 import { ActivityIndicator, FlatList } from 'react-native'
 
 import { Loader } from '@/components/Loader'
-import MessageBubble, { type BaseMessage } from '@/components/chat/MessageBubble'
+import { type BaseMessage, MessageBubble } from '@/components/chat/MessageBubble'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
 

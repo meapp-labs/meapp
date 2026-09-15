@@ -129,8 +129,9 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
       }),
     )
     expect(largeRes.status).toBe(413)
-    const body = (await largeRes.json()) as { error: string }
-    expect(body.error).toBe('Payload too large')
+    const body = (await largeRes.json()) as { message: string; code: string }
+    expect(body.message).toBe('Payload too large')
+    expect(body.code).toBe('PAYLOAD_TOO_LARGE')
   })
 
   it('enforces body size limits: allows uploads up to 10MB but rejects > 10MB', async () => {

@@ -6,6 +6,4 @@ const envSchema = z.object({
 
 export type Env = z.infer<typeof envSchema>
 
-export const env = envSchema.parse({
-  EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
-})
+export const env = envSchema.parse(process.env)

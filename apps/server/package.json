@@ -1,41 +1,24 @@
 {
   "name": "@meapp/server",
   "scripts": {
-    "dev": "bun --watch --hot server.ts",
-    "start": "bun server.ts",
+    "dev": "bun --watch --hot src/index.ts",
+    "start": "bun src/index.ts",
     "migrate": "bun run src/migrate.ts",
     "test": "bun test",
     "test:watch": "bun test --watch"
   },
   "dependencies": {
-    "@elysiajs/cookie": "^0.8.0",
     "@elysiajs/cors": "^1.4.2",
-    "@elysiajs/eden": "^1.4.9",
     "@elysiajs/jwt": "^1.3.0",
     "@elysiajs/swagger": "^1.3.1",
-    "@fastify/autoload": "^6.3.1",
-    "@fastify/cors": "^11.1.0",
-    "@fastify/redis": "^7.1.0",
-    "@fastify/secure-session": "^8.2.0",
-    "@fastify/swagger": "^9.5.2",
-    "@fastify/swagger-ui": "^5.2.3",
     "@meapp/db": "workspace:*",
     "@meapp/shared": "workspace:*",
-    "better-sqlite3": "^12.4.1",
-    "elysia": "1.3.3",
-    "fastify": "^5.6.1",
-    "fastify-plugin": "^5.1.0",
-    "fastify-socket.io": "^5.1.0",
-    "fastify-type-provider-zod": "^5.1.0",
-    "ioredis": "^6.0.0",
-    "pino-pretty": "^13.1.2",
-    "socket.io": "^4.8.1",
-    "zod": "^4.1.12"
+    "elysia": "^1.4.30",
+    "ioredis": "^6.0.0"
   },
   "devDependencies": {
     "@tsconfig/bun": "^1.0.9",
     "@types/bun": "^1.3.0",
-    "@types/ioredis": "^5.0.0",
     "@types/node": "^24.7.2",
     "typescript": "^5.9.3"
   },

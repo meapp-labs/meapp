@@ -2,13 +2,7 @@ export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
 } as const
 
-export type ExpoPushMessage = {
-  to: string | string[]
-  data?: Record<string, unknown>
-  title?: string
-  body?: string
-  channelId?: string
-}
+const EXPO_PUSH_ENDPOINT = 'https://exp.host/--/api/v2/push/send'
 
 export type ExpoPushNotificationOptions = {
   expoPushToken: string
@@ -19,7 +13,7 @@ export type ExpoPushNotificationOptions = {
   channelId?: string
 }
 
-export async function sendPushNotification(options: ExpoPushNotificationOptions): Promise<void> {
+export const sendPushNotification = async (options: ExpoPushNotificationOptions): Promise<void> => {
   const {
     expoPushToken,
     senderUsername,
@@ -29,26 +23,24 @@ export async function sendPushNotification(options: ExpoPushNotificationOptions)
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
   } = options
 
-  const message: ExpoPushMessage = {
-    to: expoPushToken,
-    title: senderUsername,
-    body: messageText,
-    data: {
-      from: senderUsername,
-      text: messageText,
-      index: messageIndex,
-      timestamp,
-    },
-    channelId,
-  }
-
-  await fetch('https://exp.host/--/api/v2/push/send', {
+  await fetch(EXPO_PUSH_ENDPOINT, {
     method: 'POST',
     headers: {
       Accept: 'application/json',
       'Accept-encoding': 'gzip, deflate',
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(message),
+    body: JSON.stringify({
+      to: expoPushToken,
+      title: senderUsername,
+      body: messageText,
+      data: {
+        from: senderUsername,
+        text: messageText,
+        index: messageIndex,
+        timestamp,
+      },
+      channelId,
+    }),
   })
 }

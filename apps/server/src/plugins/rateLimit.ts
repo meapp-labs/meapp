@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { ErrorCode } from '../lib/errors.ts'
 import { authPlugin } from './auth.ts'
 
 type Bucket = { count: number; reset: number }
@@ -19,6 +20,22 @@ const routePatterns: RouteRule[] = [
     method: 'POST',
     regex: /^\/auth\/login$/,
     key: 'POST:/auth/login',
+    max: 5,
+    windowMs: 60000,
+    perIp: true, // 5/min per IP
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/login$/,
+    key: 'POST:/api/login',
+    max: 5,
+    windowMs: 60000,
+    perIp: true, // 5/min per IP
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/register$/,
+    key: 'POST:/api/register',
     max: 5,
     windowMs: 60000,
     perIp: true, // 5/min per IP
@@ -93,7 +110,7 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
         : 100 * 1024 // 100KB max for JSON bodies / messages
       if (bytes > maxBodyBytes) {
         set.status = 413
-        return { error: 'Payload too large' }
+        return { message: 'Payload too large', code: ErrorCode.PAYLOAD_TOO_LARGE }
       }
     }
 
@@ -113,7 +130,7 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
     if (bucket.count >= matched.max) {
       set.status = 429
       set.headers['Retry-After'] = Math.ceil((bucket.reset - now) / 1000).toString()
-      return { error: `Too many requests for ${matched.key}` }
+      return { message: `Too many requests for ${matched.key}`, code: ErrorCode.RATE_LIMITED }
     }
 
     bucket.count++

@@ -1,34 +1,72 @@
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { Elysia } from 'elysia'
+
+import { env, isProduction } from './lib/config.ts'
+import { ApiError, ErrorCode, toErrorResponse } from './lib/errors.ts'
 import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redisPlugin } from './plugins/redis.ts'
+import { authRoutes } from './routes/auth.ts'
+import { friendRoutes } from './routes/friends.ts'
+import { messageRoutes } from './routes/messages.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
 import { chatWs } from './ws/chat.ts'
 
 export const app = new Elysia()
-  .use(cors())
+  // Cookie sessions require credentialed CORS with an explicit origin.
+  .use(
+    cors({
+      origin: isProduction && env.DOMAIN ? env.DOMAIN : /localhost|127\.0\.0\.1/,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    }),
+  )
   .use(swagger())
   .use(redisPlugin)
   .use(authPlugin)
   .use(rateLimitPlugin)
+  .onError(({ error, code, set }) => {
+    if (error instanceof ApiError) {
+      set.status = error.statusCode
+      return error.toBody()
+    }
+
+    if (code === 'VALIDATION') {
+      const validation = error as { on?: string; property?: string }
+      set.status = 400
+      return {
+        message: 'Invalid input data',
+        code: ErrorCode.VALIDATION_ERROR,
+        details: { on: validation.on, property: validation.property },
+      }
+    }
+
+    if (code === 'NOT_FOUND') {
+      set.status = 404
+      return { message: 'Not found', code: ErrorCode.ITEM_NOT_FOUND }
+    }
+
+    const { status, body } = toErrorResponse(error)
+    set.status = status
+    return body
+  })
   .get('/health', () => ({
     status: 'ok',
     podman: true,
     bun: '1.4.2',
     timestamp: new Date().toISOString(),
   }))
+  .use(authRoutes)
+  .use(friendRoutes)
+  .use(messageRoutes)
   .use(wsTicketRoutes)
   .use(chatWs)
 
 export type App = typeof app
 
-const port = Number(process.env.PORT || 3000)
-const host = process.env.HOST || '127.0.0.1'
-
 if (import.meta.main) {
-  app.listen({ port, hostname: host }, () => {
-    console.log(`🚀 Elysia server running at http://${host}:${port}`)
+  app.listen({ port: env.PORT, hostname: env.HOST }, () => {
+    console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
   })
 }

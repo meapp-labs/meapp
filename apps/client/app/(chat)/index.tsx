@@ -2,12 +2,12 @@ import { useCallback, useEffect } from 'react'
 import { BackHandler, KeyboardAvoidingView, Platform, StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import Conversation from '@/components/Conversation'
+import { FriendsScreen } from '@/components/FriendsScreen'
 import { ChatHeader } from '@/components/chat/ChatHeader'
-import MessageInput from '@/components/chat/MessageInput'
+import { MessageInput } from '@/components/chat/MessageInput'
 import { MessageList } from '@/components/chat/MessageList'
 import { Text } from '@/components/common/Text'
-import useBreakpoint from '@/hooks/useBreakpoint'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useConversationStore } from '@/lib/stores'
 import { DocumentTitle } from '@/misc/DocumentTitle'
 import {
@@ -54,7 +54,7 @@ export function ChatApp() {
       <DocumentTitle title="Chat" />
       {isMobile ? (
         selectedConversation === null ? (
-          <Conversation />
+          <FriendsScreen />
         ) : (
           <KeyboardAvoidingView
             behavior={Platform.OS === 'android' ? 'padding' : 'height'}
@@ -72,7 +72,7 @@ export function ChatApp() {
         )
       ) : (
         <>
-          <Conversation />
+          <FriendsScreen />
           {selectedConversation && conversationId ? (
             <KeyboardAvoidingView
               behavior={Platform.OS === 'android' ? 'padding' : 'height'}

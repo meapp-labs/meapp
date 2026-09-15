@@ -1,8 +1,8 @@
 import { StyleSheet } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
-import CenteredContainer from '@/components/common/CenteredContainer'
-import LoginForm from '@/components/forms/LoginForm'
+import { CenteredContainer } from '@/components/common/CenteredContainer'
+import { LoginForm } from '@/components/forms/LoginForm'
 import { DocumentTitle } from '@/misc/DocumentTitle'
 import { theme } from '@/theme/theme'
 

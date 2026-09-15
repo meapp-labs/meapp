@@ -8,13 +8,7 @@
   "files": {
     "ignoreUnknown": false,
     "include": ["apps/**/*", "packages/**/*"],
-    "ignore": [
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/.expo/**",
-      "**/build/**",
-      "**/drizzle/**"
-    ]
+    "ignore": ["**/node_modules/**", "**/dist/**", "**/.expo/**", "**/build/**", "**/drizzle/**"]
   },
   "formatter": {
     "enabled": true,
