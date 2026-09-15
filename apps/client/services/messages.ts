@@ -121,10 +121,10 @@ export function useGetMessages({
         limit: '16',
       }
 
-      if (pageParam['after'] !== undefined) {
-        params['after'] = pageParam['after'].toString()
-      } else if (pageParam['before'] !== undefined) {
-        params['before'] = pageParam['before'].toString()
+      if (pageParam.after !== undefined) {
+        params.after = pageParam.after.toString()
+      } else if (pageParam.before !== undefined) {
+        params.before = pageParam.before.toString()
       }
 
       return getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, params)

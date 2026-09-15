@@ -161,15 +161,15 @@ export class RedisService {
    */
   async getConversation(id: string): Promise<Conversation | null> {
     const data = await this.redis.hgetall(RedisKeys.conversation(id))
-    if (!data || !data['id']) return null
+    if (!data || !data.id) return null
 
-    const name = data['name']
+    const name = data.name
     return {
-      id: data['id'],
-      participants: JSON.parse((data['participants'] as string) ?? '[]') as string[],
-      isGroup: data['isGroup'] === '1',
+      id: data.id,
+      participants: JSON.parse((data.participants as string) ?? '[]') as string[],
+      isGroup: data.isGroup === '1',
       ...(name ? { name: name } : {}),
-      createdAt: (data['createdAt'] as string) ?? '',
+      createdAt: (data.createdAt as string) ?? '',
     }
   }
 

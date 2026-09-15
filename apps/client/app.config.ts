@@ -1,10 +1,11 @@
+// biome-ignore lint: Process env is used
 const IS_PROD = process.env['APP_VARIANT'] === 'production'
 
 const config = IS_PROD
   ? { packageName: 'com.meapp', appName: 'MeApp' }
   : { packageName: 'com.meapp.dev', appName: 'MeApp (dev)' }
 
-export default {
+export const expoConfig = {
   expo: {
     name: config.appName,
     description: 'Messaging app',

@@ -29,7 +29,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
 })
 
-const MessageBubble = {
+export const MessageBubble = {
   Received: memo(function ReceivedMessage({ message, time }: MessageProps) {
     const { isDesktop, width } = useBreakpoint()
     return (
@@ -132,5 +132,3 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
 })
-
-export default MessageBubble

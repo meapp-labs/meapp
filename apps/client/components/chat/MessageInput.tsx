@@ -9,15 +9,11 @@ import {
   View,
 } from 'react-native'
 
-import Attachment from '@/components/chat/Attachment'
+import { Attachment } from '@/components/chat/Attachment'
 import { useSendMessage } from '@/services/messages'
 import { theme } from '@/theme/theme'
 
-export default function MessageInput({
-  conversationId,
-}: {
-  conversationId: string
-}) {
+export function MessageInput({ conversationId }: { conversationId: string }) {
   const [inputData, setInputData] = useState('')
   const [showModal, setShowModal] = useState(false)
   const inputRef = useRef<TextInput>(null)

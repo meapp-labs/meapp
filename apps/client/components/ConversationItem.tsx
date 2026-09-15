@@ -12,7 +12,7 @@ type ConversationItemProps = {
   conversation: Conversation
 }
 
-function ConversationItem({ conversation }: ConversationItemProps) {
+export function ConversationItem({ conversation }: ConversationItemProps) {
   const [hovered, setHovered] = useState<boolean>(false)
   const { selectedConversation, setSelectedConversation } = useConversationStore()
   const { username } = useAuthStore()
@@ -63,8 +63,6 @@ function ConversationItem({ conversation }: ConversationItemProps) {
     </>
   )
 }
-
-export default ConversationItem
 
 const styles = StyleSheet.create({
   item: {

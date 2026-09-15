@@ -1,19 +1,19 @@
 import { useMemo, useState } from 'react'
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
 
-import ConversationItem from '@/components/ConversationItem'
+import { ConversationItem } from '@/components/ConversationItem'
 import { Logout } from '@/components/Logout'
-import AddFriend from '@/components/chat/AddFriend'
-import CreateGroup from '@/components/chat/CreateGroup'
-import TopMenu from '@/components/forms/TopMenu'
-import UserSettings from '@/components/settings/UserSettings'
-import useBreakpoint from '@/hooks/useBreakpoint'
+import { AddFriend } from '@/components/chat/AddFriend'
+import { CreateGroup } from '@/components/chat/CreateGroup'
+import { TopMenu } from '@/components/forms/TopMenu'
+import { UserSettings } from '@/components/settings/UserSettings'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useAuthStore } from '@/lib/stores'
 import { useGetConversations } from '@/services/conversations'
 import { theme } from '@/theme/theme'
 import type { Conversation } from '@/types/models'
 
-export default function FriendsScreen() {
+export function FriendsScreen() {
   const { isMobile } = useBreakpoint()
   const { username: currentUsername } = useAuthStore()
   const [showSettings, setShowSettings] = useState<boolean>(false)

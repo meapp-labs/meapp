@@ -17,7 +17,7 @@ const modalOptions = [
   { id: '4', title: 'Some other, other option' },
 ]
 
-export default function Attachment({ showModal, setShowModal }: Props) {
+export function Attachment({ showModal, setShowModal }: Props) {
   return (
     <>
       <TouchableOpacity onPress={() => setShowModal(true)}>

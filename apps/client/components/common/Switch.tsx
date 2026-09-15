@@ -15,7 +15,7 @@ interface CustomSwitchProps extends Omit<SwitchProps, 'trackColor' | 'thumbColor
   style?: ViewStyle
 }
 
-export default function Switch({
+export function Switch({
   value,
   onValueChange,
   disabled = false,

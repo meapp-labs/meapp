@@ -155,7 +155,7 @@ export async function registerForPushNotificationsAsync() {
       | undefined
     const easConfig = Constants?.easConfig as { projectId?: string } | undefined
 
-    const projectId = expoConfig?.extra?.['eas']?.projectId ?? easConfig?.projectId
+    const projectId = expoConfig?.extra?.eas?.projectId ?? easConfig?.projectId
 
     if (!projectId) {
       return

@@ -14,7 +14,7 @@
     "dev:client": "bun --filter client dev",
     "dev:web": "bun --filter client web",
     "lint": "bunx @biomejs/biome check --write ./apps ./packages",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p apps/server/tsconfig.json --noEmit && tsc -p apps/client/tsconfig.json --noEmit && tsc -p packages/db/tsconfig.json --noEmit && tsc -p packages/shared/tsconfig.json --noEmit"
   },
   "overrides": { "typescript": "^5.8.3" }
 }

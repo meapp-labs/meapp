@@ -17,7 +17,7 @@ import { useGetFriends } from '@/services/others'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
-export default function CreateGroup() {
+export function CreateGroup() {
   const [showModal, setShowModal] = useState(false)
   const [step, setStep] = useState<1 | 2>(1)
   const [selectedFriends, setSelectedFriends] = useState<string[]>([])

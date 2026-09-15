@@ -12,7 +12,7 @@ type DeleteFriendProps = {
   onChange: (pressed: string | null, removed: string | null) => void
 }
 
-export default function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
+export function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
   const { mutate, isPending } = useRemoveFriend({
     onSuccess: () => {
       void queryClient.refetchQueries({

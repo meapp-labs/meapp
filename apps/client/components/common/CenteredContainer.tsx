@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react'
 import { StyleSheet, View } from 'react-native'
 
-export default function CenteredContainer({ children }: PropsWithChildren) {
+export function CenteredContainer({ children }: PropsWithChildren) {
   return <View style={styles.container}>{children}</View>
 }
 

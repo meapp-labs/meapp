@@ -8,7 +8,7 @@ import { useAddFriend } from '@/services/others'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
-export default function AddFriend() {
+export function AddFriend() {
   const [showModal, setShowModal] = useState(false)
   const [username, setUsername] = useState('')
   const { setSelectedConversation } = useConversationStore()

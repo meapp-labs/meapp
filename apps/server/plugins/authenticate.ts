@@ -4,7 +4,7 @@ import fp from 'fastify-plugin'
 import { ErrorCode, createAuthError, handleError } from '@/lib/errors.ts'
 import { handleSyncOperation } from '@/lib/helpers.ts'
 
-export default fp((server: FastifyInstance) => {
+export const authenticate = fp((server: FastifyInstance) => {
   server.decorate('authenticate', async (request: FastifyRequest, reply: FastifyReply) => {
     try {
       const sessionData = handleSyncOperation(

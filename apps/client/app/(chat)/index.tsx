@@ -18,7 +18,7 @@ import {
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
-export default function ChatApp() {
+export function ChatApp() {
   const { selectedConversation, setSelectedConversation } = useConversationStore()
   const { isMobile } = useBreakpoint()
 

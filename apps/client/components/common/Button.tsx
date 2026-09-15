@@ -21,7 +21,7 @@ interface CustomButtonProps {
   textStyle?: TextStyle
 }
 
-export default function Button({
+export function Button({
   title,
   onPress,
   variant = 'primary',

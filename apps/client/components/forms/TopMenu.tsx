@@ -9,7 +9,7 @@ type TopMenuProps = {
   onSearchChange: (query: string) => void
 }
 
-export default function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
+export function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
   return (
     <View style={styles.container}>
       <View style={styles.innerContainer}>

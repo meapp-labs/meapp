@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { Pressable, StyleSheet, TouchableHighlight, View } from 'react-native'
 import Toast from 'react-native-toast-message'
 
-import Button from '@/components/common/Button'
+import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
@@ -17,7 +17,7 @@ import { RememberMeStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import { LoginSchema, type LoginType } from '@/validation/userValidation'
 
-export default function LoginForm() {
+export function LoginForm() {
   const setUsername = useAuthStore((state) => state.setUsername)
   const { mutate, isPending } = useLoginUser()
   const [rememberMe, setRememberMe] = useState(false)

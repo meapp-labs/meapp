@@ -6,7 +6,7 @@ import LoginForm from '@/components/forms/LoginForm'
 import { DocumentTitle } from '@/misc/DocumentTitle'
 import { theme } from '@/theme/theme'
 
-export default function LoginScreen() {
+export function LoginScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <DocumentTitle title="Login" />

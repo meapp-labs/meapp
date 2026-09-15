@@ -3,7 +3,7 @@ import Toast from 'react-native-toast-message'
 
 import { toastConfig } from '@/misc/toastConfig'
 
-export default function AuthLayout() {
+export function AuthLayout() {
   return (
     <>
       <Stack screenOptions={{ headerShown: false }} />

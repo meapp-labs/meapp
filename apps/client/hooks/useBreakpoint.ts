@@ -1,6 +1,6 @@
 import { useWindowDimensions } from 'react-native'
 
-const useBreakpoint = () => {
+export const useBreakpoint = () => {
   const { width } = useWindowDimensions()
 
   return {
@@ -10,5 +10,3 @@ const useBreakpoint = () => {
     isMobile: width <= 767,
   }
 }
-
-export default useBreakpoint

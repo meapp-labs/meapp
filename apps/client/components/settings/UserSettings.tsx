@@ -28,7 +28,7 @@ const optionsPlaceholder: {
   { name: 'Blocked Users', icon: 'block' },
   { name: 'Account Settings', icon: 'settings' },
 ]
-export default function UserSettings({ showSettings, setShowSettings }: UserSettingsProps) {
+export function UserSettings({ showSettings, setShowSettings }: UserSettingsProps) {
   const [pressed, setPressed] = useState<string | null>('Notifications')
   const selected = optionsPlaceholder.find((opt) => opt.name === pressed)
   return (
