@@ -1,4 +1,4 @@
-import { and, db, eq, schema } from '@meapp/db'
+import { and, eq, getDbInstance, schema } from '@meapp/db'
 import { addContactSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
@@ -27,7 +27,12 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
       }
 
       const otherUser = await handleAsyncOperation(
-        async () => db.select().from(schema.users).where(eq(schema.users.username, other)).get(),
+        async () =>
+          getDbInstance()
+            .db.select()
+            .from(schema.users)
+            .where(eq(schema.users.username, other))
+            .get(),
         'Failed to check other user existence',
         ErrorCode.DATABASE_ERROR,
       )
@@ -37,8 +42,8 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
 
       const hasContact = await handleAsyncOperation(
         async () =>
-          db
-            .select()
+          getDbInstance()
+            .db.select()
             .from(schema.contacts)
             .where(
               and(
@@ -56,7 +61,7 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
 
       await handleAsyncOperation(
         async () =>
-          db.insert(schema.contacts).values({
+          getDbInstance().db.insert(schema.contacts).values({
             userId: me.id,
             contactUserId: otherUser.id,
           }),
@@ -76,7 +81,12 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
       const me = requireUser(user)
 
       const otherUser = await handleAsyncOperation(
-        async () => db.select().from(schema.users).where(eq(schema.users.username, other)).get(),
+        async () =>
+          getDbInstance()
+            .db.select()
+            .from(schema.users)
+            .where(eq(schema.users.username, other))
+            .get(),
         'Failed to check other user existence',
         ErrorCode.DATABASE_ERROR,
       )
@@ -86,8 +96,8 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
 
       const deletedRows = await handleAsyncOperation(
         async () =>
-          db
-            .delete(schema.contacts)
+          getDbInstance()
+            .db.delete(schema.contacts)
             .where(
               and(
                 eq(schema.contacts.userId, me.id),
@@ -113,8 +123,8 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
 
     const contactsList = await handleAsyncOperation(
       async () =>
-        db
-          .select({ username: schema.users.username })
+        getDbInstance()
+          .db.select({ username: schema.users.username })
           .from(schema.contacts)
           .innerJoin(schema.users, eq(schema.contacts.contactUserId, schema.users.id))
           .where(eq(schema.contacts.userId, me.id)),

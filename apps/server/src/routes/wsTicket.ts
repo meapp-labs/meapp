@@ -27,7 +27,7 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
         jti: t.String(),
         type: t.String(),
       }),
-      secret: env.WS_TICKET_SECRET || env.JWT_SECRET,
+      secret: env.WS_TICKET_SECRET,
       exp: '60s',
     }),
   )

@@ -41,7 +41,7 @@ Manual backup:
 
 ```sh
 podman exec meapp-server bun -e \
-  "import {sqlite} from './packages/db/src/client.ts'; sqlite.exec(\"VACUUM INTO '/data/backup-manual.db'\")"
+  "import {getDbInstance} from './packages/db/src/client.ts'; getDbInstance().sqlite.exec(\"VACUUM INTO '/data/backup-manual.db'\")"
 ```
 
 Restore (stop server first — SQLite is single-writer):

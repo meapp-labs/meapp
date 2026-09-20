@@ -1,5 +1,5 @@
 import { jwt } from '@elysiajs/jwt'
-import { insertMessageWithSequence, sqlite } from '@meapp/db'
+import { getDbInstance, insertMessageWithSequence } from '@meapp/db'
 import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
@@ -97,7 +97,7 @@ export const chatWs = new Elysia()
         jti: t.String(),
         type: t.String(),
       }),
-      secret: env.WS_TICKET_SECRET || env.JWT_SECRET,
+      secret: env.WS_TICKET_SECRET,
       exp: '60s',
     }),
   )
@@ -466,7 +466,7 @@ export const chatWs = new Elysia()
 
         // Atomic sequence insertion with BEGIN IMMEDIATE and retry
         try {
-          const result = await insertMessageWithSequence(sqlite, {
+          const result = await insertMessageWithSequence(getDbInstance().sqlite, {
             roomId: payload.roomId,
             userId,
             clientId: payload.clientId,
@@ -496,7 +496,9 @@ export const chatWs = new Elysia()
           )
 
           // Client compares message.from against the username, not the UUID.
-          const senderRow = sqlite.query('SELECT username FROM users WHERE id = ?').get(userId) as {
+          const senderRow = getDbInstance()
+            .sqlite.query('SELECT username FROM users WHERE id = ?')
+            .get(userId) as {
             username: string | null
           } | null
           const senderUsername = senderRow?.username ?? userId

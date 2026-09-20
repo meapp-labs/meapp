@@ -14,7 +14,7 @@ const serverEnvSchema = z
     DATABASE_URL: z.string().default('./data/data.db'),
     REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
     JWT_SECRET: z.string().default('dev-secret-change-me'),
-    WS_TICKET_SECRET: z.string().optional(),
+    WS_TICKET_SECRET: z.string().optional().default('dev-ws-ticket-secret-change-me'),
     MAX_UNAUTH_GLOBAL: z.coerce.number().default(100),
     MAX_UNAUTH_PER_IP: z.coerce.number().default(10),
     MAX_WS_CONNS_PER_USER: z.coerce.number().default(3),
@@ -30,10 +30,17 @@ const serverEnvSchema = z
           path: ['JWT_SECRET'],
         })
       }
-      if (!data.WS_TICKET_SECRET || data.WS_TICKET_SECRET === 'dev-secret-change-me') {
+      if (!data.WS_TICKET_SECRET || data.WS_TICKET_SECRET === 'dev-ws-ticket-secret-change-me') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'WS_TICKET_SECRET is required and cannot use dev fallback in production',
+          message: 'WS_TICKET_SECRET is required and must differ from JWT_SECRET in production',
+          path: ['WS_TICKET_SECRET'],
+        })
+      }
+      if (data.WS_TICKET_SECRET === data.JWT_SECRET) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'WS_TICKET_SECRET must not equal JWT_SECRET',
           path: ['WS_TICKET_SECRET'],
         })
       }

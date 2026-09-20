@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { db, eq, runMigrations, schema } from '@meapp/db'
+import { eq, getDbInstance, runMigrations, schema } from '@meapp/db'
 
 import { app } from '../index.ts'
 
@@ -39,8 +39,8 @@ const readJson = async <T>(response: Response): Promise<T> => (await response.js
 
 afterAll(async () => {
   try {
-    await db.delete(schema.users).where(eq(schema.users.username, alice))
-    await db.delete(schema.users).where(eq(schema.users.username, bob))
+    await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, alice))
+    await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, bob))
   } catch {}
 })
 

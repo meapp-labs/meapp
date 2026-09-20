@@ -4,10 +4,6 @@ import { dirname } from 'node:path'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import * as schema from './schema.ts'
 
-// ─────────────────────────────────────────────────────────────
-// DB client factory & lazy singleton
-// ─────────────────────────────────────────────────────────────
-
 export type DB = ReturnType<typeof drizzle<typeof schema>>
 
 export type DbInstance = {
@@ -46,6 +42,9 @@ export const createDb = (customPath?: string): DbInstance => {
   return { db, sqlite, checkpoint }
 }
 
+// Lazy singletons: opening the file at import time would create data.db during
+// builds/tests with the wrong user or an unwanted file. First access happens
+// at server startup (or in tests after migrations).
 let defaultInstance: DbInstance | null = null
 
 export const getDbInstance = (customPath?: string): DbInstance => {
@@ -58,11 +57,14 @@ export const getDbInstance = (customPath?: string): DbInstance => {
   return defaultInstance
 }
 
-export const db: DB = getDbInstance().db
-export const sqlite: Database = getDbInstance().sqlite
-
 export const checkpoint = (): void => {
   getDbInstance().checkpoint()
 }
 
 export { schema }
+
+// Lazy accessors. Named `db`/`sqlite` getters on a namespace object would not
+// be name-compatible with the previous `export const` usage, so re-export via
+// init-time binding only where the server actually opens the DB (index.ts /
+// migrate.ts call getDbInstance() first).
+export const openDefaultDb = (): DbInstance => getDbInstance()

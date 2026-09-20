@@ -2,15 +2,14 @@ import {
   and,
   asc,
   count,
-  db,
   eq,
+  getDbInstance,
   gt,
   inArray,
   insertMessageWithSequence,
   lt,
   schema,
   sql,
-  sqlite,
 } from '@meapp/db'
 import { type Conversation, createConversationSchema } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
@@ -60,8 +59,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       // Fetch all user records
       const userRecords = await handleAsyncOperation(
         async () =>
-          db
-            .select()
+          getDbInstance()
+            .db.select()
             .from(schema.users)
             .where(inArray(schema.users.username, allParticipantUsernames)),
         'Failed to query participants',
@@ -75,6 +74,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       }
 
       if (type === 'dm') {
+        let existingDmId: string | undefined
         const [first, second] = allParticipantUsernames
         if (allParticipantUsernames.length !== 2 || !first || !second) {
           throw createValidationError('DM must have exactly 2 participants')
@@ -87,48 +87,78 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           throw createValidationError('Participants not found')
         }
 
-        // Check if DM room already exists between these 2 users
-        const candidateRooms = await db
-          .select({ roomId: schema.roomMembers.roomId })
-          .from(schema.roomMembers)
-          .where(eq(schema.roomMembers.userId, u1.id))
+        // Single grouped query for the existing DM room (no N+1):
+        // a 2-member room containing exactly these two users.
+        const existingRows = getDbInstance()
+          .sqlite.query(
+            `SELECT r.id, r.name, r.created_at as createdAt
+             FROM rooms r
+             JOIN room_members rm ON rm.room_id = r.id
+             WHERE rm.user_id IN (?, ?)
+             GROUP BY r.id
+             HAVING COUNT(DISTINCT rm.user_id) = 2 AND COUNT(*) = 2
+             LIMIT 1`,
+          )
+          .get(u1.id, u2.id) as { id: string; name: string; createdAt: number } | undefined
 
-        for (const candidate of candidateRooms) {
-          const members = await db
-            .select()
-            .from(schema.roomMembers)
-            .where(eq(schema.roomMembers.roomId, candidate.roomId))
-          if (members.length === 2 && members.some((m) => m.userId === u2.id)) {
-            const existingRoom = await db
-              .select()
-              .from(schema.rooms)
-              .where(eq(schema.rooms.id, candidate.roomId))
-              .get()
-            if (existingRoom) {
-              return {
-                id: existingRoom.id,
-                participants: [first, second],
-                isGroup: false,
-                name: existingRoom.name,
-                createdAt: new Date(existingRoom.createdAt).toISOString(),
-              } satisfies Conversation
-            }
-          }
+        if (existingRows) {
+          return {
+            id: existingRows.id,
+            participants: [first, second],
+            isGroup: false,
+            name: existingRows.name,
+            createdAt: new Date(existingRows.createdAt).toISOString(),
+          } satisfies Conversation
         }
 
+        // Transaction: lookup + insert atomic, so two concurrent DM requests
+        // cannot both miss and create duplicate rooms.
         const roomId = Bun.randomUUIDv7()
         const dmName = name ?? `${first} & ${second}`
 
-        await db.insert(schema.rooms).values({
-          id: roomId,
-          name: dmName,
-          createdBy: me.id,
-        })
+        getDbInstance().sqlite.transaction(() => {
+          const rerun = getDbInstance()
+            .sqlite.query(
+              `SELECT r.id FROM rooms r
+               JOIN room_members rm ON rm.room_id = r.id
+               WHERE rm.user_id IN (?, ?)
+               GROUP BY r.id
+               HAVING COUNT(DISTINCT rm.user_id) = 2 AND COUNT(*) = 2
+               LIMIT 1`,
+            )
+            .get(u1.id, u2.id) as { id: string } | undefined
 
-        await db.insert(schema.roomMembers).values([
-          { roomId, userId: u1.id, role: 'member' },
-          { roomId, userId: u2.id, role: 'member' },
-        ])
+          if (rerun) {
+            existingDmId = rerun.id
+            return
+          }
+
+          getDbInstance()
+            .sqlite.query(
+              'INSERT INTO rooms (id, name, created_by, created_at) VALUES (?, ?, ?, ?)',
+            )
+            .run(roomId, dmName, me.id, Date.now())
+          const insertMember = getDbInstance().sqlite.query(
+            'INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)',
+          )
+          insertMember.run(roomId, u1.id, 'member', Date.now())
+          insertMember.run(roomId, u2.id, 'member', Date.now())
+        })()
+
+        if (existingDmId) {
+          const existingRoom = await getDbInstance()
+            .db.select()
+            .from(schema.rooms)
+            .where(eq(schema.rooms.id, existingDmId))
+            .get()
+          return {
+            id: existingDmId,
+            participants: [first, second],
+            isGroup: false,
+            name: existingRoom?.name ?? dmName,
+            createdAt: new Date(existingRoom?.createdAt ?? Date.now()).toISOString(),
+          } satisfies Conversation
+        }
 
         set.status = 201
         return {
@@ -144,19 +174,21 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       const roomId = Bun.randomUUIDv7()
       const groupName = name ?? 'Group'
 
-      await db.insert(schema.rooms).values({
+      await getDbInstance().db.insert(schema.rooms).values({
         id: roomId,
         name: groupName,
         createdBy: me.id,
       })
 
-      await db.insert(schema.roomMembers).values(
-        userRecords.map((u) => ({
-          roomId,
-          userId: u.id,
-          role: u.id === me.id ? 'admin' : 'member',
-        })),
-      )
+      await getDbInstance()
+        .db.insert(schema.roomMembers)
+        .values(
+          userRecords.map((u) => ({
+            roomId,
+            userId: u.id,
+            role: u.id === me.id ? 'admin' : 'member',
+          })),
+        )
 
       set.status = 201
       return {
@@ -175,8 +207,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
     const memberships = await handleAsyncOperation(
       async () =>
-        db
-          .select({ roomId: schema.roomMembers.roomId })
+        getDbInstance()
+          .db.select({ roomId: schema.roomMembers.roomId })
           .from(schema.roomMembers)
           .where(eq(schema.roomMembers.userId, me.id)),
       'Failed to load conversations',
@@ -188,10 +220,13 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     }
 
     const roomIds = memberships.map((m) => m.roomId)
-    const rooms = await db.select().from(schema.rooms).where(inArray(schema.rooms.id, roomIds))
+    const rooms = await getDbInstance()
+      .db.select()
+      .from(schema.rooms)
+      .where(inArray(schema.rooms.id, roomIds))
 
-    const allMembers = await db
-      .select({
+    const allMembers = await getDbInstance()
+      .db.select({
         roomId: schema.roomMembers.roomId,
         username: schema.users.username,
       })
@@ -201,8 +236,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
     // Single query for last messages across all candidate rooms (eliminates N+1)
     const placeholders = roomIds.map(() => '?').join(',')
-    const lastMessages = sqlite
-      .query(
+    const lastMessages = getDbInstance()
+      .sqlite.query(
         `SELECT m.room_id as roomId, m.text, m.created_at as createdAt, u.username
          FROM messages m
          INNER JOIN users u ON m.user_id = u.id
@@ -261,8 +296,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         throw createAuthError('You are not a participant in this conversation')
       }
 
-      const conversation = await db
-        .select()
+      const conversation = await getDbInstance()
+        .db.select()
         .from(schema.rooms)
         .where(eq(schema.rooms.id, conversationId))
         .get()
@@ -272,7 +307,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       const msgClientId = clientId ?? Bun.randomUUIDv7()
 
-      const result = await insertMessageWithSequence(sqlite, {
+      const result = await insertMessageWithSequence(getDbInstance().sqlite, {
         roomId: conversationId,
         userId: me.id,
         clientId: msgClientId,
@@ -286,8 +321,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       const timestamp = new Date().toISOString()
 
       // Look up other participants' push tokens
-      const otherMembers = await db
-        .select({
+      const otherMembers = await getDbInstance()
+        .db.select({
           pushToken: schema.users.pushToken,
         })
         .from(schema.roomMembers)
@@ -358,16 +393,16 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       // Count with the SAME filters as the page query, or pagination
       // cursors would report hasMore forever.
-      const filteredCountRow = await db
-        .select({ total: count() })
+      const filteredCountRow = await getDbInstance()
+        .db.select({ total: count() })
         .from(schema.messages)
         .where(whereClause)
         .get()
 
       const filteredTotal = filteredCountRow?.total ?? 0
 
-      const rows = await db
-        .select({
+      const rows = await getDbInstance()
+        .db.select({
           id: schema.messages.id,
           sequence: schema.messages.sequence,
           text: schema.messages.text,
@@ -391,8 +426,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       }))
 
       // Unfiltered count for UI display; pagination uses filteredTotal.
-      const totalCountRow = await db
-        .select({ total: count() })
+      const totalCountRow = await getDbInstance()
+        .db.select({ total: count() })
         .from(schema.messages)
         .where(eq(schema.messages.roomId, conversationId))
         .get()

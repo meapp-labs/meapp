@@ -3,16 +3,10 @@ import { memo } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
-import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { theme } from '@/theme/theme'
 import type { Message } from '@meapp/shared'
 
 export type BaseMessage = Message
-
-type MessageProps = {
-  message: Message
-  time: string
-}
 
 const timeFormatter = new Intl.DateTimeFormat('default', {
   hour: '2-digit',
@@ -25,11 +19,17 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
   day: 'numeric',
 })
 
+type BubbleLayoutProps = {
+  message: Message
+  time: string
+  /** Passed down from the list so each bubble doesn't call useWindowDimensions. */
+  maxWidth: number | null
+}
+
 export const MessageBubble = {
-  Received: memo(function ReceivedMessage({ message, time }: MessageProps) {
-    const { isDesktop, width } = useBreakpoint()
+  Received: memo(function ReceivedMessage({ message, time, maxWidth }: BubbleLayoutProps) {
     return (
-      <View style={[styles.messageGroupContainer, isDesktop && { maxWidth: width * 0.35 }]}>
+      <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
         <View style={styles.messageTextWrapper}>
           <Text selectable style={styles.receivedMessageContainer}>
@@ -40,13 +40,12 @@ export const MessageBubble = {
       </View>
     )
   }),
-  Sent: memo(function SentMessage({ message, time }: MessageProps) {
-    const { isDesktop, width } = useBreakpoint()
+  Sent: memo(function SentMessage({ message, time, maxWidth }: BubbleLayoutProps) {
     return (
       <View
         style={[
           styles.messageGroupContainer,
-          isDesktop && { maxWidth: width * 0.35 },
+          maxWidth != null && { maxWidth },
           { alignSelf: 'flex-end' },
         ]}
       >
@@ -63,10 +62,12 @@ export const MessageBubble = {
     message,
     prevTimestamp,
     currentUsername,
+    bubbleMaxWidth,
   }: {
     message: Message
     prevTimestamp: string | undefined
     currentUsername: string
+    bubbleMaxWidth: number | null
   }) {
     const rawTimestamp =
       message.timestamp || (message.createdAt ? String(message.createdAt) : undefined)
@@ -87,9 +88,9 @@ export const MessageBubble = {
     return (
       <>
         {sender === currentUsername ? (
-          <MessageBubble.Sent message={message} time={time} />
+          <MessageBubble.Sent message={message} time={time} maxWidth={bubbleMaxWidth} />
         ) : (
-          <MessageBubble.Received message={message} time={time} />
+          <MessageBubble.Received message={message} time={time} maxWidth={bubbleMaxWidth} />
         )}
         {isDifferentDay && <Text style={styles.messageDate}>{messageDate}</Text>}
       </>

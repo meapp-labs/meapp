@@ -1,6 +1,6 @@
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
-import { checkpoint, sqlite } from '@meapp/db'
+import { checkpoint, getDbInstance } from '@meapp/db'
 import { Elysia } from 'elysia'
 
 import { env, isProduction } from './lib/config.ts'
@@ -70,7 +70,9 @@ export const app = new Elysia({
     let redisStatus = 'down'
 
     try {
-      const dbRow = sqlite.query('SELECT 1 as alive').get() as { alive?: number } | null
+      const dbRow = getDbInstance().sqlite.query('SELECT 1 as alive').get() as {
+        alive?: number
+      } | null
       if (dbRow?.alive === 1) {
         dbStatus = 'ok'
       }
@@ -101,12 +103,19 @@ export const app = new Elysia({
       timestamp: new Date().toISOString(),
     }
   })
-  // CSRF: reject cross-origin mutations in production.
+  // CSRF: reject cross-origin mutations in production. Compare parsed
+  // hostnames so ports/protocol variations in Origin don't break the check.
   .onBeforeHandle({ as: 'global' }, ({ request, set }) => {
     if (request.method !== 'GET' && isProduction) {
       const origin = request.headers.get('origin')
       if (origin) {
-        const allowed = allowedOrigins.some((o) => origin === `https://${o}` || origin === o)
+        let originHost: string | undefined
+        try {
+          originHost = new URL(origin).hostname
+        } catch {
+          originHost = undefined
+        }
+        const allowed = originHost !== undefined && allowedOrigins.some((o) => o === originHost)
         if (!allowed) {
           set.status = 403
           return { message: 'Cross-origin request rejected', code: ErrorCode.FORBIDDEN }

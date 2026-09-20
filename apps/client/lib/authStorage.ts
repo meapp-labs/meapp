@@ -1,18 +1,23 @@
-import AsyncStorage from '@react-native-async-storage/async-storage'
+import * as SecureStore from 'expo-secure-store'
 import { Platform } from 'react-native'
 
-const TOKEN_KEY = '@meapp:auth_token'
+const TOKEN_KEY = 'meapp_auth_token'
 let inMemoryToken: string | null = null
 
+/**
+ * Native: token lives in the OS keystore/Keychain (expo-secure-store), never
+ * in plaintext AsyncStorage. Web: cookie-only — the server sets an HttpOnly
+ * cookie, so no JS-side token storage at all.
+ */
 export const AuthStorage = {
   async setToken(token: string | null): Promise<void> {
     inMemoryToken = token
     if (Platform.OS === 'web') return
     try {
       if (token) {
-        await AsyncStorage.setItem(TOKEN_KEY, token)
+        await SecureStore.setItemAsync(TOKEN_KEY, token)
       } else {
-        await AsyncStorage.removeItem(TOKEN_KEY)
+        await SecureStore.deleteItemAsync(TOKEN_KEY)
       }
     } catch {}
   },
@@ -21,7 +26,7 @@ export const AuthStorage = {
     if (inMemoryToken) return inMemoryToken
     if (Platform.OS === 'web') return null
     try {
-      inMemoryToken = await AsyncStorage.getItem(TOKEN_KEY)
+      inMemoryToken = await SecureStore.getItemAsync(TOKEN_KEY)
       return inMemoryToken
     } catch {
       return null
@@ -32,7 +37,7 @@ export const AuthStorage = {
     inMemoryToken = null
     if (Platform.OS === 'web') return
     try {
-      await AsyncStorage.removeItem(TOKEN_KEY)
+      await SecureStore.deleteItemAsync(TOKEN_KEY)
     } catch {}
   },
 }

@@ -27,7 +27,8 @@ DATABASE_URL="$CHAOS_DB" bun run --filter @meapp/server migrate
 
 echo "▶ [Test 2/4] Simulating concurrent writes under load..."
 DATABASE_URL="$CHAOS_DB" bun -e "
-import { insertMessageWithSequence, sqlite } from '@meapp/db';
+import { getDbInstance, insertMessageWithSequence } from '@meapp/db';
+const sqlite = getDbInstance().sqlite;
 
 sqlite.query('INSERT INTO users (id, email, name, password_hash, created_at) VALUES (?, ?, ?, ?, ?)')
   .run('u1', 'chaos@test.com', 'Chaos User', 'hash', Date.now());
@@ -53,8 +54,8 @@ console.log('✓ 25 concurrent messages written under BEGIN IMMEDIATE lock');
 
 echo "▶ [Test 3/4] Testing atomic backup under active WAL..."
 DATABASE_URL="$CHAOS_DB" bun -e "
-import { sqlite } from '@meapp/db';
-sqlite.exec(\`VACUUM INTO '$BACKUP_DB'\`);
+import { getDbInstance } from '@meapp/db';
+getDbInstance().sqlite.exec(\`VACUUM INTO '$BACKUP_DB'\`);
 console.log('✓ VACUUM INTO completed cleanly');
 "
 

@@ -98,6 +98,8 @@ jobs:
           chmod +x scripts/check-destructive-migration.sh
           ALLOW_DESTRUCTIVE=${{ contains(github.event.pull_request.labels.*.name, 'allow-destructive-migration') }} ./scripts/check-destructive-migration.sh
 
+      - name: Typecheck all workspaces
+        run: bun run typecheck
       - run: bunx @biomejs/biome check ./apps/server/src ./packages
       - run: bun --filter @meapp/server test
       # bun audit fails hard on workspace root in some versions; gate on
@@ -144,11 +146,12 @@ jobs:
             SHA_TAG=sha-${{ github.sha }}
             # Pre-migration backup via VACUUM INTO — the image has no sqlite3
             # binary, so use bun's sqlite (same technique as chaos-test.sh).
-            podman exec meapp-server bun -e "import {sqlite} from './packages/db/src/client.ts'; sqlite.exec(\"VACUUM INTO '/data/backup-pre-${SHA_TAG}.db'\")" || true
+            podman exec meapp-server bun -e "import {getDbInstance} from './packages/db/src/client.ts'; getDbInstance().sqlite.exec(\"VACUUM INTO '/data/backup-pre-${SHA_TAG}.db'\")" || true
             podman exec meapp-server bun -e "import {Database} from 'bun:sqlite'; const db = new Database('/data/backup-pre-${SHA_TAG}.db'); console.log('integrity:', db.query('PRAGMA integrity_check;').get())" || true
-            # Execute migrations via the freshly pulled image (idempotent ENTRYPOINT)
+            # Execute migrations via the freshly pulled image. Override the
+            # default CMD (which would migrate AND serve) with the migrate entry.
             podman pull ghcr.io/meapp-labs/meapp:$SHA_TAG
-            podman run --rm -v meapp-server-data:/data:Z --env DATABASE_URL=/data/data.db ghcr.io/meapp-labs/meapp:$SHA_TAG
+            podman run --rm -v meapp-server-data:/data:Z --env DATABASE_URL=/data/data.db --env NODE_ENV=production ghcr.io/meapp-labs/meapp:$SHA_TAG bun apps/server/dist/migrate.js
 
   deploy:
     needs: [migrate]

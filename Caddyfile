@@ -1,7 +1,12 @@
 {$DOMAIN} {
-	# WebSocket + API + Swagger behind the same origin so cookies stay first-party.
+	# WebSocket upgrade handled explicitly; the rest is plain reverse proxying.
+	@ws {
+		path /ws*
+		header Connection *Upgrade*
+	}
+	reverse_proxy @ws server:3000
 	reverse_proxy /ws*  server:3000
-	reverse_proxy *    server:3000
+	reverse_proxy *     server:3000
 
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"

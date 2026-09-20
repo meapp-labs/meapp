@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 
 import { Loader } from '@/components/Loader'
 import { MessageBubble } from '@/components/chat/MessageBubble'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
 import { theme } from '@/theme/theme'
@@ -14,6 +15,7 @@ type ChatProps = {
 
 export function MessageList({ conversationId }: ChatProps) {
   const { username } = useAuthStore()
+  const { isDesktop, width } = useBreakpoint()
 
   const {
     data,
@@ -28,10 +30,11 @@ export function MessageList({ conversationId }: ChatProps) {
     conversationId,
   })
 
-  // Flatten all pages into a single message array and reverse
+  // The API returns ascending sequences; pages are concatenated in order.
+  // Reversing once gives newest-first, which the inverted FlatList expects.
   const messages = React.useMemo(() => {
     if (!data?.pages) return []
-    return data.pages.flatMap((page) => [...page.messages].reverse())
+    return data.pages.flatMap((page) => page.messages).reverse()
   }, [data])
 
   const handleLoadMore = React.useCallback(() => {
@@ -67,6 +70,7 @@ export function MessageList({ conversationId }: ChatProps) {
             (messages[index + 1]?.createdAt ? String(messages[index + 1]?.createdAt) : undefined)
           }
           currentUsername={username}
+          bubbleMaxWidth={isDesktop ? width * 0.35 : null}
         />
       )}
       keyExtractor={(item, index) =>

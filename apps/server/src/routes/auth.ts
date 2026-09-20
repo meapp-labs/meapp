@@ -1,6 +1,6 @@
 import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
 import { promisify } from 'node:util'
-import { db, eq, schema } from '@meapp/db'
+import { eq, getDbInstance, schema } from '@meapp/db'
 import { loginSchema, pushTokenSchema, registerSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
@@ -24,7 +24,17 @@ const hashPassword = async (password: string, salt: string): Promise<string> => 
   return buf.toString('hex')
 }
 
-const loginAttemptsKey = (username: string) => `ratelimit:login:${username}`
+// Composite IP+username key: a per-username key alone would let anyone lock
+// out arbitrary users with 5 failed logins.
+const loginAttemptsKey = (ip: string, username: string) => `ratelimit:login:${ip}:${username}`
+
+const clientIpOf = (
+  request: Request,
+  server?: { requestIP?: (r: Request) => { address: string } | null } | null,
+) =>
+  server?.requestIP?.(request)?.address ??
+  request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
+  '127.0.0.1'
 
 export const authRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
@@ -36,7 +46,12 @@ export const authRoutes = new Elysia({ prefix: '/api' })
       const { username, password, platform } = body
 
       const existingUser = await handleAsyncOperation(
-        async () => db.select().from(schema.users).where(eq(schema.users.username, username)).get(),
+        async () =>
+          getDbInstance()
+            .db.select()
+            .from(schema.users)
+            .where(eq(schema.users.username, username))
+            .get(),
         'Failed to check existing user',
         ErrorCode.DATABASE_ERROR,
       )
@@ -51,12 +66,14 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
       await handleAsyncOperation(
         async () =>
-          db.insert(schema.users).values({
-            id: userId,
-            username,
-            passwordHash,
-            platform: platform ?? 'web',
-          }),
+          getDbInstance()
+            .db.insert(schema.users)
+            .values({
+              id: userId,
+              username,
+              passwordHash,
+              platform: platform ?? 'web',
+            }),
         'Failed to create user',
         ErrorCode.DATABASE_ERROR,
       )
@@ -69,11 +86,10 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/login',
-    async ({ body, cookie, jwt: sessionJwt, redis }) => {
+    async ({ body, cookie, jwt: sessionJwt, redis, request, server }) => {
       const { username, password, platform } = body
 
-      // Check login rate limit via Redis
-      const attemptKey = loginAttemptsKey(username)
+      const attemptKey = loginAttemptsKey(clientIpOf(request, server), username)
       try {
         const attempts = await redis.get(attemptKey)
         if (attempts && Number.parseInt(attempts, 10) >= LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS) {
@@ -88,7 +104,12 @@ export const authRoutes = new Elysia({ prefix: '/api' })
       }
 
       const user = await handleAsyncOperation(
-        async () => db.select().from(schema.users).where(eq(schema.users.username, username)).get(),
+        async () =>
+          getDbInstance()
+            .db.select()
+            .from(schema.users)
+            .where(eq(schema.users.username, username))
+            .get(),
         'Failed to retrieve user data',
         ErrorCode.DATABASE_ERROR,
       )
@@ -165,7 +186,10 @@ export const authRoutes = new Elysia({ prefix: '/api' })
     if (me.platform !== 'web') {
       await handleAsyncOperation(
         async () =>
-          db.update(schema.users).set({ pushToken: null }).where(eq(schema.users.id, me.id)),
+          getDbInstance()
+            .db.update(schema.users)
+            .set({ pushToken: null })
+            .where(eq(schema.users.id, me.id)),
         'Failed to delete push token',
         ErrorCode.DATABASE_ERROR,
       ).catch(() => undefined)
@@ -188,7 +212,10 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
       await handleAsyncOperation(
         async () =>
-          db.update(schema.users).set({ pushToken: body.token }).where(eq(schema.users.id, me.id)),
+          getDbInstance()
+            .db.update(schema.users)
+            .set({ pushToken: body.token })
+            .where(eq(schema.users.id, me.id)),
         'Failed to store push token',
         ErrorCode.DATABASE_ERROR,
       )

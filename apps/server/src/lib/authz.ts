@@ -1,10 +1,10 @@
-import { and, db, eq, schema } from '@meapp/db'
+import { and, eq, getDbInstance, schema } from '@meapp/db'
 
 import { createForbiddenError } from './errors.ts'
 
 export const canAccessRoom = async (userId: string, roomId: string): Promise<boolean> => {
-  const member = await db
-    .select()
+  const member = await getDbInstance()
+    .db.select()
     .from(schema.roomMembers)
     .where(and(eq(schema.roomMembers.roomId, roomId), eq(schema.roomMembers.userId, userId)))
     .get()

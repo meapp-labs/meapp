@@ -1,4 +1,4 @@
-export { db, schema, sqlite, checkpoint, createDb, getDbInstance } from './client.ts'
+export { schema, checkpoint, createDb, getDbInstance, openDefaultDb } from './client.ts'
 export type { DB, DbInstance } from './client.ts'
 export { eq, and, or, desc, asc, max, inArray, count, gt, lt, sql } from 'drizzle-orm'
 export { runMigrations } from './migrate.ts'
