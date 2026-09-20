@@ -9,6 +9,7 @@
     "@biomejs/biome": "^1.9.0"
   },
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
     "dev": "podman compose -f compose.dev.yaml up -d && podman compose -f compose.dev.yaml logs -f",
     "dev:server": "bun --filter @meapp/server dev",
     "dev:client": "bun --filter @meapp/client dev",

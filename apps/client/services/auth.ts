@@ -5,7 +5,7 @@ import { Platform } from 'react-native'
 import { type ApiError, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
-import type { LoginType, RegisterType } from '@/validation/userValidation'
+import type { LoginType, RegisterType } from '@meapp/shared'
 
 export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({

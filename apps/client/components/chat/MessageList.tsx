@@ -2,9 +2,10 @@ import React from 'react'
 import { ActivityIndicator, FlatList } from 'react-native'
 
 import { Loader } from '@/components/Loader'
-import { type BaseMessage, MessageBubble } from '@/components/chat/MessageBubble'
+import { MessageBubble } from '@/components/chat/MessageBubble'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
+import type { Message } from '@/types/models'
 
 type ChatProps = {
   conversationId: string
@@ -34,26 +35,21 @@ export function MessageList({ conversationId }: ChatProps) {
 
   if (!isSuccess) return null
 
-  // Adapt Message to BaseMessage for MessageBubble
-  const adaptedMessages: BaseMessage[] = messages.map((msg) => ({
-    index: String(msg.index),
-    from: msg.from,
-    text: msg.text,
-    timestamp: msg.timestamp,
-  }))
-
   return (
-    <FlatList<BaseMessage>
+    <FlatList<Message>
       inverted
-      data={adaptedMessages}
+      data={messages}
       renderItem={({ item, index }) => (
         <MessageBubble.Wrapper
           message={item}
-          prevTimestamp={adaptedMessages[index + 1]?.timestamp}
+          prevTimestamp={
+            messages[index + 1]?.timestamp ||
+            (messages[index + 1]?.createdAt ? String(messages[index + 1]?.createdAt) : undefined)
+          }
           currentUsername={username}
         />
       )}
-      keyExtractor={(item) => item.index}
+      keyExtractor={(item) => item.id ?? String(item.sequence ?? item.index ?? Math.random())}
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={true}
       maxToRenderPerBatch={10}

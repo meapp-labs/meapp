@@ -14,7 +14,7 @@ import { useAuthStore } from '@/lib/stores'
 import { useLoginUser } from '@/services/auth'
 import { RememberMeStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
-import { LoginSchema, type LoginType } from '@/validation/userValidation'
+import { LoginSchema, type LoginType } from '@meapp/shared'
 
 export function LoginForm() {
   const setUsername = useAuthStore((state) => state.setUsername)

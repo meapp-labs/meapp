@@ -19,6 +19,7 @@
 **/.expo-shared
 **/android
 **/ios
+**/google-services.json
 
 # Build outputs (anywhere in repo)
 **/dist

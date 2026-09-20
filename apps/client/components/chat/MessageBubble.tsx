@@ -5,16 +5,12 @@ import { StyleSheet, View } from 'react-native'
 import { Text } from '@/components/common/Text'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { theme } from '@/theme/theme'
+import type { Message } from '@/types/models'
 
-export type BaseMessage = {
-  index: string
-  from: string
-  text: string
-  timestamp: string
-}
+export type BaseMessage = Message
 
 type MessageProps = {
-  message: BaseMessage
+  message: Message
   time: string
 }
 
@@ -68,11 +64,13 @@ export const MessageBubble = {
     prevTimestamp,
     currentUsername,
   }: {
-    message: BaseMessage
+    message: Message
     prevTimestamp: string | undefined
     currentUsername: string
   }) {
-    const date = new Date(message.timestamp)
+    const rawTimestamp =
+      message.timestamp || (message.createdAt ? String(message.createdAt) : undefined)
+    const date = rawTimestamp ? new Date(rawTimestamp) : new Date()
     const prevDate = prevTimestamp ? new Date(prevTimestamp) : null
 
     const time = timeFormatter.format(date)
@@ -84,9 +82,11 @@ export const MessageBubble = {
       prevDate.getMonth() !== date.getMonth() ||
       prevDate.getDate() !== date.getDate()
 
+    const sender = message.from || message.userId || ''
+
     return (
       <>
-        {message.from === currentUsername ? (
+        {sender === currentUsername ? (
           <MessageBubble.Sent message={message} time={time} />
         ) : (
           <MessageBubble.Received message={message} time={time} />

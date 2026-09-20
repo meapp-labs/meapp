@@ -5,13 +5,18 @@ import { z } from 'zod'
 // ─────────────────────────────────────────────────────────────
 
 export const messageSchema = z.object({
-  id: z.string().uuid(),
-  clientId: z.string().uuid(),
-  roomId: z.string().uuid(),
-  userId: z.string().uuid(),
-  sequence: z.number().int().nonnegative(), // V7 monotonic sequence per room
+  id: z.string(),
+  clientId: z.string().optional(),
+  roomId: z.string().optional(),
+  userId: z.string().optional(),
+  sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
   text: z.string().min(1).max(4000),
-  createdAt: z.coerce.date(),
+  createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
+  // Compatibility & UI fields across REST and WebSocket
+  index: z.union([z.number(), z.string()]).optional(),
+  from: z.string().optional(),
+  type: z.string().optional().default('text'),
+  timestamp: z.string().optional(),
 })
 
 export type Message = z.infer<typeof messageSchema>
@@ -106,12 +111,20 @@ export const getMessagesQuerySchema = z.object({
 
 export type GetMessagesQuery = z.infer<typeof getMessagesQuerySchema>
 
-export const sendMessageSchema = createMessageSchema
-export type SendMessageInput = CreateMessageInput
+export const sendMessageSchema = z.object({
+  roomId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().optional(),
+  text: z.string().min(1).max(4000),
+  clientId: z.string().uuid().optional(),
+})
+export type SendMessageInput = z.infer<typeof sendMessageSchema>
+export type SendMessageRequest = SendMessageInput
 
 export const messagesResponseSchema = z.object({
   messages: z.array(messageSchema),
   nextAfter: z.number().int().nonnegative().optional(),
+  hasMore: z.boolean().optional(),
+  totalCount: z.number().int().nonnegative().optional(),
 })
 
 export type MessagesResponse = z.infer<typeof messagesResponseSchema>

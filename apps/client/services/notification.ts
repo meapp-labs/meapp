@@ -92,7 +92,7 @@ export function handleIncomingNotification(
           {
             messages: updatedMessages,
             hasMore: old.pages[0].hasMore,
-            totalCount: old.pages[0].totalCount + 1,
+            totalCount: (old.pages[0].totalCount ?? 0) + 1,
           },
           ...old.pages.slice(1),
         ],

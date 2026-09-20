@@ -7,6 +7,7 @@ export type {
   CreateConversationInput,
   GetMessagesQuery,
   LoginInput,
+  LoginType,
   Message,
   CreateMessageInput,
   MessageWsIncoming,
@@ -15,9 +16,11 @@ export type {
   Platform,
   PushTokenInput,
   RegisterInput,
+  RegisterType,
   Room,
   CreateRoomInput,
   SendMessageInput,
+  SendMessageRequest,
   User,
 } from '../schemas/index.ts'
 

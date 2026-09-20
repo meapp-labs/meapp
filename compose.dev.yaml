@@ -19,6 +19,7 @@ services:
       - ./packages/shared/src:/app/packages/shared/src:z
       - ./package.json:/app/package.json:ro,z
       - ./bun.lock:/app/bun.lock:ro,z
+      - meapp-server-node-modules:/app/node_modules:Z
       - meapp-server-data:/app/data:Z # FIX #5 - persistent SQLite
     env_file: apps/server/.env.local
     environment:
@@ -37,3 +38,4 @@ networks:
 volumes:
   meapp-redis-data:
   meapp-server-data: # FIX #5
+  meapp-server-node-modules:

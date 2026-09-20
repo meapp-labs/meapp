@@ -15,7 +15,7 @@ import { theme } from '@/theme/theme'
 function getDisplayName(
   conversation: {
     participants: string[]
-    name?: string
+    name?: string | undefined
     isGroup: boolean
   } | null,
   currentUsername: string,

@@ -10,7 +10,7 @@ import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
 import { useRegisterUser } from '@/services/auth'
 import { theme } from '@/theme/theme'
-import { RegisterSchema, type RegisterType } from '@/validation/userValidation'
+import { RegisterSchema, type RegisterType } from '@meapp/shared'
 
 export function RegisterForm() {
   const { mutate, isPending } = useRegisterUser()
