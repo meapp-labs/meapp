@@ -5,11 +5,9 @@ import { theme } from '@/theme/theme'
 
 export function NotFoundScreen() {
   return (
-    <>
-      <View style={styles.container}>
-        <Text>This screen does not exist.</Text>
-      </View>
-    </>
+    <View style={styles.container}>
+      <Text>This screen does not exist.</Text>
+    </View>
   )
 }
 

@@ -2,10 +2,7 @@ import { z } from 'zod'
 
 /** True in prod: NODE_ENV=production (server) or APP_VARIANT=production (Expo). */
 export const isProdEnv = (): boolean =>
-  // biome-ignore lint/complexity/useLiteralKeys: tsconfig requires index access for env
-  process.env['NODE_ENV'] === 'production' ||
-  // biome-ignore lint/complexity/useLiteralKeys: tsconfig requires index access for env
-  process.env['APP_VARIANT'] === 'production'
+  process.env.NODE_ENV === 'production' || process.env.APP_VARIANT === 'production'
 
 // ─────────────────────────────────────────────────────────────
 // Primitives (reused by other schemas)

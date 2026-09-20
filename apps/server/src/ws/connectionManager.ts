@@ -181,14 +181,6 @@ export class WsConnectionManager {
     }
   }
 
-  async releaseAllUserSubscriptions(userId: string): Promise<void> {
-    try {
-      await this.redis.del(`ws:user_rooms:${userId}`)
-    } catch {
-      this.fallbackRoomsPerUser.delete(userId)
-    }
-  }
-
   async checkMessageRateLimit(userId: string): Promise<boolean> {
     try {
       const key = `ratelimit:ws_msg:${userId}`

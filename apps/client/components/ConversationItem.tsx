@@ -17,7 +17,6 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { username } = useAuthStore()
 
-  // Filter out current user from display name
   const displayName =
     conversation.name ||
     conversation.participants.filter((p) => p !== username && p !== '').join(', ') ||
@@ -32,35 +31,33 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   }
 
   return (
-    <>
-      <Pressable
-        onPress={handleSelect}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-        style={[styles.item, hovered && styles.itemHovered, isSelected && styles.itemSelected]}
-      >
-        <View style={styles.container}>
-          <MaterialIcons
-            name={conversation.isGroup ? 'groups' : 'face'}
-            size={38}
-            color={theme.colors.text}
-          />
-          <View style={styles.content}>
-            <Text>{displayName}</Text>
-            {conversation.lastMessagePreview && (
-              <Text style={theme.typography.caption} numberOfLines={1}>
-                {conversation.lastMessagePreview}
-              </Text>
-            )}
-          </View>
-          <Text style={styles.timestamp}>
-            {conversation.lastMessageAt
-              ? new Date(conversation.lastMessageAt).toLocaleDateString()
-              : ''}
-          </Text>
+    <Pressable
+      onPress={handleSelect}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={[styles.item, hovered && styles.itemHovered, isSelected && styles.itemSelected]}
+    >
+      <View style={styles.container}>
+        <MaterialIcons
+          name={conversation.isGroup ? 'groups' : 'face'}
+          size={38}
+          color={theme.colors.text}
+        />
+        <View style={styles.content}>
+          <Text>{displayName}</Text>
+          {conversation.lastMessagePreview && (
+            <Text style={theme.typography.caption} numberOfLines={1}>
+              {conversation.lastMessagePreview}
+            </Text>
+          )}
         </View>
-      </Pressable>
-    </>
+        <Text style={styles.timestamp}>
+          {conversation.lastMessageAt
+            ? new Date(conversation.lastMessageAt).toLocaleDateString()
+            : ''}
+        </Text>
+      </View>
+    </Pressable>
   )
 }
 

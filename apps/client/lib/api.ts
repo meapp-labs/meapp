@@ -34,16 +34,6 @@ export function isApiHttpError(error: unknown): error is ApiHttpError {
   return error instanceof ApiHttpError
 }
 
-export function extractErrorMessage(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message
-  }
-  if (typeof error === 'string') {
-    return error
-  }
-  return 'An unexpected error occurred'
-}
-
 export type ApiError<T = ApiErrorResponse> = ApiHttpError & {
   response?: { data: T }
 }
@@ -141,31 +131,5 @@ export async function postFetcher<TResponse, TRequest = unknown>(
   body?: TRequest,
   init?: RequestInit,
 ): Promise<TResponse> {
-  const targetUrl = buildUrl(url)
-  return request<TResponse>('POST', targetUrl, body, init)
-}
-
-export async function putFetcher<TResponse, TRequest = unknown>(
-  url: string,
-  body?: TRequest,
-  init?: RequestInit,
-): Promise<TResponse> {
-  const targetUrl = buildUrl(url)
-  return request<TResponse>('PUT', targetUrl, body, init)
-}
-
-export async function deleteFetcher<TResponse, TRequest = unknown>(
-  url: string,
-  body?: TRequest,
-  init?: RequestInit,
-): Promise<TResponse> {
-  const targetUrl = buildUrl(url)
-  return request<TResponse>('DELETE', targetUrl, body, init)
-}
-
-export const api = {
-  get: getFetcher,
-  post: postFetcher,
-  put: putFetcher,
-  delete: deleteFetcher,
+  return request<TResponse>('POST', buildUrl(url), body, init)
 }

@@ -66,10 +66,3 @@ export const insertMessageWithSequence = async (
 
   return null
 }
-
-export const nextSequence = async (sqlite: Database, roomId: string): Promise<number> => {
-  const maxRow = sqlite
-    .query('SELECT MAX(sequence) as maxSeq FROM messages WHERE room_id = ?')
-    .get(roomId) as { maxSeq: number | null }
-  return (maxRow?.maxSeq || 0) + 1
-}

@@ -1,3 +1,7 @@
+/**
+ * API paths double as react-query keys. Values are paths relative to the API
+ * root — api.ts prefixes `/api/` automatically.
+ */
 export const Keys = {
   Query: {
     GET_FRIENDS: 'get-others',
@@ -15,4 +19,4 @@ export const Keys = {
     REMOVE_FRIEND: 'remove-other',
     PUSH_TOKEN: 'push-token',
   },
-}
+} as const

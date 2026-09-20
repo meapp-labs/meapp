@@ -164,7 +164,6 @@ export async function registerForPushNotificationsAsync() {
       const pushToken = await Notifications.getExpoPushTokenAsync({
         projectId,
       })
-      console.log(pushToken)
       const pushTokenString = pushToken.data
 
       await postFetcher(Keys.Mutation.PUSH_TOKEN, { token: pushTokenString })

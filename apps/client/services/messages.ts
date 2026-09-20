@@ -11,7 +11,7 @@ import { env } from '@/lib/env'
 import { Keys } from '@/lib/keys'
 import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@meapp/shared'
 
-// Re-export for backwards compatibility
+// Re-export: notification.ts consumes MessagesResponse from this module.
 export type { MessagesResponse } from '@meapp/shared'
 
 /**
