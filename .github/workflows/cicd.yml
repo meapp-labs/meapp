@@ -19,7 +19,7 @@ jobs:
           filters: |
             client:
               - 'apps/client/**'
-              - 'packages/shared/**'
+              - 'packages/**'
               - 'package.json'
               - 'bun.lock'
               - 'bunfig.toml'

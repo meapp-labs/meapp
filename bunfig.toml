@@ -1,6 +1,7 @@
 [install]
 linker = "hoisted"
 auto = true
+workspaces = true
 
 [install.lockfile]
 version = 2
