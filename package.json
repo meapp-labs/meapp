@@ -41,5 +41,5 @@
     "build:android:prev": "bun --filter @meapp/client build:android:prev",
     "build:android:prod": "bun --filter @meapp/client build:android:prod"
   },
-  "overrides": { "typescript": "^5.8.3" }
+  "overrides": { "typescript": "^5.9.3" }
 }

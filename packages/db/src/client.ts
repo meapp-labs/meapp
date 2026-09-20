@@ -49,32 +49,20 @@ export const createDb = (customPath?: string): DbInstance => {
 let defaultInstance: DbInstance | null = null
 
 export const getDbInstance = (customPath?: string): DbInstance => {
+  if (customPath) {
+    return createDb(customPath)
+  }
   if (!defaultInstance) {
-    defaultInstance = createDb(customPath)
+    defaultInstance = createDb()
   }
   return defaultInstance
 }
 
+export const db: DB = getDbInstance().db
+export const sqlite: Database = getDbInstance().sqlite
+
 export const checkpoint = (): void => {
-  if (defaultInstance) {
-    defaultInstance.checkpoint()
-  }
+  getDbInstance().checkpoint()
 }
-
-export const db: DB = new Proxy({} as DB, {
-  get(_target, prop, receiver) {
-    const instance = getDbInstance()
-    const value = Reflect.get(instance.db, prop, receiver)
-    return typeof value === 'function' ? value.bind(instance.db) : value
-  },
-})
-
-export const sqlite: Database = new Proxy({} as Database, {
-  get(_target, prop, receiver) {
-    const instance = getDbInstance()
-    const value = Reflect.get(instance.sqlite, prop, receiver)
-    return typeof value === 'function' ? value.bind(instance.sqlite) : value
-  },
-})
 
 export { schema }

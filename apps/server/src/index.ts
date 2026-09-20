@@ -18,7 +18,8 @@ export const app = new Elysia()
   // Cookie sessions require credentialed CORS with an explicit origin.
   .use(
     cors({
-      origin: isProduction && env.DOMAIN ? env.DOMAIN : /localhost|127\.0\.0\.1/,
+      origin:
+        isProduction && env.DOMAIN ? env.DOMAIN : /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     }),
@@ -84,7 +85,7 @@ export const app = new Elysia()
       db: dbStatus,
       redis: redisStatus,
       podman: true,
-      bun: '1.4.2',
+      bun: Bun.version,
       timestamp: new Date().toISOString(),
     }
   })

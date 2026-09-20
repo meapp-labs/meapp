@@ -30,7 +30,6 @@
     "@react-navigation/elements": "^2.9.43",
     "@react-navigation/native": "^7.1.8",
     "@tanstack/react-query": "^5.103.1",
-    "babel-plugin-react-compiler": "^19.0.0-beta-ebf51a3-20250411",
     "cross-env": "^10.1.0",
     "expo": "~54.0.37",
     "expo-build-properties": "~1.0.10",

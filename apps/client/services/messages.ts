@@ -9,7 +9,6 @@ import { useEffect, useRef } from 'react'
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { env } from '@/lib/env'
 import { Keys } from '@/lib/keys'
-import { useAuthStore } from '@/lib/stores'
 import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@/types/models'
 
 // Re-export for backwards compatibility
@@ -100,7 +99,6 @@ export function useGetMessages({
   enabled?: boolean
 }) {
   const queryClient = useQueryClient()
-  const token = useAuthStore((s) => s.token)
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -148,16 +146,30 @@ export function useGetMessages({
     enabled: !!conversationId && enabled,
   })
 
-  // Real-time WebSocket subscription
+  // Real-time WebSocket subscription with /ws/ticket auth & exponential backoff
   useEffect(() => {
     if (!enabled || !conversationId) return
 
     let isSubscribed = true
+    let retryAttempt = 0
 
-    const connectWebSocket = () => {
+    const connectWebSocket = async () => {
       if (!isSubscribed) return
 
       try {
+        // 1. Request single-use WS ticket from server
+        let ticket: string | undefined
+        try {
+          const res = await postFetcher<{ ticket?: string }>('/ws/ticket', {
+            roomId: conversationId,
+          })
+          ticket = res.ticket
+        } catch (e) {
+          console.warn('[WebSocket] Could not obtain ticket:', e)
+        }
+
+        if (!isSubscribed) return
+
         const baseWsUrl = env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')
         const wsUrl = `${baseWsUrl}/ws?roomId=${encodeURIComponent(conversationId)}`
         const ws = new WebSocket(wsUrl)
@@ -168,8 +180,9 @@ export function useGetMessages({
             ws.close()
             return
           }
-          if (token) {
-            ws.send(JSON.stringify({ type: 'auth', payload: { token } }))
+          retryAttempt = 0
+          if (ticket) {
+            ws.send(JSON.stringify({ type: 'auth', payload: { ticket } }))
           }
         }
 
@@ -187,7 +200,7 @@ export function useGetMessages({
                   from: p.userId,
                   text: p.text,
                   type: 'text',
-                  timestamp: p.createdAt || new Date().toISOString(),
+                  timestamp: p.createdAt ? String(p.createdAt) : new Date().toISOString(),
                 }
 
                 queryClient.setQueryData<{
@@ -228,9 +241,11 @@ export function useGetMessages({
 
         ws.onclose = () => {
           if (!isSubscribed) return
+          const delay = Math.min(1000 * 2 ** retryAttempt + Math.random() * 500, 30000)
+          retryAttempt++
           reconnectTimerRef.current = setTimeout(() => {
-            connectWebSocket()
-          }, 3000)
+            void connectWebSocket()
+          }, delay)
         }
 
         ws.onerror = () => {
@@ -238,10 +253,16 @@ export function useGetMessages({
         }
       } catch (err) {
         console.error('[WebSocket] Connection error:', err)
+        if (!isSubscribed) return
+        const delay = Math.min(1000 * 2 ** retryAttempt + Math.random() * 500, 30000)
+        retryAttempt++
+        reconnectTimerRef.current = setTimeout(() => {
+          void connectWebSocket()
+        }, delay)
       }
     }
 
-    connectWebSocket()
+    void connectWebSocket()
 
     return () => {
       isSubscribed = false
@@ -254,7 +275,7 @@ export function useGetMessages({
         wsRef.current = null
       }
     }
-  }, [conversationId, enabled, token, queryClient])
+  }, [conversationId, enabled, queryClient])
 
   return query
 }

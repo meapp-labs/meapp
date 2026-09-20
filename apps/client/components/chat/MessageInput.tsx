@@ -1,13 +1,6 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import { useRef, useState } from 'react'
-import {
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from 'react-native'
+import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
 
 import { Attachment } from '@/components/chat/Attachment'
 import { useSendMessage } from '@/services/messages'
@@ -29,33 +22,28 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-    >
-      <View style={styles.container}>
-        <View style={styles.attachment}>
-          <Attachment showModal={showModal} setShowModal={setShowModal} />
-        </View>
-        <TextInput
-          ref={inputRef}
-          style={styles.inputField}
-          value={inputData}
-          placeholder="Type a message..."
-          placeholderTextColor="#9BA1A6"
-          onChangeText={setInputData}
-          onSubmitEditing={handleSend}
-          blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
-          submitBehavior="submit"
-          multiline
-          numberOfLines={1}
-          maxLength={1000}
-        />
-        <TouchableOpacity style={styles.send} onPress={handleSend}>
-          <MaterialIcons name="send" size={24} color={theme.colors.text} />
-        </TouchableOpacity>
+    <View style={styles.container}>
+      <View style={styles.attachment}>
+        <Attachment showModal={showModal} setShowModal={setShowModal} />
       </View>
-    </KeyboardAvoidingView>
+      <TextInput
+        ref={inputRef}
+        style={styles.inputField}
+        value={inputData}
+        placeholder="Type a message..."
+        placeholderTextColor="#9BA1A6"
+        onChangeText={setInputData}
+        onSubmitEditing={handleSend}
+        blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
+        submitBehavior="submit"
+        multiline
+        numberOfLines={1}
+        maxLength={1000}
+      />
+      <TouchableOpacity style={styles.send} onPress={handleSend}>
+        <MaterialIcons name="send" size={24} color={theme.colors.text} />
+      </TouchableOpacity>
+    </View>
   )
 }
 

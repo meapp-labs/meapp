@@ -1,7 +1,7 @@
 import { jwt } from '@elysiajs/jwt'
 import { Elysia } from 'elysia'
 
-import { SESSION_COOKIE_NAME, env } from '../lib/config.ts'
+import { LOGIN_CONFIG, SESSION_COOKIE_NAME, env } from '../lib/config.ts'
 import type { SessionUser } from '../lib/session.ts'
 
 type JwtPayload = {
@@ -11,26 +11,24 @@ type JwtPayload = {
 }
 
 /**
- * Resolves the caller from, in order: the HttpOnly session cookie (web), the
- * Authorization header (native) or a `token` query param (native WS fallback).
- * Elysia 1.4 provides `cookie` and `set.cookie` natively.
+ * Resolves the caller from, in order: the HttpOnly session cookie (web), or the
+ * Authorization header (native).
+ * WebSocket authentication uses single-use tickets (/ws/ticket).
  */
 export const authPlugin = new Elysia({ name: 'auth' })
   .use(
     jwt({
       name: 'jwt',
       secret: env.JWT_SECRET,
-      exp: '15m',
+      exp: `${LOGIN_CONFIG.SESSION_TTL_SECONDS}s`,
     }),
   )
-  .derive({ as: 'global' }, async ({ jwt, cookie, headers, query }) => {
+  .derive({ as: 'global' }, async ({ jwt, cookie, headers }) => {
     const cookieToken = cookie[SESSION_COOKIE_NAME]?.value
     const authHeader = headers.authorization
     const headerToken = authHeader?.replace('Bearer ', '')
-    const queryToken = (query as Record<string, string | undefined>).token
 
-    const token =
-      (typeof cookieToken === 'string' ? cookieToken : undefined) || headerToken || queryToken
+    const token = (typeof cookieToken === 'string' ? cookieToken : undefined) || headerToken
 
     if (!token) {
       return { user: null as SessionUser | null }

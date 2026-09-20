@@ -4,9 +4,7 @@ import { createJSONStorage, persist } from 'zustand/middleware'
 
 type AuthStore = {
   username: string
-  token: string | null
   setUsername: (username: string) => void
-  setToken: (token: string | null) => void
   reset: () => void
 }
 
@@ -14,10 +12,8 @@ export const useAuthStore = create<AuthStore>()(
   persist(
     (set) => ({
       username: '',
-      token: null,
       setUsername: (username: string) => set({ username }),
-      setToken: (token: string | null) => set({ token }),
-      reset: () => set({ username: '', token: null }),
+      reset: () => set({ username: '' }),
     }),
     {
       name: 'meapp-auth',

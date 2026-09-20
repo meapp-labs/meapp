@@ -15,8 +15,27 @@ export class WsConnectionManager {
   private fallbackRoomsPerUser = new Map<string, Set<string>>()
   private fallbackMsgRate = new Map<string, { count: number; reset: number }>()
   private fallbackTypingRate = new Map<string, { count: number; reset: number }>()
+  private cleanupInterval: ReturnType<typeof setInterval>
 
-  constructor(private readonly redis: Redis) {}
+  constructor(private readonly redis: Redis) {
+    this.cleanupInterval = setInterval(
+      () => {
+        const now = Date.now()
+        for (const [key, bucket] of this.fallbackMsgRate) {
+          if (bucket.reset < now - 60000) {
+            this.fallbackMsgRate.delete(key)
+          }
+        }
+        for (const [key, bucket] of this.fallbackTypingRate) {
+          if (bucket.reset < now - 60000) {
+            this.fallbackTypingRate.delete(key)
+          }
+        }
+      },
+      5 * 60 * 1000,
+    )
+    this.cleanupInterval.unref?.()
+  }
 
   async canAcceptUnauth(ip: string): Promise<boolean> {
     try {

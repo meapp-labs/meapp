@@ -17,7 +17,7 @@
     "format:fix": "bunx @biomejs/biome format --write ."
   },
   "dependencies": {
-    "zod": "^4.1.12"
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "typescript": "^5.9.3"

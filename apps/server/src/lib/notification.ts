@@ -23,24 +23,51 @@ export const sendPushNotification = async (options: ExpoPushNotificationOptions)
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
   } = options
 
-  await fetch(EXPO_PUSH_ENDPOINT, {
-    method: 'POST',
-    headers: {
-      Accept: 'application/json',
-      'Accept-encoding': 'gzip, deflate',
-      'Content-Type': 'application/json',
+  const payload = JSON.stringify({
+    to: expoPushToken,
+    title: senderUsername,
+    body: messageText,
+    data: {
+      from: senderUsername,
+      text: messageText,
+      index: messageIndex,
+      timestamp,
     },
-    body: JSON.stringify({
-      to: expoPushToken,
-      title: senderUsername,
-      body: messageText,
-      data: {
-        from: senderUsername,
-        text: messageText,
-        index: messageIndex,
-        timestamp,
-      },
-      channelId,
-    }),
+    channelId,
   })
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const response = await fetch(EXPO_PUSH_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: payload,
+      })
+
+      if (response.ok) {
+        return
+      }
+
+      if (response.status === 429 || response.status >= 500) {
+        if (attempt === 0) {
+          await new Promise((r) => setTimeout(r, 1000))
+          continue
+        }
+      }
+
+      const errorText = await response.text().catch(() => 'unknown')
+      console.warn(`[Push] Failed to send push notification (${response.status}): ${errorText}`)
+      return
+    } catch (err) {
+      if (attempt === 0) {
+        await new Promise((r) => setTimeout(r, 1000))
+        continue
+      }
+      console.warn('[Push] Network error sending push notification:', err)
+    }
+  }
 }

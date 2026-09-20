@@ -1,4 +1,5 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
+import { promisify } from 'node:util'
 import { db, eq, schema } from '@meapp/db'
 import { loginSchema, pushTokenSchema, registerSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
@@ -17,8 +18,12 @@ import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
 import { sessionJwtPlugin } from '../plugins/session.ts'
 
-const hashPassword = (password: string, salt: string): string =>
-  scryptSync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH).toString('hex')
+const scryptAsync = promisify(scryptCb)
+
+const hashPassword = async (password: string, salt: string): Promise<string> => {
+  const buf = (await scryptAsync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH)) as Buffer
+  return buf.toString('hex')
+}
 
 const loginAttemptsKey = (username: string) => `ratelimit:login:${username}`
 
@@ -42,7 +47,8 @@ export const authRoutes = new Elysia({ prefix: '/api' })
       }
 
       const salt = randomBytes(LOGIN_CONFIG.SALT_LENGTH).toString('hex')
-      const passwordHash = `${salt}:${hashPassword(password, salt)}`
+      const hash = await hashPassword(password, salt)
+      const passwordHash = `${salt}:${hash}`
       const userId = Bun.randomUUIDv7()
 
       await handleAsyncOperation(
@@ -109,7 +115,11 @@ export const authRoutes = new Elysia({ prefix: '/api' })
         throw new ApiError(ErrorCode.DATA_CORRUPTION, 'User data is corrupted', 500)
       }
 
-      const hashedBuffer = scryptSync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH)
+      const hashedBuffer = (await scryptAsync(
+        password,
+        salt,
+        LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
+      )) as Buffer
       const keyBuffer = Buffer.from(key, 'hex')
       const matches =
         hashedBuffer.length === keyBuffer.length && timingSafeEqual(hashedBuffer, keyBuffer)

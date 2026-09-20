@@ -6,8 +6,12 @@ const serverEnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().default(3000),
-    HOST: z.string().default('127.0.0.1'),
+    HOST: z
+      .string()
+      .regex(/^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[a-zA-Z0-9.-]+$/)
+      .default('127.0.0.1'),
     DOMAIN: z.string().optional(),
+    DATABASE_URL: z.string().default('./data/data.db'),
     REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
     JWT_SECRET: z.string().default('dev-secret-change-me'),
     WS_TICKET_SECRET: z.string().optional(),

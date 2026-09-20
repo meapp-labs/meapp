@@ -6,7 +6,7 @@ export type ApiErrorResponse = SharedApiError
 function sanitizeErrorMessage(rawMessage: string): string {
   if (!rawMessage || typeof rawMessage !== 'string') return 'An error occurred'
   return rawMessage
-    .replace(/(?:\/[a-zA-Z0-9_.-]+)+/g, '[path]')
+    .replace(/(?:\/(?:Users|home|app|var|node_modules|src)[\w.-]*)+/gi, '[path]')
     .replace(/[A-Za-z]:\\[\w\\.-]+/g, '[path]')
     .trim()
 }

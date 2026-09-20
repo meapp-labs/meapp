@@ -6,7 +6,7 @@ export const useBreakpoint = () => {
   return {
     width,
     isDesktop: width >= 1024,
-    isTablet: width > 768 && width < 1023,
-    isMobile: width <= 767,
+    isTablet: width >= 768 && width < 1024,
+    isMobile: width < 768,
   }
 }
