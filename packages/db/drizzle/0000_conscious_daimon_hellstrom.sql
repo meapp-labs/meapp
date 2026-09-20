@@ -1,15 +1,14 @@
-CREATE TABLE `attachments` (
-	`id` text PRIMARY KEY NOT NULL,
-	`message_id` text NOT NULL,
-	`type` text NOT NULL,
-	`url` text NOT NULL,
-	`name` text,
-	`mime_type` text,
-	`size_bytes` integer,
-	FOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade
+CREATE TABLE `contacts` (
+	`user_id` text NOT NULL,
+	`contact_user_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	PRIMARY KEY(`user_id`, `contact_user_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`contact_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `attachments_message_idx` ON `attachments` (`message_id`);--> statement-breakpoint
+CREATE INDEX `contacts_user_idx` ON `contacts` (`user_id`);--> statement-breakpoint
+CREATE INDEX `contacts_contact_user_idx` ON `contacts` (`contact_user_id`);--> statement-breakpoint
 CREATE TABLE `rooms` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
@@ -47,17 +46,6 @@ CREATE TABLE `room_members` (
 --> statement-breakpoint
 CREATE INDEX `room_members_room_idx` ON `room_members` (`room_id`);--> statement-breakpoint
 CREATE INDEX `room_members_user_idx` ON `room_members` (`user_id`);--> statement-breakpoint
-CREATE TABLE `sessions` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`token` text NOT NULL,
-	`expires_at` integer NOT NULL,
-	`created_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE UNIQUE INDEX `sessions_token_unique` ON `sessions` (`token`);--> statement-breakpoint
-CREATE INDEX `sessions_user_id_idx` ON `sessions` (`user_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text,
