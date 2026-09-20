@@ -262,10 +262,22 @@ export function useGetMessages({
       }
     }
 
+    const handleBeforeUnload = () => {
+      if (wsRef.current) {
+        wsRef.current.close()
+      }
+    }
+    if (typeof window !== 'undefined' && window.addEventListener) {
+      window.addEventListener('beforeunload', handleBeforeUnload)
+    }
+
     void connectWebSocket()
 
     return () => {
       isSubscribed = false
+      if (typeof window !== 'undefined' && window.removeEventListener) {
+        window.removeEventListener('beforeunload', handleBeforeUnload)
+      }
       if (reconnectTimerRef.current) {
         clearTimeout(reconnectTimerRef.current)
         reconnectTimerRef.current = null

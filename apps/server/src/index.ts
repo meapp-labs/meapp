@@ -14,12 +14,18 @@ import { messageRoutes } from './routes/messages.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
 import { chatWs } from './ws/chat.ts'
 
+const allowedOrigins =
+  isProduction && env.DOMAIN
+    ? env.DOMAIN.includes(',')
+      ? env.DOMAIN.split(',').map((d) => d.trim())
+      : env.DOMAIN
+    : /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/
+
 export const app = new Elysia()
   // Cookie sessions require credentialed CORS with an explicit origin.
   .use(
     cors({
-      origin:
-        isProduction && env.DOMAIN ? env.DOMAIN : /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/,
+      origin: allowedOrigins,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     }),
@@ -110,7 +116,14 @@ process.on('beforeExit', () => {
 })
 
 if (import.meta.main) {
-  app.listen({ port: env.PORT, hostname: env.HOST }, () => {
-    console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
-  })
+  app.listen(
+    {
+      port: env.PORT,
+      hostname: env.HOST,
+      maxRequestBodySize: 10 * 1024 * 1024,
+    },
+    () => {
+      console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
+    },
+  )
 }

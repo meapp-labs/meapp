@@ -130,11 +130,13 @@ cleanupInterval.unref?.()
 
 export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
   .use(authPlugin)
-  .onBeforeHandle({ as: 'global' }, async ({ user, request, set }) => {
+  .onBeforeHandle({ as: 'global' }, async ({ user, request, set, server }) => {
     const url = new URL(request.url)
     const path = url.pathname
     const method = request.method
-    const ip = request.headers.get('x-forwarded-for') || '127.0.0.1'
+    const socketIp = server?.requestIP?.(request)?.address
+    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+    const ip = socketIp || forwarded || request.headers.get('x-real-ip') || '127.0.0.1'
 
     // HTTP Body size limits
     const contentLength = request.headers.get('content-length')

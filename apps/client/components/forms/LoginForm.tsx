@@ -10,6 +10,7 @@ import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
+import { AuthStorage } from '@/lib/authStorage'
 import { useAuthStore } from '@/lib/stores'
 import { useLoginUser } from '@/services/auth'
 import { RememberMeStorage } from '@/services/storage'
@@ -35,8 +36,12 @@ export function LoginForm() {
 
   const onSubmit = handleSubmit((data: LoginType) => {
     mutate(data, {
-      onSuccess: () => {
+      onSuccess: (res) => {
         setUsername(data.username)
+
+        if (typeof res === 'object' && res && 'token' in res) {
+          void AuthStorage.setToken(res.token)
+        }
 
         if (rememberMe) {
           void RememberMeStorage.save()

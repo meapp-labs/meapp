@@ -5,6 +5,7 @@ import { canAccessRoom } from '../lib/authz.ts'
 import { WS_CONFIG, env } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
+import { inMemoryTickets } from '../routes/wsTicket.ts'
 import { WsConnectionManager, type WsSessionState } from './connectionManager.ts'
 
 const connectionManager = new WsConnectionManager(redis)
@@ -180,7 +181,24 @@ export const chatWs = new Elysia()
           }
 
           const key = `ws_ticket:${payload.jti}`
-          const stored = await redisClient.get(key)
+          let stored: string | null = null
+          try {
+            stored = await redisClient.get(key)
+            if (stored) {
+              await redisClient.del(key)
+            }
+          } catch {
+            // Redis unavailable - fallback to inMemoryTickets
+          }
+
+          if (!stored) {
+            const fallback = inMemoryTickets.get(payload.jti)
+            if (fallback && fallback.exp > Date.now()) {
+              stored = JSON.stringify({ userId: fallback.userId, roomId: fallback.roomId })
+              inMemoryTickets.delete(payload.jti)
+            }
+          }
+
           if (!stored) {
             ws.send(
               JSON.stringify({
@@ -191,9 +209,6 @@ export const chatWs = new Elysia()
             ws.close(4401, 'Ticket invalid')
             return
           }
-
-          // Single-use: delete immediately
-          await redisClient.del(key)
 
           const userId = payload.sub
           if (payload.roomId !== roomId) {

@@ -17,6 +17,7 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'meapp-auth',
+      version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),
@@ -35,6 +36,7 @@ export const useConversationStore = create<ConversationStore>()(
     }),
     {
       name: 'meapp-conversation',
+      version: 1,
       storage: createJSONStorage(() => AsyncStorage),
     },
   ),

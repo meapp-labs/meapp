@@ -3,7 +3,6 @@ import {
   asc,
   count,
   db,
-  desc,
   eq,
   gt,
   inArray,
@@ -200,6 +199,28 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       .innerJoin(schema.users, eq(schema.roomMembers.userId, schema.users.id))
       .where(inArray(schema.roomMembers.roomId, roomIds))
 
+    // Single query for last messages across all candidate rooms (eliminates N+1)
+    const placeholders = roomIds.map(() => '?').join(',')
+    const lastMessages = sqlite
+      .query(
+        `SELECT m.room_id as roomId, m.text, m.created_at as createdAt, u.username
+         FROM messages m
+         INNER JOIN users u ON m.user_id = u.id
+         WHERE (m.room_id, m.sequence) IN (
+           SELECT room_id, MAX(sequence)
+           FROM messages
+           WHERE room_id IN (${placeholders})
+           GROUP BY room_id
+         )`,
+      )
+      .all(...roomIds) as Array<{
+      roomId: string
+      text: string
+      createdAt: number
+      username: string | null
+    }>
+
+    const lastMsgByRoom = new Map(lastMessages.map((m) => [m.roomId, m]))
     const conversations: Conversation[] = []
 
     for (const room of rooms) {
@@ -208,19 +229,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         .map((m) => m.username)
         .filter(Boolean) as string[]
 
-      // Get last message in this room
-      const lastMsg = await db
-        .select({
-          text: schema.messages.text,
-          createdAt: schema.messages.createdAt,
-          username: schema.users.username,
-        })
-        .from(schema.messages)
-        .innerJoin(schema.users, eq(schema.messages.userId, schema.users.id))
-        .where(eq(schema.messages.roomId, room.id))
-        .orderBy(desc(schema.messages.sequence))
-        .limit(1)
-        .get()
+      const lastMsg = lastMsgByRoom.get(room.id)
 
       conversations.push({
         id: room.id,

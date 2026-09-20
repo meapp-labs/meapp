@@ -151,6 +151,10 @@ export const authRoutes = new Elysia({ prefix: '/api' })
         secure: isProduction,
       })
 
+      if (platform !== 'web') {
+        return { username, token }
+      }
+
       return username
     },
     { body: loginSchema },

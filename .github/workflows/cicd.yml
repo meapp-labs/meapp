@@ -83,7 +83,7 @@ jobs:
         run: |
           echo ${{ secrets.GITHUB_TOKEN }} | podman login ghcr.io -u ${{ github.actor }} --password-stdin
           SHA_TAG=sha-${{ github.sha }}
-          podman build -t ghcr.io/meapp-labs/meapp:$SHA_TAG -t ghcr.io/meapp-labs/meapp:server -f apps/server/Dockerfile .
+          podman build -t ghcr.io/meapp-labs/meapp:$SHA_TAG -t ghcr.io/meapp-labs/meapp:server -f Containerfile .
           podman push ghcr.io/meapp-labs/meapp:$SHA_TAG
           podman push ghcr.io/meapp-labs/meapp:server
           echo "SHA_TAG=$SHA_TAG" >> $GITHUB_ENV

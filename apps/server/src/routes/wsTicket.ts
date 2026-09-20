@@ -6,6 +6,15 @@ import { env } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
 
+export const inMemoryTickets = new Map<string, { userId: string; roomId: string; exp: number }>()
+const cleanupInterval = setInterval(() => {
+  const now = Date.now()
+  for (const [key, val] of inMemoryTickets) {
+    if (val.exp < now) inMemoryTickets.delete(key)
+  }
+}, 30000)
+cleanupInterval.unref?.()
+
 export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
   .use(authPlugin)
   .use(redisPlugin)
@@ -37,13 +46,12 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
         return { error: 'Forbidden' }
       }
 
-      // Retry on jti collision (Fix #2)
+      // Retry on jti collision
       for (let attempt = 0; attempt < 3; attempt++) {
         const jti = randomUUID()
         const ticket = await ticketJwt.sign({ sub: user.id, roomId, jti, type: 'ws_ticket' })
 
         try {
-          // FIX: Check result of SET NX using redis.call to ensure cross-compatible argument support
           const result = (await redis.call(
             'SET',
             `ws_ticket:${jti}`,
@@ -57,10 +65,10 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
             continue
           }
           return { ticket, expiresIn: 60, jti }
-        } catch (e) {
-          console.error('[wsTicket] Redis SET failed for ticket:', e)
-          set.status = 503
-          return { error: 'Ticket service unavailable, retry' }
+        } catch {
+          // Redis offline fallback
+          inMemoryTickets.set(jti, { userId: user.id, roomId, exp: Date.now() + 70000 })
+          return { ticket, expiresIn: 60, jti }
         }
       }
 

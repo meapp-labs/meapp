@@ -1,10 +1,11 @@
 import React from 'react'
-import { ActivityIndicator, FlatList } from 'react-native'
+import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 
 import { Loader } from '@/components/Loader'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
+import { theme } from '@/theme/theme'
 import type { Message } from '@/types/models'
 
 type ChatProps = {
@@ -14,10 +15,18 @@ type ChatProps = {
 export function MessageList({ conversationId }: ChatProps) {
   const { username } = useAuthStore()
 
-  const { data, isPending, isSuccess, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    useGetMessages({
-      conversationId,
-    })
+  const {
+    data,
+    isPending,
+    isSuccess,
+    isError,
+    refetch,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useGetMessages({
+    conversationId,
+  })
 
   // Flatten all pages into a single message array and reverse
   const messages = React.useMemo(() => {
@@ -32,6 +41,17 @@ export function MessageList({ conversationId }: ChatProps) {
   }, [hasNextPage, isFetchingNextPage, fetchNextPage])
 
   if (isPending) return <Loader text="Loading messages..." />
+
+  if (isError) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Failed to load messages</Text>
+        <TouchableOpacity style={styles.retryButton} onPress={() => void refetch()}>
+          <Text style={styles.retryText}>Retry</Text>
+        </TouchableOpacity>
+      </View>
+    )
+  }
 
   if (!isSuccess) return null
 
@@ -49,7 +69,15 @@ export function MessageList({ conversationId }: ChatProps) {
           currentUsername={username}
         />
       )}
-      keyExtractor={(item) => item.id ?? String(item.sequence ?? item.index ?? Math.random())}
+      keyExtractor={(item, index) =>
+        item.id ??
+        item.clientId ??
+        (item.sequence !== undefined
+          ? String(item.sequence)
+          : item.index !== undefined
+            ? String(item.index)
+            : `msg-${index}`)
+      }
       showsVerticalScrollIndicator={false}
       removeClippedSubviews={true}
       maxToRenderPerBatch={10}
@@ -63,3 +91,27 @@ export function MessageList({ conversationId }: ChatProps) {
     />
   )
 }
+
+const styles = StyleSheet.create({
+  centerContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: theme.spacing.lg,
+  },
+  errorText: {
+    fontSize: theme.typography.body.fontSize,
+    color: theme.colors.error,
+    marginBottom: theme.spacing.md,
+  },
+  retryButton: {
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: 8,
+  },
+  retryText: {
+    color: '#ffffff',
+    fontWeight: '600',
+  },
+})

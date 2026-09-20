@@ -1,6 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import { TouchableOpacity } from 'react-native'
 
+import { AuthStorage } from '@/lib/authStorage'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useLogoutUser } from '@/services/auth'
 import { ConversationStorage, RememberMeStorage } from '@/services/storage'
@@ -12,6 +13,7 @@ export function Logout() {
 
   const { mutate: logout } = useLogoutUser({
     onSuccess: () => {
+      void AuthStorage.clear()
       void RememberMeStorage.clear()
       void ConversationStorage.clear()
       setSelectedConversationId(null)

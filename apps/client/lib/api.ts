@@ -1,4 +1,5 @@
 import type { ApiError as SharedApiError } from '@meapp/shared'
+import { AuthStorage } from './authStorage'
 import { env } from './env'
 
 export type ApiErrorResponse = SharedApiError
@@ -53,7 +54,10 @@ function buildUrl(path: string, params?: Record<string, unknown>): string {
     url = new URL(path)
   } else {
     const base = env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '')
-    const cleanPath = path.replace(/^\/+/, '')
+    let cleanPath = path.replace(/^\/+/, '')
+    if (!cleanPath.startsWith('api/') && !cleanPath.startsWith('ws/') && cleanPath !== 'health') {
+      cleanPath = `api/${cleanPath}`
+    }
     url = new URL(`${base}/${cleanPath}`)
   }
 
@@ -75,6 +79,10 @@ async function request<T>(
   init?: RequestInit,
 ): Promise<T> {
   const headers = new Headers(init?.headers)
+  const token = await AuthStorage.getToken()
+  if (token && !headers.has('Authorization')) {
+    headers.set('Authorization', `Bearer ${token}`)
+  }
   if (!headers.has('Accept')) {
     headers.set('Accept', 'application/json')
   }

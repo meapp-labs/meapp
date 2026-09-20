@@ -6,6 +6,7 @@ import Toast from 'react-native-toast-message'
 
 import { Loader } from '@/components/Loader'
 import { postFetcher } from '@/lib/api'
+import { AuthStorage } from '@/lib/authStorage'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
 import { logStartupInfo } from '@/lib/startupInfo'
@@ -38,8 +39,9 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         )
         setUsername(response.username)
       } catch {
-        // Session invalid or expired - clear remember me flag
+        // Session invalid or expired - clear remember me flag and token
         await RememberMeStorage.clear()
+        await AuthStorage.clear()
       } finally {
         setIsCheckingAuth(false)
       }
