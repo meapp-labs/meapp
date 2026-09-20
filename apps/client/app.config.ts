@@ -47,7 +47,9 @@ export const expoConfig = {
         'expo-build-properties',
         {
           android: {
-            usesCleartextTraffic: true,
+            // Cleartext HTTP is only allowed in dev builds (local API server).
+            // Production must talk HTTPS only.
+            usesCleartextTraffic: !IS_PROD,
           },
         },
       ],

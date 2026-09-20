@@ -1,6 +1,23 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
+import { Platform } from 'react-native'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+
+/** AsyncStorage with a localStorage fallback on web. */
+const appStorage = {
+  getItem: async (name: string): Promise<string | null> =>
+    Platform.OS === 'web' && typeof localStorage !== 'undefined'
+      ? localStorage.getItem(name)
+      : AsyncStorage.getItem(name),
+  setItem: async (name: string, value: string): Promise<void> =>
+    Platform.OS === 'web' && typeof localStorage !== 'undefined'
+      ? localStorage.setItem(name, value)
+      : AsyncStorage.setItem(name, value),
+  removeItem: async (name: string): Promise<void> =>
+    Platform.OS === 'web' && typeof localStorage !== 'undefined'
+      ? localStorage.removeItem(name)
+      : AsyncStorage.removeItem(name),
+}
 
 type AuthStore = {
   username: string
@@ -18,7 +35,7 @@ export const useAuthStore = create<AuthStore>()(
     {
       name: 'meapp-auth',
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => appStorage),
     },
   ),
 )
@@ -37,7 +54,7 @@ export const useConversationStore = create<ConversationStore>()(
     {
       name: 'meapp-conversation',
       version: 1,
-      storage: createJSONStorage(() => AsyncStorage),
+      storage: createJSONStorage(() => appStorage),
     },
   ),
 )

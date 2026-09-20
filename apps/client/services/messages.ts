@@ -4,15 +4,15 @@ import {
   useMutation,
   useQueryClient,
 } from '@tanstack/react-query'
-import { useEffect, useRef } from 'react'
 
+import { useWebSocket } from '@/hooks/useWebSocket'
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { env } from '@/lib/env'
 import { Keys } from '@/lib/keys'
-import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@/types/models'
+import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@meapp/shared'
 
 // Re-export for backwards compatibility
-export type { MessagesResponse } from '@/types/models'
+export type { MessagesResponse } from '@meapp/shared'
 
 /**
  * Update the conversation list cache with a new message preview
@@ -99,8 +99,6 @@ export function useGetMessages({
   enabled?: boolean
 }) {
   const queryClient = useQueryClient()
-  const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const query = useInfiniteQuery<
     MessagesResponse,
@@ -134,9 +132,10 @@ export function useGetMessages({
     },
     initialPageParam: {},
     getNextPageParam: (lastPage) => {
+      // List is stored newest-first, so the cursor is the LAST message.
       if (lastPage.hasMore && lastPage.messages.length > 0) {
-        const firstMessage = lastPage.messages[0]
-        const sequence = firstMessage?.sequence ?? firstMessage?.index
+        const oldestMessage = lastPage.messages[lastPage.messages.length - 1]
+        const sequence = oldestMessage?.sequence ?? oldestMessage?.index
         if (sequence !== undefined) {
           return { before: Number(sequence) }
         }
@@ -144,150 +143,79 @@ export function useGetMessages({
       return undefined
     },
     enabled: !!conversationId && enabled,
-  })
-
-  // Real-time WebSocket subscription with /ws/ticket auth & exponential backoff
-  useEffect(() => {
-    if (!enabled || !conversationId) return
-
-    let isSubscribed = true
-    let retryAttempt = 0
-
-    const connectWebSocket = async () => {
-      if (!isSubscribed) return
-
-      try {
-        // 1. Request single-use WS ticket from server
-        let ticket: string | undefined
-        try {
-          const res = await postFetcher<{ ticket?: string }>('/ws/ticket', {
-            roomId: conversationId,
-          })
-          ticket = res.ticket
-        } catch (e) {
-          console.warn('[WebSocket] Could not obtain ticket:', e)
-        }
-
-        if (!isSubscribed) return
-
-        const baseWsUrl = env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')
-        const wsUrl = `${baseWsUrl}/ws?roomId=${encodeURIComponent(conversationId)}`
-        const ws = new WebSocket(wsUrl)
-        wsRef.current = ws
-
-        ws.onopen = () => {
-          if (!isSubscribed) {
-            ws.close()
-            return
-          }
-          retryAttempt = 0
-          if (ticket) {
-            ws.send(JSON.stringify({ type: 'auth', payload: { ticket } }))
-          }
-        }
-
-        ws.onmessage = (event) => {
-          if (!isSubscribed) return
-          try {
-            const data = JSON.parse(event.data)
-            if (data.type === 'message' && data.payload) {
-              const p = data.payload
-              if (p.roomId === conversationId) {
-                const incomingMessage: Message = {
-                  id: p.id,
-                  index: p.sequence,
-                  sequence: p.sequence,
-                  from: p.userId,
-                  text: p.text,
-                  type: 'text',
-                  timestamp: p.createdAt ? String(p.createdAt) : new Date().toISOString(),
-                }
-
-                queryClient.setQueryData<{
-                  pages: MessagesResponse[]
-                  pageParams: { after?: number; before?: number }[]
-                }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
-                  if (!old || !old.pages[0]) return old
-
-                  const alreadyExists = old.pages[0].messages.some(
-                    (m) =>
-                      m.id === incomingMessage.id ||
-                      (incomingMessage.sequence && m.sequence === incomingMessage.sequence) ||
-                      (incomingMessage.index && m.index === incomingMessage.index),
-                  )
-                  if (alreadyExists) return old
-
-                  return {
-                    ...old,
-                    pages: [
-                      {
-                        messages: [...old.pages[0].messages, incomingMessage],
-                        hasMore: old.pages[0].hasMore,
-                        totalCount: (old.pages[0].totalCount ?? 0) + 1,
-                      },
-                      ...old.pages.slice(1),
-                    ],
-                    pageParams: old.pageParams,
-                  }
-                })
-
-                updateConversationListCache(queryClient, conversationId, incomingMessage)
-              }
+  }) // Real-time WebSocket with single-use ticket auth + auto-reconnect.
+  useWebSocket(
+    `${env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')}/ws?roomId=${encodeURIComponent(conversationId)}`,
+    {
+      enabled: enabled && !!conversationId,
+      onOpen: (send) => {
+        void postFetcher<{ ticket?: string }>('/ws/ticket', { roomId: conversationId })
+          .then((res) => {
+            if (res.ticket) {
+              send(JSON.stringify({ type: 'auth', payload: { ticket: res.ticket } }))
             }
-          } catch (e) {
-            console.error('[WebSocket] Failed to parse message:', e)
+          })
+          .catch((e) => {
+            console.warn('[WebSocket] Could not obtain ticket:', e)
+          })
+      },
+      onMessage: (data) => {
+        const msg = data as { type?: string; payload?: Record<string, unknown> }
+        if (msg.type !== 'message' || !msg.payload) return
+
+        const p = msg.payload as {
+          id?: string
+          roomId?: string
+          from?: string
+          userId?: string
+          sequence?: number
+          text?: string
+          createdAt?: string
+        }
+        if (p.roomId !== conversationId || !p.id || p.sequence === undefined) return
+
+        const incomingMessage: Message = {
+          id: p.id,
+          index: p.sequence,
+          sequence: p.sequence,
+          from: p.from ?? p.userId,
+          text: p.text ?? '',
+          type: 'text',
+          timestamp: p.createdAt ?? new Date().toISOString(),
+        }
+
+        queryClient.setQueryData<{
+          pages: MessagesResponse[]
+          pageParams: { after?: number; before?: number }[]
+        }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
+          if (!old || !old.pages[0]) return old
+
+          const alreadyExists = old.pages[0].messages.some(
+            (m) =>
+              m.id === incomingMessage.id ||
+              (incomingMessage.sequence !== undefined && m.sequence === incomingMessage.sequence) ||
+              (incomingMessage.index !== undefined && m.index === incomingMessage.index),
+          )
+          if (alreadyExists) return old
+
+          return {
+            ...old,
+            pages: [
+              {
+                messages: [...old.pages[0].messages, incomingMessage],
+                hasMore: old.pages[0].hasMore,
+                totalCount: (old.pages[0].totalCount ?? 0) + 1,
+              },
+              ...old.pages.slice(1),
+            ],
+            pageParams: old.pageParams,
           }
-        }
+        })
 
-        ws.onclose = () => {
-          if (!isSubscribed) return
-          const delay = Math.min(1000 * 2 ** retryAttempt + Math.random() * 500, 30000)
-          retryAttempt++
-          reconnectTimerRef.current = setTimeout(() => {
-            void connectWebSocket()
-          }, delay)
-        }
-
-        ws.onerror = () => {
-          ws.close()
-        }
-      } catch (err) {
-        console.error('[WebSocket] Connection error:', err)
-        if (!isSubscribed) return
-        const delay = Math.min(1000 * 2 ** retryAttempt + Math.random() * 500, 30000)
-        retryAttempt++
-        reconnectTimerRef.current = setTimeout(() => {
-          void connectWebSocket()
-        }, delay)
-      }
-    }
-
-    const handleBeforeUnload = () => {
-      if (wsRef.current) {
-        wsRef.current.close()
-      }
-    }
-    if (typeof window !== 'undefined' && window.addEventListener) {
-      window.addEventListener('beforeunload', handleBeforeUnload)
-    }
-
-    void connectWebSocket()
-
-    return () => {
-      isSubscribed = false
-      if (typeof window !== 'undefined' && window.removeEventListener) {
-        window.removeEventListener('beforeunload', handleBeforeUnload)
-      }
-      if (reconnectTimerRef.current) {
-        clearTimeout(reconnectTimerRef.current)
-        reconnectTimerRef.current = null
-      }
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-    }
-  }, [conversationId, enabled, queryClient])
+        updateConversationListCache(queryClient, conversationId, incomingMessage)
+      },
+    },
+  )
 
   return query
 }

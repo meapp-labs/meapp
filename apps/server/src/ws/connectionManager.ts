@@ -8,6 +8,41 @@ export type WsSessionState = {
   subscribedRooms: Set<string>
 }
 
+/** Atomic room-subscribe guard: SISMEMBER + cap check + SADD in one call. */
+const SUBSCRIBE_ROOM_LUA = `
+if redis.call('SISMEMBER', KEYS[1], ARGV[1]) == 1 then
+  return 1
+end
+local count = redis.call('SCARD', KEYS[1])
+if count >= tonumber(ARGV[2]) then
+  return -1
+end
+redis.call('SADD', KEYS[1], ARGV[1])
+redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3]))
+return 1
+`
+
+/**
+ * Atomic unauthenticated-connection guard over global + per-IP counters;
+ * rolls back its increments on rejection.
+ */
+const UNAUTH_LIMIT_LUA = `
+local g = redis.call('INCR', KEYS[1])
+if g == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[3])) end
+if g > tonumber(ARGV[1]) then
+  redis.call('DECR', KEYS[1])
+  return 0
+end
+local p = redis.call('INCR', KEYS[2])
+if p == 1 then redis.call('EXPIRE', KEYS[2], tonumber(ARGV[3])) end
+if p > tonumber(ARGV[2]) then
+  redis.call('DECR', KEYS[2])
+  redis.call('DECR', KEYS[1])
+  return 0
+end
+return 1
+`
+
 export class WsConnectionManager {
   private fallbackUnauthGlobal = 0
   private fallbackPerIpUnauth = new Map<string, number>()
@@ -39,27 +74,16 @@ export class WsConnectionManager {
 
   async canAcceptUnauth(ip: string): Promise<boolean> {
     try {
-      const globalKey = 'ws:unauth:global'
-      const ipKey = `ws:unauth:ip:${ip}`
-
-      const currentGlobal = await this.redis.incr(globalKey)
-      if (currentGlobal === 1) await this.redis.expire(globalKey, 120)
-
-      if (currentGlobal > WS_CONFIG.MAX_UNAUTH_GLOBAL) {
-        await this.redis.decr(globalKey)
-        return false
-      }
-
-      const currentIp = await this.redis.incr(ipKey)
-      if (currentIp === 1) await this.redis.expire(ipKey, 120)
-
-      if (currentIp > WS_CONFIG.MAX_UNAUTH_PER_IP) {
-        await this.redis.decr(ipKey)
-        await this.redis.decr(globalKey)
-        return false
-      }
-
-      return true
+      const result = (await this.redis.eval(
+        UNAUTH_LIMIT_LUA,
+        2,
+        'ws:unauth:global',
+        `ws:unauth:ip:${ip}`,
+        String(WS_CONFIG.MAX_UNAUTH_GLOBAL),
+        String(WS_CONFIG.MAX_UNAUTH_PER_IP),
+        '120',
+      )) as number
+      return result === 1
     } catch {
       // Degraded in-memory fallback
       if (this.fallbackUnauthGlobal >= WS_CONFIG.MAX_UNAUTH_GLOBAL) return false
@@ -123,17 +147,15 @@ export class WsConnectionManager {
   async canSubscribeRoom(userId: string, roomId: string): Promise<boolean> {
     try {
       const key = `ws:user_rooms:${userId}`
-      const isMember = await this.redis.sismember(key, roomId)
-      if (isMember) return true
-
-      const count = await this.redis.scard(key)
-      if (count >= WS_CONFIG.MAX_ROOM_SUBS_PER_USER) {
-        return false
-      }
-
-      await this.redis.sadd(key, roomId)
-      await this.redis.expire(key, 3600)
-      return true
+      const result = (await this.redis.eval(
+        SUBSCRIBE_ROOM_LUA,
+        1,
+        key,
+        roomId,
+        String(WS_CONFIG.MAX_ROOM_SUBS_PER_USER),
+        '3600',
+      )) as number
+      return result === 1
     } catch {
       let rooms = this.fallbackRoomsPerUser.get(userId)
       if (!rooms) {

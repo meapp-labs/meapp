@@ -25,29 +25,6 @@ export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
-// sessions
-// ─────────────────────────────────────────────────────────────
-
-export const sessions = sqliteTable(
-  'sessions',
-  {
-    id: text('id').primaryKey(),
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    token: text('token').notNull().unique(),
-    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .$defaultFn(() => new Date()),
-  },
-  (t) => [index('sessions_user_id_idx').on(t.userId)],
-)
-
-export type Session = typeof sessions.$inferSelect
-export type NewSession = typeof sessions.$inferInsert
-
-// ─────────────────────────────────────────────────────────────
 // rooms (conversations) (V8 FINAL)
 // ─────────────────────────────────────────────────────────────
 
@@ -135,29 +112,6 @@ export const messages = sqliteTable(
 
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
-
-// ─────────────────────────────────────────────────────────────
-// attachments
-// ─────────────────────────────────────────────────────────────
-
-export const attachments = sqliteTable(
-  'attachments',
-  {
-    id: text('id').primaryKey(),
-    messageId: text('message_id')
-      .notNull()
-      .references(() => messages.id, { onDelete: 'cascade' }),
-    type: text('type', { enum: ['image', 'file', 'audio', 'video'] }).notNull(),
-    url: text('url').notNull(),
-    name: text('name'),
-    mimeType: text('mime_type'),
-    sizeBytes: integer('size_bytes'),
-  },
-  (t) => [index('attachments_message_idx').on(t.messageId)],
-)
-
-export type Attachment = typeof attachments.$inferSelect
-export type NewAttachment = typeof attachments.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
 // contacts (friends)

@@ -6,6 +6,15 @@ import { redis } from './redis.ts'
 type Bucket = { count: number; reset: number }
 const inMemoryBuckets = new Map<string, Bucket>()
 
+/** Atomic fixed-window counter: INCR + EXPIRE in one roundtrip. */
+const RATE_LIMIT_LUA = `
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then
+  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
+end
+return current
+`
+
 // Specific HTTP Rate Limits by method & route pattern
 export type RouteRule = {
   method?: string
@@ -19,7 +28,7 @@ export type RouteRule = {
 export const routePatterns: RouteRule[] = [
   {
     method: 'POST',
-    regex: /^\/(auth|api)\/login$/,
+    regex: /^\/api\/login$/,
     key: 'POST:/api/login',
     max: 5,
     windowMs: 60000,
@@ -134,18 +143,17 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
     const url = new URL(request.url)
     const path = url.pathname
     const method = request.method
+
+    // requestIP is authoritative; x-forwarded-for is client-forgeable.
     const socketIp = server?.requestIP?.(request)?.address
     const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    const ip = socketIp || forwarded || request.headers.get('x-real-ip') || '127.0.0.1'
+    const ip = socketIp || forwarded || '127.0.0.1'
 
-    // HTTP Body size limits
+    // Defense in depth: real cap is socket-level (maxRequestBodySize).
     const contentLength = request.headers.get('content-length')
     if (contentLength) {
       const bytes = Number.parseInt(contentLength, 10)
-      const maxBodyBytes = path.startsWith('/uploads')
-        ? 10 * 1024 * 1024 // 10MB max for uploads
-        : 100 * 1024 // 100KB max for JSON bodies / messages
-      if (bytes > maxBodyBytes) {
+      if (bytes > 100 * 1024) {
         set.status = 413
         return { message: 'Payload too large', code: ErrorCode.PAYLOAD_TOO_LARGE }
       }
@@ -158,10 +166,13 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
 
     if (redis.status === 'ready') {
       try {
-        const current = await redis.incr(key)
-        if (current === 1) {
-          await redis.expire(key, windowSec)
-        }
+        const current = (await redis.eval(
+          RATE_LIMIT_LUA,
+          1,
+          key,
+          windowSec.toString(),
+          matched.max.toString(),
+        )) as number
 
         if (current > matched.max) {
           const ttl = await redis.ttl(key)

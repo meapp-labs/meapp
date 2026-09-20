@@ -1,0 +1,72 @@
+version: "3.9"
+
+services:
+  redis:
+    image: docker.io/library/redis:7-alpine
+    container_name: meapp-redis
+    command: ["redis-server", "--save", "60", "1", "--appendonly", "no"]
+    volumes: ["meapp-redis-data:/data:Z"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [meapp-net]
+
+  server:
+    image: ghcr.io/meapp-labs/meapp:${MEAPP_IMAGE_TAG:-server}
+    container_name: meapp-server
+    user: bun
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    volumes:
+      - meapp-server-data:/data:Z
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=/data/data.db
+      - REDIS_URL=redis://redis:6379
+      - HOST=0.0.0.0
+      - PORT=3000
+      # Comma-separated origins allowed for CORS + cookies:
+      - DOMAIN=${MEAPP_DOMAIN:?set MEAPP_DOMAIN}
+      - JWT_SECRET=${MEAPP_JWT_SECRET:?set MEAPP_JWT_SECRET}
+      - WS_TICKET_SECRET=${MEAPP_WS_TICKET_SECRET:?set MEAPP_WS_TICKET_SECRET}
+    restart: unless-stopped
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "bun", "--eval", "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 20s
+      retries: 3
+    networks: [meapp-net]
+
+  caddy:
+    image: docker.io/library/caddy:2-alpine
+    container_name: meapp-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro,Z
+      - meapp-caddy-data:/data:Z
+      - meapp-caddy-config:/config:Z
+    environment:
+      - DOMAIN=${MEAPP_DOMAIN:?set MEAPP_DOMAIN}
+    restart: unless-stopped
+    depends_on: [server]
+    networks: [meapp-net]
+
+networks:
+  meapp-net:
+    driver: bridge
+
+volumes:
+  meapp-redis-data:
+  meapp-server-data:
+  meapp-caddy-data:
+  meapp-caddy-config:

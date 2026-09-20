@@ -11,7 +11,7 @@ import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useAuthStore } from '@/lib/stores'
 import { useGetConversations } from '@/services/conversations'
 import { theme } from '@/theme/theme'
-import type { Conversation } from '@/types/models'
+import type { Conversation } from '@meapp/shared'
 
 export function FriendsScreen() {
   const { isMobile } = useBreakpoint()

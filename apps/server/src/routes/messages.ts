@@ -339,14 +339,6 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         ? Math.min(Number.parseInt(query.limit, 10), MAX_MESSAGE_LIMIT)
         : DEFAULT_MESSAGE_LIMIT
 
-      const totalCountRow = await db
-        .select({ total: count() })
-        .from(schema.messages)
-        .where(eq(schema.messages.roomId, conversationId))
-        .get()
-
-      const totalCount = totalCountRow?.total ?? 0
-
       const afterIndex = after === undefined ? undefined : Number.parseInt(after, 10)
       const beforeIndex = before === undefined ? undefined : Number.parseInt(before, 10)
 
@@ -363,6 +355,16 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           lt(schema.messages.sequence, beforeIndex),
         ) as typeof whereClause
       }
+
+      // Count with the SAME filters as the page query, or pagination
+      // cursors would report hasMore forever.
+      const filteredCountRow = await db
+        .select({ total: count() })
+        .from(schema.messages)
+        .where(whereClause)
+        .get()
+
+      const filteredTotal = filteredCountRow?.total ?? 0
 
       const rows = await db
         .select({
@@ -388,10 +390,16 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         timestamp: new Date(r.createdAt).toISOString(),
       }))
 
-      const lastSeq = messages.length > 0 ? (messages[messages.length - 1]?.sequence ?? 0) : 0
-      const hasMore = messages.length === limit && lastSeq < totalCount
+      // Unfiltered count for UI display; pagination uses filteredTotal.
+      const totalCountRow = await db
+        .select({ total: count() })
+        .from(schema.messages)
+        .where(eq(schema.messages.roomId, conversationId))
+        .get()
 
-      return { messages, hasMore, totalCount }
+      const hasMore = messages.length === limit && filteredTotal > limit
+
+      return { messages, hasMore, totalCount: totalCountRow?.total ?? 0 }
     },
     { query: getMessagesQuery },
   )

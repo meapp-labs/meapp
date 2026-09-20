@@ -4,7 +4,7 @@ import { getRouteRuleAndLimit, rateLimitPlugin } from './rateLimit.ts'
 
 describe('Phase 8 - Rate Limiting & Body Limits', () => {
   it('identifies correct route rules and limits', () => {
-    const loginRule = getRouteRuleAndLimit('POST', '/auth/login')
+    const loginRule = getRouteRuleAndLimit('POST', '/api/login')
     expect(loginRule.max).toBe(5)
     expect(loginRule.perIp).toBe(true)
 
@@ -27,14 +27,14 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     expect(defaultRule.max).toBe(100)
   })
 
-  it('enforces POST /auth/login limit (5/min per IP)', async () => {
-    const app = new Elysia().use(rateLimitPlugin).post('/auth/login', () => ({ success: true }))
+  it('enforces POST /api/login limit (5/min per IP)', async () => {
+    const app = new Elysia().use(rateLimitPlugin).post('/api/login', () => ({ success: true }))
 
     const testIp = `192.168.1.${Math.floor(Math.random() * 200) + 10}`
 
     for (let i = 0; i < 5; i++) {
       const res = await app.handle(
-        new Request('http://localhost/auth/login', {
+        new Request('http://localhost/api/login', {
           method: 'POST',
           headers: { 'x-forwarded-for': testIp },
         }),
@@ -44,7 +44,7 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
 
     // 6th request should hit 429
     const blockedRes = await app.handle(
-      new Request('http://localhost/auth/login', {
+      new Request('http://localhost/api/login', {
         method: 'POST',
         headers: { 'x-forwarded-for': testIp },
       }),
@@ -134,20 +134,10 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     expect(body.code).toBe('PAYLOAD_TOO_LARGE')
   })
 
-  it('enforces body size limits: allows uploads up to 10MB but rejects > 10MB', async () => {
+  it('enforces body size limits: rejects > 100KB on every route (uploads included)', async () => {
+    // There is no /uploads route; the global cap is 100KB enforced at the
+    // socket level (maxRequestBodySize) plus this header check.
     const app = new Elysia().use(rateLimitPlugin).post('/uploads', () => ({ success: true }))
-
-    // 5MB upload allowed
-    const okRes = await app.handle(
-      new Request('http://localhost/uploads', {
-        method: 'POST',
-        headers: {
-          'content-length': `${5 * 1024 * 1024}`,
-          'x-forwarded-for': `10.0.1.${Math.floor(Math.random() * 200) + 1}`,
-        },
-      }),
-    )
-    expect(okRes.status).toBe(200)
 
     // 11MB upload rejected with 413
     const largeRes = await app.handle(

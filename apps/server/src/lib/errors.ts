@@ -12,6 +12,9 @@ export const ErrorCode = {
   USER_ALREADY_EXISTS: 'USER_ALREADY_EXISTS',
   USER_NOT_FOUND: 'USER_NOT_FOUND',
 
+  // Authorization
+  FORBIDDEN: 'FORBIDDEN',
+
   // Validation
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   PAYLOAD_TOO_LARGE: 'PAYLOAD_TOO_LARGE',
@@ -83,6 +86,9 @@ export const createDuplicateItemError = (message = 'Item already exists') =>
 
 export const createNotFoundError = (resource: string, details?: Record<string, unknown>) =>
   new ApiError(ErrorCode.ITEM_NOT_FOUND, `${resource} not found`, 404, details)
+
+export const createForbiddenError = (message = 'Access denied') =>
+  new ApiError(ErrorCode.FORBIDDEN, message, 403)
 
 export const createDatabaseError = (operation: string, originalError?: Error) =>
   new ApiError(ErrorCode.DATABASE_ERROR, `Database ${operation} failed`, 500, {

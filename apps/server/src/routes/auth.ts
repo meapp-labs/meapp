@@ -16,7 +16,6 @@ import {
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
-import { sessionJwtPlugin } from '../plugins/session.ts'
 
 const scryptAsync = promisify(scryptCb)
 
@@ -30,7 +29,6 @@ const loginAttemptsKey = (username: string) => `ratelimit:login:${username}`
 export const authRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
   .use(redisPlugin)
-  .use(sessionJwtPlugin)
 
   .post(
     '/register',
@@ -71,7 +69,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/login',
-    async ({ body, cookie, sessionJwt, redis }) => {
+    async ({ body, cookie, jwt: sessionJwt, redis }) => {
       const { username, password, platform } = body
 
       // Check login rate limit via Redis
@@ -163,7 +161,8 @@ export const authRoutes = new Elysia({ prefix: '/api' })
   .post('/logout', async ({ user, cookie }) => {
     const me = requireUser(user)
 
-    if (me.platform === 'android') {
+    // JWT platform claim may be stale — clear token for all native platforms.
+    if (me.platform !== 'web') {
       await handleAsyncOperation(
         async () =>
           db.update(schema.users).set({ pushToken: null }).where(eq(schema.users.id, me.id)),

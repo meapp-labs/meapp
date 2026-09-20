@@ -6,7 +6,7 @@ import { MessageBubble } from '@/components/chat/MessageBubble'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
 import { theme } from '@/theme/theme'
-import type { Message } from '@/types/models'
+import type { Message } from '@meapp/shared'
 
 type ChatProps = {
   conversationId: string

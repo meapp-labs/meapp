@@ -4,13 +4,15 @@ import { z } from 'zod'
 // Message Schemas (V7 FINAL - Sequence cursor + WS Ticket auth)
 // ─────────────────────────────────────────────────────────────
 
+export const MESSAGE_MAX_LENGTH = 2000
+
 export const messageSchema = z.object({
   id: z.string(),
   clientId: z.string().optional(),
   roomId: z.string().optional(),
   userId: z.string().optional(),
   sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
-  text: z.string().min(1).max(4000),
+  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
   createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
   // Compatibility & UI fields across REST and WebSocket
   index: z.union([z.number(), z.string()]).optional(),
@@ -34,7 +36,7 @@ export type Attachment = z.infer<typeof attachmentSchema>
 
 export const createMessageSchema = z.object({
   roomId: z.string().uuid(),
-  text: z.string().min(1).max(4000),
+  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
   clientId: z.string().uuid(), // client-generated idempotency key
 })
 
@@ -114,7 +116,7 @@ export type GetMessagesQuery = z.infer<typeof getMessagesQuerySchema>
 export const sendMessageSchema = z.object({
   roomId: z.string().uuid().optional(),
   conversationId: z.string().uuid().optional(),
-  text: z.string().min(1).max(4000),
+  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
   clientId: z.string().uuid().optional(),
 })
 export type SendMessageInput = z.infer<typeof sendMessageSchema>

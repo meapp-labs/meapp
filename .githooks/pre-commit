@@ -10,6 +10,8 @@ STAGED_FILES=$(git diff --cached --name-only)
 
 DB_CHANGED=false
 SHARED_CHANGED=false
+SERVER_CHANGED=false
+CLIENT_CHANGED=false
 
 if echo "$STAGED_FILES" | grep -E '^packages/db/' >/dev/null 2>&1; then
   DB_CHANGED=true
@@ -27,31 +29,32 @@ if echo "$STAGED_FILES" | grep -E '^(apps/client/|packages/shared/)' >/dev/null 
   CLIENT_CHANGED=true
 fi
 
-# 3. Run typecheck and tests conditionally
+# 3. Run typechecks conditionally. Only the *changed* workspace is checked —
+#    previously every commit touching apps/server ran the full server test
+#    suite, which made commits slow. Tests still run in CI on every push.
+#    For fast local test runs: bun run test:server
+run_typecheck() {
+  echo "==> typecheck:$1"
+  bun run "typecheck:$1"
+}
+
 if [ "$DB_CHANGED" = true ]; then
-  echo "==> Staged changes detected in db package"
-  echo "==> Running db typecheck..."
-  bun run typecheck:db
+  run_typecheck db
 fi
 
 if [ "$SHARED_CHANGED" = true ]; then
-  echo "==> Staged changes detected in shared package"
-  echo "==> Running shared typecheck..."
-  bun run typecheck:shared
+  run_typecheck shared
 fi
 
 if [ "$SERVER_CHANGED" = true ]; then
-  echo "==> Staged changes detected in server codebase"
-  echo "==> Running server typecheck..."
-  bun run typecheck:server
-  echo "==> Running server tests..."
-  bun run test:server
+  run_typecheck server
+  # Server tests only when server source itself changed (not for db/shared)
+  if echo "$STAGED_FILES" | grep -E '^apps/server/' >/dev/null 2>&1; then
+    echo "==> test:server"
+    bun run test:server
+  fi
 fi
 
 if [ "$CLIENT_CHANGED" = true ]; then
-  echo "==> Staged changes detected in client codebase"
-  echo "==> Running client typecheck..."
-  bun run typecheck:client
-  echo "==> Running client tests..."
-  bun run test:client
+  run_typecheck client
 fi

@@ -12,20 +12,26 @@ import { authRoutes } from './routes/auth.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
-import { chatWs } from './ws/chat.ts'
+import { chatWs, startPubsub } from './ws/chat.ts'
 
-const allowedOrigins =
+const allowedOrigins: string[] =
   isProduction && env.DOMAIN
-    ? env.DOMAIN.includes(',')
-      ? env.DOMAIN.split(',').map((d) => d.trim())
-      : env.DOMAIN
-    : /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/
+    ? env.DOMAIN.split(',')
+        .map((d) => d.trim())
+        .filter(Boolean)
+    : []
 
-export const app = new Elysia()
+// In dev, allow localhost origins; in prod only the explicit DOMAIN list.
+const devOriginRegex = /^https?:\/\/(localhost|127\.0\.0\.1)(:[0-9]+)?$/
+const corsOrigin = allowedOrigins.length > 0 ? allowedOrigins : devOriginRegex
+
+export const app = new Elysia({
+  serve: { development: !isProduction },
+})
   // Cookie sessions require credentialed CORS with an explicit origin.
   .use(
     cors({
-      origin: allowedOrigins,
+      origin: corsOrigin,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     }),
@@ -95,6 +101,20 @@ export const app = new Elysia()
       timestamp: new Date().toISOString(),
     }
   })
+  // CSRF: reject cross-origin mutations in production.
+  .onBeforeHandle({ as: 'global' }, ({ request, set }) => {
+    if (request.method !== 'GET' && isProduction) {
+      const origin = request.headers.get('origin')
+      if (origin) {
+        const allowed = allowedOrigins.some((o) => origin === `https://${o}` || origin === o)
+        if (!allowed) {
+          set.status = 403
+          return { message: 'Cross-origin request rejected', code: ErrorCode.FORBIDDEN }
+        }
+      }
+    }
+    return undefined
+  })
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
@@ -120,10 +140,13 @@ if (import.meta.main) {
     {
       port: env.PORT,
       hostname: env.HOST,
-      maxRequestBodySize: 10 * 1024 * 1024,
+      // Socket-level cap — cannot be bypassed by chunked requests.
+      maxRequestBodySize: 100 * 1024,
+      development: !isProduction,
     },
     () => {
       console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
+      void startPubsub(() => app.server ?? undefined)
     },
   )
 }

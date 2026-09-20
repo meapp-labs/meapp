@@ -36,7 +36,9 @@
       },
       "style": {
         "noDefaultExport": "error",
-        "useConst": "error"
+        "useConst": "error",
+        "useImportType": "error",
+        "useNodejsImportProtocol": "error"
       },
       "suspicious": {
         "noExplicitAny": "error"

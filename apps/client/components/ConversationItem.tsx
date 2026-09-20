@@ -6,7 +6,7 @@ import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
-import type { Conversation } from '@/types/models'
+import type { Conversation } from '@meapp/shared'
 
 type ConversationItemProps = {
   conversation: Conversation

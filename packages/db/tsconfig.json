@@ -5,6 +5,7 @@
     "moduleResolution": "bundler",
     "allowImportingTsExtensions": true,
     "noEmit": true,
+    "verbatimModuleSyntax": true,
     "strict": true,
     "noImplicitAny": true,
     "noUnusedLocals": true,

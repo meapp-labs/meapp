@@ -1,0 +1,46 @@
+# systemd quadlet for the MeApp server (rootless podman).
+# Install once:  cp deploy/meapp.container ~/.config/containers/systemd/
+# The Image= line is overridden by the CI deploy step via the drop-in
+# ~/.config/containers/systemd/meapp.container.d/tag.conf — never edit it here.
+
+[Unit]
+Description=MeApp API server (Bun + SQLite + Redis)
+After=network-online.target
+Wants=network-online.target
+
+[Container]
+ContainerName=meapp-server
+Image=ghcr.io/meapp-labs/meapp:server
+
+# Hardening: read-only root, writable state only in /data and /tmp
+ReadOnly=true
+Tmpfs=/tmp:size=64m
+Volume=meapp-server-data:/data:Z
+
+Environment=NODE_ENV=production
+Environment=DATABASE_URL=/data/data.db
+Environment=REDIS_URL=redis://meapp-redis:6379
+Environment=HOST=0.0.0.0
+Environment=PORT=3000
+# Secrets via environment file (chmod 600):
+EnvironmentFile=%h/meapp/meapp.env
+
+Network=meapp-net.network
+PublishPort=127.0.0.1:3000:3000
+
+HealthCmd=bun --eval "fetch('http://localhost:3000/health').then(r => r.ok ? process.exit(0) : process.exit(1)).catch(() => process.exit(1))"
+HealthInterval=10s
+HealthTimeout=5s
+HealthStartPeriod=20s
+HealthRetries=3
+
+# Resource limits
+Memory=512m
+CPUQuota=100%
+
+[Service]
+Restart=always
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

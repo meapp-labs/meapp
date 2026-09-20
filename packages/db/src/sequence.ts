@@ -2,6 +2,11 @@ import type { Database } from 'bun:sqlite'
 
 export type SequenceResult = { id: string; sequence: number } | null
 
+/**
+ * Inserts a message with a per-room monotonic sequence under an explicit
+ * BEGIN IMMEDIATE transaction, retrying on UNIQUE(room_id, sequence)
+ * collisions.
+ */
 export const insertMessageWithSequence = async (
   sqlite: Database,
   opts: {
@@ -23,7 +28,8 @@ export const insertMessageWithSequence = async (
   // Retry loop for UNIQUE(roomId, sequence) collision
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      const runImmediate = sqlite.transaction(() => {
+      sqlite.exec('BEGIN IMMEDIATE')
+      try {
         const maxRow = sqlite
           .query('SELECT MAX(sequence) as maxSeq FROM messages WHERE room_id = ?')
           .get(opts.roomId) as { maxSeq: number | null }
@@ -37,15 +43,18 @@ export const insertMessageWithSequence = async (
           )
           .run(id, opts.clientId, opts.roomId, opts.userId, nextSeq, opts.text, Date.now())
 
+        sqlite.exec('COMMIT')
         return { id, sequence: nextSeq }
-      })
-
-      return runImmediate.immediate()
+      } catch (inner) {
+        try {
+          sqlite.exec('ROLLBACK')
+        } catch {}
+        throw inner
+      }
     } catch (e: unknown) {
       const err = e as { code?: string; message?: string }
       if (err.code === 'SQLITE_CONSTRAINT' || err.message?.includes('UNIQUE')) {
         if (attempt < 2) {
-          // Jittered backoff
           const jitter = Math.random() * 20
           await new Promise((r) => setTimeout(r, 10 * (attempt + 1) + jitter))
           continue

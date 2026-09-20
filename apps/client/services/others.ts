@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
-import type { Conversation, CreateConversationRequest } from '@/types/models'
+import type { Conversation, CreateConversationInput } from '@meapp/shared'
 
 export function useGetFriends() {
   return useQuery<string[], ApiError>({
@@ -29,7 +29,7 @@ export function useAddFriend({
       })
 
       // Then create conversation with them
-      const conversation = await postFetcher<Conversation, CreateConversationRequest>(
+      const conversation = await postFetcher<Conversation, CreateConversationInput>(
         Keys.Mutation.CREATE_CONVERSATION,
         {
           type: 'dm',

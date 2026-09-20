@@ -5,7 +5,7 @@ import { StyleSheet, View } from 'react-native'
 import { Text } from '@/components/common/Text'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { theme } from '@/theme/theme'
-import type { Message } from '@/types/models'
+import type { Message } from '@meapp/shared'
 
 export type BaseMessage = Message
 

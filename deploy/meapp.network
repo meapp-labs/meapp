@@ -1,0 +1,10 @@
+# systemd quadlet network shared by the MeApp server and Redis.
+# Install once:  cp deploy/meapp.network ~/.config/containers/systemd/
+#                systemctl --user daemon-reload
+
+[Unit]
+Description=MeApp container network
+
+[Network]
+NetworkName=meapp-net
+Driver=bridge

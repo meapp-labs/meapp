@@ -1,0 +1,24 @@
+# systemd quadlet for the MeApp Redis instance (rootless podman).
+# Install once:  cp deploy/meapp-redis.container ~/.config/containers/systemd/
+
+[Unit]
+Description=MeApp Redis (rate limits, tickets, WS pubsub)
+After=network-online.target
+
+[Container]
+ContainerName=meapp-redis
+Image=docker.io/library/redis:7-alpine
+Volume=meapp-redis-data:/data:Z
+Network=meapp.network
+# Not published: only reachable inside meapp-net.
+Exec=--save 60 1
+
+HealthCmd=redis-cli ping
+HealthInterval=10s
+HealthRetries=5
+
+[Service]
+Restart=always
+
+[Install]
+WantedBy=default.target

@@ -3,7 +3,7 @@ import { TouchableOpacity } from 'react-native'
 
 import { useConversationStore } from '@/lib/stores'
 import { theme } from '@/theme/theme'
-import type { Conversation } from '@/types/models'
+import type { Conversation } from '@meapp/shared'
 
 export type RemoveIconProps = {
   conversation: Conversation

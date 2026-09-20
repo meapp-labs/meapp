@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { useConversationStore } from '@/lib/stores'
-import type { Conversation, CreateConversationRequest } from '@/types/models'
+import type { Conversation, CreateConversationInput } from '@meapp/shared'
 
 /**
  * Create or get existing conversation
@@ -11,9 +11,9 @@ import type { Conversation, CreateConversationRequest } from '@/types/models'
 export function useCreateConversation() {
   const queryClient = useQueryClient()
 
-  return useMutation<Conversation, ApiError, CreateConversationRequest>({
+  return useMutation<Conversation, ApiError, CreateConversationInput>({
     mutationFn: (data) =>
-      postFetcher<Conversation, CreateConversationRequest>(Keys.Mutation.CREATE_CONVERSATION, data),
+      postFetcher<Conversation, CreateConversationInput>(Keys.Mutation.CREATE_CONVERSATION, data),
     onSuccess: (newConversation) => {
       // Add to conversations cache
       queryClient.setQueryData<Conversation[]>([Keys.Query.GET_CONVERSATIONS], (old) => {

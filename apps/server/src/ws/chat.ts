@@ -1,5 +1,6 @@
 import { jwt } from '@elysiajs/jwt'
 import { insertMessageWithSequence, sqlite } from '@meapp/db'
+import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
 import { WS_CONFIG, env } from '../lib/config.ts'
@@ -7,16 +8,53 @@ import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
 import { inMemoryTickets } from '../routes/wsTicket.ts'
 import { WsConnectionManager, type WsSessionState } from './connectionManager.ts'
+import { RedisPubsub, roomChannel, roomTypingChannel } from './redisPubsub.ts'
 
 const connectionManager = new WsConnectionManager(redis)
 const wsStates = new WeakMap<object, WsSessionState>()
+
+const pubsub = new RedisPubsub(redis)
+
+export const startPubsub = (
+  getServer: () => { publish: (topic: string, data: string) => void } | undefined,
+) =>
+  pubsub.start((channel, message) => {
+    const localTopic = channel.startsWith('meapp:room-typing:')
+      ? `room:${channel.slice('meapp:room-typing:'.length)}`
+      : `room:${channel.slice('meapp:room:'.length)}`
+    getServer()?.publish(localTopic, message)
+  })
+
+const broadcastToRoom = async (
+  ws: { publish: (topic: string, message: string) => unknown },
+  roomId: string,
+  message: string,
+): Promise<void> => {
+  if (redis.status === 'ready') {
+    await pubsub.publish(roomChannel(roomId), message)
+  } else {
+    ws.publish(`room:${roomId}`, message)
+  }
+}
+
+const broadcastTypingToRoom = async (
+  ws: { publish: (topic: string, message: string) => unknown },
+  roomId: string,
+  message: string,
+): Promise<void> => {
+  if (redis.status === 'ready') {
+    await pubsub.publish(roomTypingChannel(roomId), message)
+  } else {
+    ws.publish(`room:${roomId}`, message)
+  }
+}
 
 const incomingMessageBody = t.Union([
   t.Object({
     type: t.Literal('message'),
     payload: t.Object({
       roomId: t.String({ format: 'uuid' }),
-      text: t.String({ minLength: 1, maxLength: 4000 }),
+      text: t.String({ minLength: 1, maxLength: MESSAGE_MAX_LENGTH }),
       clientId: t.String({ format: 'uuid' }),
     }),
   }),
@@ -183,10 +221,8 @@ export const chatWs = new Elysia()
           const key = `ws_ticket:${payload.jti}`
           let stored: string | null = null
           try {
-            stored = await redisClient.get(key)
-            if (stored) {
-              await redisClient.del(key)
-            }
+            // GETDEL: atomic consume — GET then DEL would allow ticket replay.
+            stored = (await redisClient.getdel(key)) ?? null
           } catch {
             // Redis unavailable - fallback to inMemoryTickets
           }
@@ -371,10 +407,11 @@ export const chatWs = new Elysia()
         const can = await canAccessRoom(userId, targetRoom)
         if (!can) return
 
-        ws.publish(
-          `room:${targetRoom}`,
-          JSON.stringify({ type: 'typing', payload: { roomId: targetRoom, userId } }),
-        )
+        const typingMsg = JSON.stringify({
+          type: 'typing',
+          payload: { roomId: targetRoom, userId },
+        })
+        await broadcastTypingToRoom(ws, targetRoom, typingMsg)
         return
       }
 
@@ -391,12 +428,15 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Size check (max 4KB)
-        if (payload.text.length > 4000) {
+        // Size check
+        if (payload.text.length > MESSAGE_MAX_LENGTH) {
           ws.send(
             JSON.stringify({
               type: 'error',
-              payload: { code: 'TOO_LARGE', message: 'Message text exceeds 4000 characters' },
+              payload: {
+                code: 'TOO_LARGE',
+                message: `Message text exceeds ${MESSAGE_MAX_LENGTH} characters`,
+              },
             }),
           )
           return
@@ -455,21 +495,29 @@ export const chatWs = new Elysia()
             }),
           )
 
-          // Broadcast to room
+          // Client compares message.from against the username, not the UUID.
+          const senderRow = sqlite.query('SELECT username FROM users WHERE id = ?').get(userId) as {
+            username: string | null
+          } | null
+          const senderUsername = senderRow?.username ?? userId
+
           const messageBroadcast = {
             id: result.id,
             clientId: payload.clientId,
             roomId: payload.roomId,
             userId,
+            from: senderUsername,
             sequence: result.sequence,
             text: payload.text,
             createdAt: new Date().toISOString(),
           }
 
-          ws.publish(
-            `room:${payload.roomId}`,
-            JSON.stringify({ type: 'message', payload: messageBroadcast }),
-          )
+          const broadcastEnvelope = JSON.stringify({
+            type: 'message',
+            payload: messageBroadcast,
+          })
+
+          await broadcastToRoom(ws, payload.roomId, broadcastEnvelope)
         } catch (e) {
           console.error('[chatWs] Error writing message:', e)
           ws.send(

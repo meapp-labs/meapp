@@ -1,5 +1,12 @@
 import { z } from 'zod'
 
+/** True in prod: NODE_ENV=production (server) or APP_VARIANT=production (Expo). */
+export const isProdEnv = (): boolean =>
+  // biome-ignore lint/complexity/useLiteralKeys: tsconfig requires index access for env
+  process.env['NODE_ENV'] === 'production' ||
+  // biome-ignore lint/complexity/useLiteralKeys: tsconfig requires index access for env
+  process.env['APP_VARIANT'] === 'production'
+
 // ─────────────────────────────────────────────────────────────
 // Primitives (reused by other schemas)
 // ─────────────────────────────────────────────────────────────
@@ -10,8 +17,15 @@ export const usernameSchema = z
   .max(24, 'Username must be at most 24 characters')
   .regex(/^[a-zA-Z0-9_-]+$/, 'Username can only contain letters, numbers, underscores and hyphens')
 
-export const passwordSchema = z.string().min(3, 'Password must be at least 3 characters')
-// TODO: tighten for prod — min 12, complexity regex
+/** Dev: min 3. Prod: min 12 + complexity, enforced by client and server alike. */
+export const passwordSchema = isProdEnv()
+  ? z
+      .string()
+      .min(12, 'Password must be at least 12 characters')
+      .regex(/[a-z]/, 'Password must contain a lowercase letter')
+      .regex(/[A-Z]/, 'Password must contain an uppercase letter')
+      .regex(/[0-9]/, 'Password must contain a digit')
+  : z.string().min(3, 'Password must be at least 3 characters')
 
 // ─────────────────────────────────────────────────────────────
 // Form Schemas (Client inputs)

@@ -5,6 +5,7 @@ import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
 import { Attachment } from '@/components/chat/Attachment'
 import { useSendMessage } from '@/services/messages'
 import { theme } from '@/theme/theme'
+import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 
 export function MessageInput({ conversationId }: { conversationId: string }) {
   const [inputData, setInputData] = useState('')
@@ -38,7 +39,7 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         submitBehavior="submit"
         multiline
         numberOfLines={1}
-        maxLength={1000}
+        maxLength={MESSAGE_MAX_LENGTH}
       />
       <TouchableOpacity style={styles.send} onPress={handleSend}>
         <MaterialIcons name="send" size={24} color={theme.colors.text} />
