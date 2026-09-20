@@ -1,30 +1,11 @@
-import { afterAll, describe, expect, it } from 'bun:test'
-import Redis from 'ioredis'
+import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
+import { db, eq, runMigrations, schema } from '@meapp/db'
 
 import { app } from '../index.ts'
-import { RedisKeys } from '../services/redis.service.ts'
 
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://127.0.0.1:6379'
-
-// These tests exercise Redis-backed routes, so they are skipped where Redis is absent
-// (the CI server job has no Redis service).
-const probe = new Redis(REDIS_URL, {
-  lazyConnect: true,
-  maxRetriesPerRequest: 1,
-  connectTimeout: 1000,
+beforeAll(() => {
+  runMigrations()
 })
-
-let redisAvailable = false
-try {
-  await probe.connect()
-  redisAvailable = (await probe.ping()) === 'PONG'
-} catch {
-  redisAvailable = false
-}
-
-if (!redisAvailable) {
-  console.warn('[api.test] Redis is not reachable — skipping REST endpoint tests')
-}
 
 const runId = Date.now().toString(36)
 const alice = `alice_${runId}`
@@ -57,21 +38,13 @@ const cookieHeaderFrom = (response: Response): string => {
 const readJson = async <T>(response: Response): Promise<T> => (await response.json()) as T
 
 afterAll(async () => {
-  if (redisAvailable) {
-    await probe.del(RedisKeys.user(alice), RedisKeys.user(bob))
-    await probe.del(RedisKeys.contacts(alice), RedisKeys.contacts(bob))
-    await probe.del(RedisKeys.pushToken(alice), RedisKeys.loginAttempts(alice))
-    const ids = await probe.smembers(RedisKeys.userConversations(alice))
-    for (const id of ids) {
-      await probe.del(RedisKeys.conversation(id), RedisKeys.conversationMessages(id))
-    }
-    await probe.del(RedisKeys.userConversations(alice))
-    await probe.del(RedisKeys.dmLookup(alice, bob))
-  }
-  await probe.quit()
+  try {
+    await db.delete(schema.users).where(eq(schema.users.username, alice))
+    await db.delete(schema.users).where(eq(schema.users.username, bob))
+  } catch {}
 })
 
-describe.skipIf(!redisAvailable)('ported REST API', () => {
+describe('REST API (Drizzle SQLite backend)', () => {
   it('rejects unauthenticated access to /api/me', async () => {
     const res = await api('/me', { method: 'POST', body: { platform: 'web' } })
 
@@ -244,8 +217,8 @@ describe.skipIf(!redisAvailable)('ported REST API', () => {
     })
     expect(sent.status).toBe(200)
 
-    const message = (await sent.json()) as { index: number; from: string; text: string }
-    expect(message.index).toBe(0)
+    const message = (await sent.json()) as { sequence: number; from: string; text: string }
+    expect(message.sequence).toBe(1)
     expect(message.from).toBe(alice)
     expect(message.text).toBe('hello bob')
 
@@ -254,7 +227,7 @@ describe.skipIf(!redisAvailable)('ported REST API', () => {
       body: { conversationId, text: 'second' },
       cookie: sessionCookie,
     })
-    expect(((await second.json()) as { index: number }).index).toBe(1)
+    expect(((await second.json()) as { sequence: number }).sequence).toBe(2)
 
     const page = await api(`/get-messages?conversationId=${conversationId}&limit=16`, {
       cookie: sessionCookie,
@@ -262,42 +235,49 @@ describe.skipIf(!redisAvailable)('ported REST API', () => {
     expect(page.status).toBe(200)
 
     const body = (await page.json()) as {
-      messages: { index: number; text: string }[]
+      messages: { sequence: number; text: string }[]
       hasMore: boolean
       totalCount: number
     }
     expect(body.totalCount).toBe(2)
-    expect(body.messages.map((m) => m.index)).toEqual([0, 1])
+    expect(body.messages.map((m) => m.sequence)).toEqual([1, 2])
     expect(body.hasMore).toBe(false)
 
-    const after = await api(`/get-messages?conversationId=${conversationId}&after=0`, {
+    const after = await api(`/get-messages?conversationId=${conversationId}&after=1`, {
       cookie: sessionCookie,
     })
-    expect(((await after.json()) as { messages: { index: number }[] }).messages).toEqual([
-      expect.objectContaining({ index: 1 }),
+    expect(((await after.json()) as { messages: { sequence: number }[] }).messages).toEqual([
+      expect.objectContaining({ sequence: 2 }),
     ])
   })
 
   it('blocks messaging for non participants', async () => {
     const outsider = `outsider_${runId}`
-    await probe.set(RedisKeys.user(outsider), 'salt:key')
 
-    const login = await api('/login', {
+    const outsiderRes = await api('/register', {
       method: 'POST',
-      body: { username: outsider, password: 'irrelevant', platform: 'web' },
+      body: {
+        username: outsider,
+        password: 'password123',
+        confirmPassword: 'password123',
+        platform: 'web',
+      },
     })
-    // Password does not match the placeholder hash, so this must fail closed.
-    expect(login.status).toBe(401)
+    expect(outsiderRes.status).toBe(201)
+
+    const outsiderLogin = await api('/login', {
+      method: 'POST',
+      body: { username: outsider, password: 'password123', platform: 'web' },
+    })
+    const outsiderCookie = cookieHeaderFrom(outsiderLogin)
 
     const list = await api('/conversations', { cookie: sessionCookie })
     const [conversation] = (await list.json()) as { id: string }[]
 
     const res = await api(`/get-messages?conversationId=${conversation?.id}`, {
-      cookie: sessionCookie,
+      cookie: outsiderCookie,
     })
-    expect(res.status).toBe(200)
-
-    await probe.del(RedisKeys.user(outsider), RedisKeys.loginAttempts(outsider))
+    expect(res.status).toBe(401)
   })
 
   it('validates query parameters', async () => {

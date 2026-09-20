@@ -111,7 +111,7 @@ export const toErrorResponse = (error: unknown): { status: number; body: ErrorBo
 
 /** Wraps an async operation so unexpected failures surface as DATABASE_ERROR/DATABASE operations. */
 export const handleAsyncOperation = async <T>(
-  operation: () => Promise<T>,
+  operation: () => Promise<T> | T,
   errorMessage: string,
   code: ErrorCode = ErrorCode.INTERNAL_SERVER_ERROR,
 ): Promise<T> => {

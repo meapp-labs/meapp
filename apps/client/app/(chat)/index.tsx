@@ -19,17 +19,17 @@ import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
 export function ChatApp() {
-  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { isMobile } = useBreakpoint()
 
   const returnAction = useCallback((): boolean => {
-    if (selectedConversation !== null) {
-      setSelectedConversation(null)
+    if (selectedConversationId !== null) {
+      setSelectedConversationId(null)
       void ConversationStorage.clear()
       return true
     }
     return false
-  }, [selectedConversation, setSelectedConversation])
+  }, [selectedConversationId, setSelectedConversationId])
 
   useEffect(() => {
     const returnHandler = BackHandler.addEventListener('hardwareBackPress', returnAction)
@@ -42,18 +42,16 @@ export function ChatApp() {
 
   useEffect(() => {
     const cleanup = setupNotificationListeners((notification) =>
-      handleIncomingNotification(notification, selectedConversation?.id),
+      handleIncomingNotification(notification, selectedConversationId ?? undefined),
     )
     return cleanup
-  }, [selectedConversation])
-
-  const conversationId = selectedConversation?.id
+  }, [selectedConversationId])
 
   return (
     <SafeAreaView style={styles.container}>
       <DocumentTitle title="Chat" />
       {isMobile ? (
-        selectedConversation === null ? (
+        selectedConversationId === null ? (
           <FriendsScreen />
         ) : (
           <KeyboardAvoidingView
@@ -62,26 +60,22 @@ export function ChatApp() {
             style={styles.chatScreen}
           >
             <ChatHeader />
-            {conversationId && (
-              <>
-                <MessageList conversationId={conversationId} />
-                <MessageInput conversationId={conversationId} />
-              </>
-            )}
+            <MessageList conversationId={selectedConversationId} />
+            <MessageInput conversationId={selectedConversationId} />
           </KeyboardAvoidingView>
         )
       ) : (
         <>
           <FriendsScreen />
-          {selectedConversation && conversationId ? (
+          {selectedConversationId ? (
             <KeyboardAvoidingView
               behavior={Platform.OS === 'android' ? 'padding' : 'height'}
               keyboardVerticalOffset={5}
               style={styles.chatScreen}
             >
               <ChatHeader />
-              <MessageList conversationId={conversationId} />
-              <MessageInput conversationId={conversationId} />
+              <MessageList conversationId={selectedConversationId} />
+              <MessageInput conversationId={selectedConversationId} />
             </KeyboardAvoidingView>
           ) : (
             <Text>{'Select a conversation'}</Text>

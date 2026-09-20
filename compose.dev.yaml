@@ -17,18 +17,16 @@ services:
       - ./apps/server:/app/apps/server:z
       - ./packages/db/src:/app/packages/db/src:z
       - ./packages/shared/src:/app/packages/shared/src:z
-      - ./package.json:/app/package.json:z
-      - ./bun.lock:/app/bun.lock:z
+      - ./package.json:/app/package.json:ro,z
+      - ./bun.lock:/app/bun.lock:ro,z
       - meapp-server-data:/app/data:Z # FIX #5 - persistent SQLite
-      - /app/apps/server/node_modules
-      - /app/node_modules
     env_file: apps/server/.env.local
     environment:
       - NODE_ENV=development
       - DATABASE_URL=/app/data/data.db # FIX #6 - matches volume
       - REDIS_URL=redis://redis:6379
     depends_on: [redis]
-    command: ["sh", "-c", "bun install --frozen-lockfile && bun --watch apps/server/src/index.ts"]
+    command: ["bun", "--watch", "apps/server/src/index.ts"]
     restart: unless-stopped
     networks: [meapp-net]
 

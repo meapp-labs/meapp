@@ -14,7 +14,7 @@ type ConversationItemProps = {
 
 export function ConversationItem({ conversation }: ConversationItemProps) {
   const [hovered, setHovered] = useState<boolean>(false)
-  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { username } = useAuthStore()
 
   // Filter out current user from display name
@@ -22,11 +22,11 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
     conversation.name ||
     conversation.participants.filter((p) => p !== username && p !== '').join(', ') ||
     'Unknown'
-  const isSelected = selectedConversation?.id === conversation.id
+  const isSelected = selectedConversationId === conversation.id
 
   const handleSelect = () => {
     if (!isSelected) {
-      setSelectedConversation(conversation)
+      setSelectedConversationId(conversation.id)
       void ConversationStorage.save(conversation.id)
     }
   }

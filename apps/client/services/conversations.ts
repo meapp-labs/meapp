@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
+import { useConversationStore } from '@/lib/stores'
 import type { Conversation, CreateConversationRequest } from '@/types/models'
 
 /**
@@ -47,4 +48,15 @@ export function useFindDmWithUser(username: string) {
   return conversations?.find(
     (c) => !c.isGroup && c.participants.includes(username) && c.participants.length === 2,
   )
+}
+
+/**
+ * Get the currently selected conversation object from cache
+ */
+export function useSelectedConversation(): Conversation | null {
+  const selectedConversationId = useConversationStore((s) => s.selectedConversationId)
+  const { data: conversations } = useGetConversations(Boolean(selectedConversationId))
+
+  if (!selectedConversationId || !conversations) return null
+  return conversations.find((c) => c.id === selectedConversationId) ?? null
 }

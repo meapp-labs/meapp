@@ -1,12 +1,13 @@
 import { Elysia } from 'elysia'
 import { ErrorCode } from '../lib/errors.ts'
 import { authPlugin } from './auth.ts'
+import { redis } from './redis.ts'
 
 type Bucket = { count: number; reset: number }
-const buckets = new Map<string, Bucket>()
+const inMemoryBuckets = new Map<string, Bucket>()
 
-// V8 Phase 8: Specific HTTP Rate Limits by method & route pattern
-type RouteRule = {
+// Specific HTTP Rate Limits by method & route pattern
+export type RouteRule = {
   method?: string
   regex: RegExp
   key: string
@@ -15,18 +16,10 @@ type RouteRule = {
   perIp?: boolean
 }
 
-const routePatterns: RouteRule[] = [
+export const routePatterns: RouteRule[] = [
   {
     method: 'POST',
-    regex: /^\/auth\/login$/,
-    key: 'POST:/auth/login',
-    max: 5,
-    windowMs: 60000,
-    perIp: true, // 5/min per IP
-  },
-  {
-    method: 'POST',
-    regex: /^\/api\/login$/,
+    regex: /^\/(auth|api)\/login$/,
     key: 'POST:/api/login',
     max: 5,
     windowMs: 60000,
@@ -46,6 +39,48 @@ const routePatterns: RouteRule[] = [
     key: 'POST:/ws/ticket',
     max: 20,
     windowMs: 60000, // 20/min per user
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/conversations$/,
+    key: 'GET:/api/conversations',
+    max: 100,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/conversations$/,
+    key: 'POST:/api/conversations',
+    max: 30,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/send-message$/,
+    key: 'POST:/api/send-message',
+    max: 30,
+    windowMs: 60000,
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/get-messages$/,
+    key: 'GET:/api/get-messages',
+    max: 100,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/(add-other|remove-other)$/,
+    key: 'POST:/api/others',
+    max: 30,
+    windowMs: 60000,
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/get-others$/,
+    key: 'GET:/api/get-others',
+    max: 100,
+    windowMs: 60000,
   },
   {
     method: 'GET',
@@ -78,13 +113,13 @@ export const getRouteRuleAndLimit = (method: string, path: string): RouteRule =>
   }
 }
 
-// Periodic cleanup every 5 minutes (Fix #5 - prevents in-memory map leak)
+// Periodic cleanup every 5 minutes to prevent in-memory map leak
 const cleanupInterval = setInterval(
   () => {
     const now = Date.now()
-    for (const [key, bucket] of buckets) {
+    for (const [key, bucket] of inMemoryBuckets) {
       if (bucket.reset < now - 60000) {
-        buckets.delete(key)
+        inMemoryBuckets.delete(key)
       }
     }
   },
@@ -95,13 +130,13 @@ cleanupInterval.unref?.()
 
 export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
   .use(authPlugin)
-  .onBeforeHandle({ as: 'global' }, ({ user, request, set }) => {
+  .onBeforeHandle({ as: 'global' }, async ({ user, request, set }) => {
     const url = new URL(request.url)
     const path = url.pathname
     const method = request.method
     const ip = request.headers.get('x-forwarded-for') || '127.0.0.1'
 
-    // V8 Phase 8: HTTP Body size limits
+    // HTTP Body size limits
     const contentLength = request.headers.get('content-length')
     if (contentLength) {
       const bytes = Number.parseInt(contentLength, 10)
@@ -115,15 +150,35 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
     }
 
     const matched = getRouteRuleAndLimit(method, path)
-    // For routes marked perIp (e.g., /auth/login), key by IP; otherwise key by authenticated userId
     const identifier = matched.perIp ? ip : user?.id || ip
-    const bucketKey = `${identifier}:${matched.key}`
+    const key = `ratelimit:${identifier}:${matched.key}`
+    const windowSec = Math.ceil(matched.windowMs / 1000)
 
+    if (redis.status === 'ready') {
+      try {
+        const current = await redis.incr(key)
+        if (current === 1) {
+          await redis.expire(key, windowSec)
+        }
+
+        if (current > matched.max) {
+          const ttl = await redis.ttl(key)
+          set.status = 429
+          set.headers['Retry-After'] = (ttl > 0 ? ttl : windowSec).toString()
+          return { message: `Too many requests for ${matched.key}`, code: ErrorCode.RATE_LIMITED }
+        }
+        return undefined
+      } catch {
+        // Fall through to in-memory fallback
+      }
+    }
+
+    // In-memory fallback if Redis is unavailable or offline
     const now = Date.now()
-    const bucket = buckets.get(bucketKey)
+    const bucket = inMemoryBuckets.get(key)
 
     if (!bucket || bucket.reset < now) {
-      buckets.set(bucketKey, { count: 1, reset: now + matched.windowMs })
+      inMemoryBuckets.set(key, { count: 1, reset: now + matched.windowMs })
       return undefined
     }
 

@@ -11,13 +11,13 @@ export type RemoveIconProps = {
 }
 
 export function RemoveIcon({ conversation, setRemoveId }: RemoveIconProps) {
-  const { selectedConversation } = useConversationStore()
+  const { selectedConversationId } = useConversationStore()
 
   return (
     <TouchableOpacity
       style={[
         { marginRight: theme.spacing.xs },
-        selectedConversation?.id === conversation.id && {
+        selectedConversationId === conversation.id && {
           marginLeft: theme.spacing.sm,
         },
       ]}

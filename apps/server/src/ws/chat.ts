@@ -2,123 +2,13 @@ import { jwt } from '@elysiajs/jwt'
 import { insertMessageWithSequence, sqlite } from '@meapp/db'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
+import { WS_CONFIG, env } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
-import { redisPlugin } from '../plugins/redis.ts'
+import { redis, redisPlugin } from '../plugins/redis.ts'
+import { WsConnectionManager, type WsSessionState } from './connectionManager.ts'
 
-// ─────────────────────────────────────────────────────────────
-// Connection & Rate Limit State (V8 Phase 4 & Phase 8 - Fix #3, #4, #5)
-// ─────────────────────────────────────────────────────────────
-
-let unauthConnections = 0
-const MAX_UNAUTH_GLOBAL = 100
-const UNAUTH_TIMEOUT_MS = 2000 // 2 seconds to authenticate via ticket
-const perIpUnauth = new Map<string, number>()
-
-const wsConnectionsPerUser = new Map<string, number>()
-const wsMessagesPerUser = new Map<string, { count: number; reset: number }>()
-const wsTypingPerUser = new Map<string, { count: number; reset: number }>()
-// V8 Phase 8: Subscriptions per user: 10 rooms max
-const wsRoomRefCountsPerUser = new Map<string, Map<string, number>>()
-
-// Periodic cleanup every 5 minutes to prevent memory leaks (Fix #5)
-const wsCleanupInterval = setInterval(
-  () => {
-    const now = Date.now()
-
-    for (const [userId, data] of wsMessagesPerUser) {
-      if (data.reset < now - 60000) {
-        wsMessagesPerUser.delete(userId)
-      }
-    }
-
-    for (const [userId, data] of wsTypingPerUser) {
-      if (data.reset < now - 60000) {
-        wsTypingPerUser.delete(userId)
-      }
-    }
-
-    for (const [userId, count] of wsConnectionsPerUser) {
-      if (count <= 0) {
-        wsConnectionsPerUser.delete(userId)
-      }
-    }
-
-    for (const [ip, count] of perIpUnauth) {
-      if (count <= 0) {
-        perIpUnauth.delete(ip)
-      }
-    }
-
-    for (const [userId, rooms] of wsRoomRefCountsPerUser) {
-      if (rooms.size === 0) {
-        wsRoomRefCountsPerUser.delete(userId)
-      }
-    }
-  },
-  5 * 60 * 1000,
-)
-
-wsCleanupInterval.unref?.()
-
-type WsState = {
-  authenticatedUserId?: string | undefined
-  ip: string
-  authTimeoutTimer?: ReturnType<typeof setTimeout> | undefined
-  subscribedRooms: Set<string>
-}
-
-type WsSubscriber = {
-  subscribe: (topic: string) => void
-  unsubscribe: (topic: string) => void
-}
-
-const addRoomSubscription = (
-  userId: string,
-  roomId: string,
-  ws: WsSubscriber,
-  state: WsState,
-): boolean => {
-  let userRooms = wsRoomRefCountsPerUser.get(userId)
-  if (!userRooms) {
-    userRooms = new Map<string, number>()
-    wsRoomRefCountsPerUser.set(userId, userRooms)
-  }
-
-  const currentCount = userRooms.get(roomId) || 0
-  if (currentCount === 0 && userRooms.size >= 10) {
-    return false
-  }
-
-  userRooms.set(roomId, currentCount + 1)
-  state.subscribedRooms.add(roomId)
-  ws.subscribe(`room:${roomId}`)
-  return true
-}
-
-const removeRoomSubscription = (
-  userId: string,
-  roomId: string,
-  ws: WsSubscriber,
-  state: WsState,
-): void => {
-  ws.unsubscribe(`room:${roomId}`)
-  state.subscribedRooms.delete(roomId)
-
-  const userRooms = wsRoomRefCountsPerUser.get(userId)
-  if (userRooms) {
-    const count = userRooms.get(roomId) || 0
-    if (count <= 1) {
-      userRooms.delete(roomId)
-    } else {
-      userRooms.set(roomId, count - 1)
-    }
-    if (userRooms.size === 0) {
-      wsRoomRefCountsPerUser.delete(userId)
-    }
-  }
-}
-
-const wsStates = new WeakMap<object, WsState>()
+const connectionManager = new WsConnectionManager(redis)
+const wsStates = new WeakMap<object, WsSessionState>()
 
 const incomingMessageBody = t.Union([
   t.Object({
@@ -168,7 +58,7 @@ export const chatWs = new Elysia()
         jti: t.String(),
         type: t.String(),
       }),
-      secret: process.env.WS_TICKET_SECRET || process.env.JWT_SECRET || 'dev-secret-change-me',
+      secret: env.WS_TICKET_SECRET || env.JWT_SECRET,
       exp: '60s',
     }),
   )
@@ -177,90 +67,80 @@ export const chatWs = new Elysia()
       roomId: t.String({ format: 'uuid' }),
     }),
     body: incomingMessageBody,
-    open(ws) {
+    async open(ws) {
       const { user, request, query } = ws.data
       const roomId = query.roomId
       const ip = request.headers.get('x-forwarded-for') || 'unknown'
 
-      const state: WsState = { ip, subscribedRooms: new Set<string>() }
+      const state: WsSessionState = { ip, subscribedRooms: new Set<string>() }
       wsStates.set(ws, state)
 
       // If user was derived from HttpOnly cookie (Web flow)
       if (user) {
-        canAccessRoom(user.id, roomId).then((can) => {
-          if (!can) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'FORBIDDEN', message: 'Not member of room' },
-              }),
-            )
-            ws.close(4403, 'Forbidden')
-            return
-          }
+        const can = await canAccessRoom(user.id, roomId)
+        if (!can) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'FORBIDDEN', message: 'Not member of room' },
+            }),
+          )
+          ws.close(4403, 'Forbidden')
+          return
+        }
 
-          const conns = wsConnectionsPerUser.get(user.id) || 0
-          if (conns >= 3) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'RATE_LIMIT', message: 'Too many connections' },
-              }),
-            )
-            ws.close(4429, 'Too many connections')
-            return
-          }
+        const allowed = await connectionManager.canUserConnect(user.id)
+        if (!allowed) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'RATE_LIMIT', message: 'Too many connections' },
+            }),
+          )
+          ws.close(4429, 'Too many connections')
+          return
+        }
 
-          // V8 Phase 8: Max 10 room subscriptions per user
-          const subscribed = addRoomSubscription(user.id, roomId, ws, state)
-          if (!subscribed) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: {
-                  code: 'RATE_LIMIT',
-                  message: 'Maximum 10 room subscriptions per user exceeded',
-                },
-              }),
-            )
-            ws.close(4429, 'Too many subscriptions')
-            return
-          }
+        const subscribed = await connectionManager.canSubscribeRoom(user.id, roomId)
+        if (!subscribed) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: {
+                code: 'RATE_LIMIT',
+                message: 'Maximum room subscriptions per user exceeded',
+              },
+            }),
+          )
+          ws.close(4429, 'Too many subscriptions')
+          return
+        }
 
-          wsConnectionsPerUser.set(user.id, conns + 1)
-          state.authenticatedUserId = user.id
-          ws.send(JSON.stringify({ type: 'authenticated', payload: { userId: user.id } }))
-        })
+        state.authenticatedUserId = user.id
+        state.subscribedRooms.add(roomId)
+        ws.subscribe(`room:${roomId}`)
+        ws.send(JSON.stringify({ type: 'authenticated', payload: { userId: user.id } }))
       } else {
-        // Native unauthenticated connection - enforce V8 DoS protection (Fix #3)
-        if (unauthConnections >= MAX_UNAUTH_GLOBAL) {
+        // Native unauthenticated connection
+        const allowedUnauth = await connectionManager.canAcceptUnauth(ip)
+        if (!allowedUnauth) {
           ws.close(1013, 'Too many unauthenticated connections')
           return
         }
 
-        const ipCount = perIpUnauth.get(ip) || 0
-        if (ipCount >= 10) {
-          ws.close(1013, 'Too many unauthenticated connections per IP')
-          return
-        }
-
-        unauthConnections++
-        perIpUnauth.set(ip, ipCount + 1)
-
-        // Strict 2s window for AUTH message
-        state.authTimeoutTimer = setTimeout(() => {
+        // Strict timeout window for AUTH message
+        state.authTimeoutTimer = setTimeout(async () => {
           if (!state.authenticatedUserId) {
             ws.send(
               JSON.stringify({
                 type: 'error',
-                payload: { code: 'UNAUTHENTICATED', message: 'AUTH required within 2s' },
+                payload: { code: 'UNAUTHENTICATED', message: 'AUTH required within timeout' },
               }),
             )
             ws.close(4401, 'Auth timeout')
-            unauthConnections = Math.max(0, unauthConnections - 1)
-            perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
+            await connectionManager.releaseUnauth(ip)
           }
-        }, UNAUTH_TIMEOUT_MS)
+        }, WS_CONFIG.UNAUTH_TIMEOUT_MS)
       }
     },
 
@@ -268,7 +148,7 @@ export const chatWs = new Elysia()
       const state = wsStates.get(ws)
       const roomId = ws.data.query.roomId
 
-      // Handle AUTH ticket (V8 Fix #2)
+      // Handle AUTH ticket
       if (msg.type === 'auth') {
         const ticket = msg.payload.ticket || msg.payload.token
         if (!ticket) {
@@ -281,7 +161,7 @@ export const chatWs = new Elysia()
           return
         }
 
-        const { redis, ticketJwt } = ws.data
+        const { redis: redisClient, ticketJwt } = ws.data
         try {
           const payload = (await ticketJwt.verify(ticket)) as unknown as {
             sub?: string
@@ -300,7 +180,7 @@ export const chatWs = new Elysia()
           }
 
           const key = `ws_ticket:${payload.jti}`
-          const stored = await redis.get(key)
+          const stored = await redisClient.get(key)
           if (!stored) {
             ws.send(
               JSON.stringify({
@@ -313,7 +193,7 @@ export const chatWs = new Elysia()
           }
 
           // Single-use: delete immediately
-          await redis.del(key)
+          await redisClient.del(key)
 
           const userId = payload.sub
           if (payload.roomId !== roomId) {
@@ -339,9 +219,8 @@ export const chatWs = new Elysia()
             return
           }
 
-          // Rate limit: max 3 connections per user
-          const conns = wsConnectionsPerUser.get(userId) || 0
-          if (conns >= 3) {
+          const allowed = await connectionManager.canUserConnect(userId)
+          if (!allowed) {
             ws.send(
               JSON.stringify({
                 type: 'error',
@@ -352,35 +231,32 @@ export const chatWs = new Elysia()
             return
           }
 
+          const subscribed = await connectionManager.canSubscribeRoom(userId, roomId)
+          if (!subscribed) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                payload: {
+                  code: 'RATE_LIMIT',
+                  message: 'Maximum room subscriptions per user exceeded',
+                },
+              }),
+            )
+            ws.close(4429, 'Too many subscriptions')
+            return
+          }
+
           if (state) {
             state.authenticatedUserId = userId
             if (state.authTimeoutTimer) {
               clearTimeout(state.authTimeoutTimer)
               state.authTimeoutTimer = undefined
             }
-
-            // V8 Phase 8: Max 10 room subscriptions per user
-            const subscribed = addRoomSubscription(userId, roomId, ws, state)
-            if (!subscribed) {
-              ws.send(
-                JSON.stringify({
-                  type: 'error',
-                  payload: {
-                    code: 'RATE_LIMIT',
-                    message: 'Maximum 10 room subscriptions per user exceeded',
-                  },
-                }),
-              )
-              ws.close(4429, 'Too many subscriptions')
-              return
-            }
+            state.subscribedRooms.add(roomId)
           }
 
-          wsConnectionsPerUser.set(userId, conns + 1)
-
-          unauthConnections = Math.max(0, unauthConnections - 1)
-          const ip = state?.ip || 'unknown'
-          perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
+          ws.subscribe(`room:${roomId}`)
+          await connectionManager.releaseUnauth(state?.ip || 'unknown')
 
           ws.send(JSON.stringify({ type: 'authenticated', payload: { userId } }))
         } catch {
@@ -407,7 +283,7 @@ export const chatWs = new Elysia()
         return
       }
 
-      // V8 Phase 8: Handle subscribe event
+      // Handle subscribe event
       if (msg.type === 'subscribe') {
         const targetRoom = msg.payload.roomId
         const can = await canAccessRoom(userId, targetRoom)
@@ -421,22 +297,22 @@ export const chatWs = new Elysia()
           return
         }
 
-        if (state) {
-          const subscribed = addRoomSubscription(userId, targetRoom, ws, state)
-          if (!subscribed) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: {
-                  code: 'RATE_LIMIT',
-                  message: 'Maximum 10 room subscriptions per user exceeded',
-                },
-              }),
-            )
-            return
-          }
+        const subscribed = await connectionManager.canSubscribeRoom(userId, targetRoom)
+        if (!subscribed) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: {
+                code: 'RATE_LIMIT',
+                message: 'Maximum room subscriptions per user exceeded',
+              },
+            }),
+          )
+          return
         }
 
+        state?.subscribedRooms.add(targetRoom)
+        ws.subscribe(`room:${targetRoom}`)
         ws.send(
           JSON.stringify({
             type: 'subscribed',
@@ -446,15 +322,12 @@ export const chatWs = new Elysia()
         return
       }
 
-      // V8 Phase 8: Handle unsubscribe event
+      // Handle unsubscribe event
       if (msg.type === 'unsubscribe') {
         const targetRoom = msg.payload.roomId
-        if (state) {
-          removeRoomSubscription(userId, targetRoom, ws, state)
-        } else {
-          ws.unsubscribe(`room:${targetRoom}`)
-        }
-
+        await connectionManager.unsubscribeRoom(userId, targetRoom)
+        state?.subscribedRooms.delete(targetRoom)
+        ws.unsubscribe(`room:${targetRoom}`)
         ws.send(
           JSON.stringify({
             type: 'unsubscribed',
@@ -477,15 +350,8 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Typing rate limit: 5 per 10s
-        const now = Date.now()
-        const typingLimit = wsTypingPerUser.get(userId)
-        if (!typingLimit || typingLimit.reset < now) {
-          wsTypingPerUser.set(userId, { count: 1, reset: now + 10000 })
-        } else {
-          if (typingLimit.count >= 5) return
-          typingLimit.count++
-        }
+        const allowed = await connectionManager.checkTypingRateLimit(userId)
+        if (!allowed) return
 
         const can = await canAccessRoom(userId, targetRoom)
         if (!can) return
@@ -521,22 +387,15 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Message rate limit: 10 per 10s
-        const now = Date.now()
-        const msgLimit = wsMessagesPerUser.get(userId)
-        if (!msgLimit || msgLimit.reset < now) {
-          wsMessagesPerUser.set(userId, { count: 1, reset: now + 10000 })
-        } else {
-          if (msgLimit.count >= 10) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'RATE_LIMIT', message: 'Too many messages, slow down' },
-              }),
-            )
-            return
-          }
-          msgLimit.count++
+        const allowed = await connectionManager.checkMessageRateLimit(userId)
+        if (!allowed) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'RATE_LIMIT', message: 'Too many messages, slow down' },
+            }),
+          )
+          return
         }
 
         const can = await canAccessRoom(userId, payload.roomId)
@@ -550,7 +409,7 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Atomic sequence insertion with BEGIN IMMEDIATE and retry (Fix #1, #6)
+        // Atomic sequence insertion with BEGIN IMMEDIATE and retry
         try {
           const result = await insertMessageWithSequence(sqlite, {
             roomId: payload.roomId,
@@ -608,7 +467,7 @@ export const chatWs = new Elysia()
       }
     },
 
-    close(ws) {
+    async close(ws) {
       const state = wsStates.get(ws)
       const roomId = ws.data.query.roomId
 
@@ -617,18 +476,16 @@ export const chatWs = new Elysia()
       }
 
       if (!state?.authenticatedUserId) {
-        unauthConnections = Math.max(0, unauthConnections - 1)
-        const ip = state?.ip || 'unknown'
-        perIpUnauth.set(ip, Math.max(0, (perIpUnauth.get(ip) || 1) - 1))
+        await connectionManager.releaseUnauth(state?.ip || 'unknown')
         ws.unsubscribe(`room:${roomId}`)
       } else {
         const userId = state.authenticatedUserId
-        const conns = wsConnectionsPerUser.get(userId) || 1
-        wsConnectionsPerUser.set(userId, Math.max(0, conns - 1))
+        await connectionManager.releaseUserConnection(userId)
 
         if (state) {
           for (const rId of Array.from(state.subscribedRooms)) {
-            removeRoomSubscription(userId, rId, ws, state)
+            await connectionManager.unsubscribeRoom(userId, rId)
+            ws.unsubscribe(`room:${rId}`)
           }
         }
       }

@@ -11,11 +11,11 @@ import { theme } from '@/theme/theme'
 export function AddFriend() {
   const [showModal, setShowModal] = useState(false)
   const [username, setUsername] = useState('')
-  const { setSelectedConversation } = useConversationStore()
+  const { setSelectedConversationId } = useConversationStore()
 
   const { mutate, isPending, isError, isSuccess, error, reset } = useAddFriend({
     onSuccess: (conversation) => {
-      setSelectedConversation(conversation)
+      setSelectedConversationId(conversation.id)
       void ConversationStorage.save(conversation.id)
       setShowModal(false)
       setUsername('')

@@ -1,3 +1,4 @@
+import { and, db, eq, schema } from '@meapp/db'
 import { addContactSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
@@ -11,15 +12,13 @@ import {
 } from '../lib/errors.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
-import { redisPlugin } from '../plugins/redis.ts'
 
 export const friendRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
-  .use(redisPlugin)
 
   .post(
     '/add-other',
-    async ({ body, user, redisService }) => {
+    async ({ body, user }) => {
       const { other } = body
       const me = requireUser(user)
 
@@ -27,21 +26,40 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
         throw createValidationError('You cannot add yourself to your own list of others.')
       }
 
-      const otherExists = await handleAsyncOperation(
-        () => redisService.checkUserExists(other),
+      const otherUser = await handleAsyncOperation(
+        async () => db.select().from(schema.users).where(eq(schema.users.username, other)).get(),
         'Failed to check other user existence',
         ErrorCode.DATABASE_ERROR,
       )
-      if (!otherExists) {
+      if (!otherUser) {
         throw createUserNotFoundError(other)
       }
 
-      if (await redisService.hasContact(me.username, other)) {
+      const hasContact = await handleAsyncOperation(
+        async () =>
+          db
+            .select()
+            .from(schema.contacts)
+            .where(
+              and(
+                eq(schema.contacts.userId, me.id),
+                eq(schema.contacts.contactUserId, otherUser.id),
+              ),
+            )
+            .get(),
+        'Failed to check contact existence',
+        ErrorCode.DATABASE_ERROR,
+      )
+      if (hasContact) {
         throw createDuplicateItemError('User is already in the list.')
       }
 
       await handleAsyncOperation(
-        () => redisService.addContact(me.username, other),
+        async () =>
+          db.insert(schema.contacts).values({
+            userId: me.id,
+            contactUserId: otherUser.id,
+          }),
         'Failed to add item',
         ErrorCode.DATABASE_ERROR,
       )
@@ -53,30 +71,56 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/remove-other',
-    async ({ body, user, redisService }) => {
+    async ({ body, user }) => {
       const { other } = body
       const me = requireUser(user)
 
-      const removedCount = await handleAsyncOperation(
-        () => redisService.removeContact(me.username, other),
-        'Failed to remove item',
+      const otherUser = await handleAsyncOperation(
+        async () => db.select().from(schema.users).where(eq(schema.users.username, other)).get(),
+        'Failed to check other user existence',
         ErrorCode.DATABASE_ERROR,
       )
-      if (removedCount === 0) {
+      if (!otherUser) {
         throw createNotFoundError('Item', { item: other })
       }
 
-      return { other, count: removedCount }
+      const deletedRows = await handleAsyncOperation(
+        async () =>
+          db
+            .delete(schema.contacts)
+            .where(
+              and(
+                eq(schema.contacts.userId, me.id),
+                eq(schema.contacts.contactUserId, otherUser.id),
+              ),
+            )
+            .returning(),
+        'Failed to remove item',
+        ErrorCode.DATABASE_ERROR,
+      )
+
+      if (deletedRows.length === 0) {
+        throw createNotFoundError('Item', { item: other })
+      }
+
+      return { other, count: deletedRows.length }
     },
     { body: addContactSchema },
   )
 
-  .get('/get-others', async ({ user, redisService }) => {
+  .get('/get-others', async ({ user }) => {
     const me = requireUser(user)
 
-    return handleAsyncOperation(
-      () => redisService.getContacts(me.username),
+    const contactsList = await handleAsyncOperation(
+      async () =>
+        db
+          .select({ username: schema.users.username })
+          .from(schema.contacts)
+          .innerJoin(schema.users, eq(schema.contacts.contactUserId, schema.users.id))
+          .where(eq(schema.contacts.userId, me.id)),
       'Failed to retrieve items',
       ErrorCode.DATABASE_ERROR,
     )
+
+    return contactsList.map((c) => c.username).filter(Boolean) as string[]
   })

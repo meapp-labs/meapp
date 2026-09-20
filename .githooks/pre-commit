@@ -8,8 +8,16 @@ git update-index --again 2>/dev/null || git add -u
 # 2. Identify staged files to determine applicable checks
 STAGED_FILES=$(git diff --cached --name-only)
 
-SERVER_CHANGED=false
-CLIENT_CHANGED=false
+DB_CHANGED=false
+SHARED_CHANGED=false
+
+if echo "$STAGED_FILES" | grep -E '^packages/db/' >/dev/null 2>&1; then
+  DB_CHANGED=true
+fi
+
+if echo "$STAGED_FILES" | grep -E '^packages/shared/' >/dev/null 2>&1; then
+  SHARED_CHANGED=true
+fi
 
 if echo "$STAGED_FILES" | grep -E '^(apps/server/|packages/db/|packages/shared/)' >/dev/null 2>&1; then
   SERVER_CHANGED=true
@@ -20,6 +28,18 @@ if echo "$STAGED_FILES" | grep -E '^(apps/client/|packages/shared/)' >/dev/null 
 fi
 
 # 3. Run typecheck and tests conditionally
+if [ "$DB_CHANGED" = true ]; then
+  echo "==> Staged changes detected in db package"
+  echo "==> Running db typecheck..."
+  bun run typecheck:db
+fi
+
+if [ "$SHARED_CHANGED" = true ]; then
+  echo "==> Staged changes detected in shared package"
+  echo "==> Running shared typecheck..."
+  bun run typecheck:shared
+fi
+
 if [ "$SERVER_CHANGED" = true ]; then
   echo "==> Staged changes detected in server codebase"
   echo "==> Running server typecheck..."

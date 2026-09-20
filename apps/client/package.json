@@ -1,9 +1,10 @@
 {
-  "name": "client",
+  "name": "@meapp/client",
   "main": "expo-router/entry",
   "version": "0.1.0",
   "scripts": {
     "dev": "cross-env APP_VARIANT=development expo start",
+    "web": "cross-env APP_VARIANT=development expo start --web",
     "start": "cross-env APP_VARIANT=development expo start",
     "export:web": "cross-env APP_VARIANT=production expo export -p web",
     "build:android:dev": "cross-env APP_VARIANT=development eas build --platform android --profile development --local",

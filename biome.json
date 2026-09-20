@@ -8,7 +8,17 @@
   "files": {
     "ignoreUnknown": false,
     "include": ["apps/**/*", "packages/**/*"],
-    "ignore": ["**/node_modules/**", "**/dist/**", "**/.expo/**", "**/build/**", "**/drizzle/**"]
+    "ignore": [
+      "**/node_modules/**",
+      "**/dist/**",
+      "**/.expo/**",
+      "**/build/**",
+      "**/drizzle/**",
+      "**/*.db",
+      "**/*.db-journal",
+      "**/*.db-wal",
+      "**/*.db-shm"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -43,7 +53,12 @@
   },
   "overrides": [
     {
-      "include": ["**/*.config.ts", "**/*.config.js", "**/apps/client/app/**/*"],
+      "include": [
+        "**/*.config.ts",
+        "**/*.config.js",
+        "**/drizzle.config.ts",
+        "**/apps/client/app/**/*"
+      ],
       "linter": {
         "rules": {
           "style": {

@@ -1,12 +1,13 @@
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
+import { checkpoint, sqlite } from '@meapp/db'
 import { Elysia } from 'elysia'
 
 import { env, isProduction } from './lib/config.ts'
 import { ApiError, ErrorCode, toErrorResponse } from './lib/errors.ts'
 import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
-import { redisPlugin } from './plugins/redis.ts'
+import { redis, redisPlugin } from './plugins/redis.ts'
 import { authRoutes } from './routes/auth.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { messageRoutes } from './routes/messages.ts'
@@ -51,12 +52,42 @@ export const app = new Elysia()
     set.status = status
     return body
   })
-  .get('/health', () => ({
-    status: 'ok',
-    podman: true,
-    bun: '1.4.2',
-    timestamp: new Date().toISOString(),
-  }))
+  .get('/health', async ({ set }) => {
+    let dbStatus = 'down'
+    let redisStatus = 'down'
+
+    try {
+      const dbRow = sqlite.query('SELECT 1 as alive').get() as { alive?: number } | null
+      if (dbRow?.alive === 1) {
+        dbStatus = 'ok'
+      }
+    } catch {
+      dbStatus = 'error'
+    }
+
+    try {
+      const pong = await redis.ping()
+      if (pong === 'PONG') {
+        redisStatus = 'ok'
+      }
+    } catch {
+      redisStatus = 'error'
+    }
+
+    const healthy = dbStatus === 'ok'
+    if (!healthy) {
+      set.status = 503
+    }
+
+    return {
+      status: healthy ? 'ok' : 'degraded',
+      db: dbStatus,
+      redis: redisStatus,
+      podman: true,
+      bun: '1.4.2',
+      timestamp: new Date().toISOString(),
+    }
+  })
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
@@ -64,6 +95,18 @@ export const app = new Elysia()
   .use(chatWs)
 
 export type App = typeof app
+
+const shutdown = () => {
+  console.log('Shutting down server...')
+  checkpoint()
+  process.exit(0)
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
+process.on('beforeExit', () => {
+  checkpoint()
+})
 
 if (import.meta.main) {
   app.listen({ port: env.PORT, hostname: env.HOST }, () => {

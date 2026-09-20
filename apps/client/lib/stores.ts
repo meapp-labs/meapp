@@ -1,29 +1,45 @@
+import AsyncStorage from '@react-native-async-storage/async-storage'
 import { create } from 'zustand'
-
-import type { Conversation } from '@/types/models'
+import { createJSONStorage, persist } from 'zustand/middleware'
 
 type AuthStore = {
   username: string
-  setUsername: (by: string) => void
+  token: string | null
+  setUsername: (username: string) => void
+  setToken: (token: string | null) => void
+  reset: () => void
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
-  username: '',
-  setUsername: (username: string) =>
-    set(() => ({
-      username: username,
-    })),
-}))
+export const useAuthStore = create<AuthStore>()(
+  persist(
+    (set) => ({
+      username: '',
+      token: null,
+      setUsername: (username: string) => set({ username }),
+      setToken: (token: string | null) => set({ token }),
+      reset: () => set({ username: '', token: null }),
+    }),
+    {
+      name: 'meapp-auth',
+      storage: createJSONStorage(() => AsyncStorage),
+    },
+  ),
+)
 
 type ConversationStore = {
-  selectedConversation: Conversation | null
-  setSelectedConversation: (conversation: Conversation | null) => void
+  selectedConversationId: string | null
+  setSelectedConversationId: (id: string | null) => void
 }
 
-export const useConversationStore = create<ConversationStore>((set) => ({
-  selectedConversation: null,
-  setSelectedConversation: (conversation) => set({ selectedConversation: conversation }),
-}))
-
-// Legacy alias for backwards compatibility during migration
-export const useFriendStore = useConversationStore
+export const useConversationStore = create<ConversationStore>()(
+  persist(
+    (set) => ({
+      selectedConversationId: null,
+      setSelectedConversationId: (id: string | null) => set({ selectedConversationId: id }),
+    }),
+    {
+      name: 'meapp-conversation',
+      storage: createJSONStorage(() => AsyncStorage),
+    },
+  ),
+)

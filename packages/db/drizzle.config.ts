@@ -3,7 +3,7 @@ import { defineConfig } from 'drizzle-kit'
 // drizzle-kit config for migrations and schema introspection.
 // Run: bunx drizzle-kit generate
 //      bunx drizzle-kit migrate
-defineConfig({
+export default defineConfig({
   schema: './src/schema.ts',
   out: './drizzle',
   dialect: 'sqlite',

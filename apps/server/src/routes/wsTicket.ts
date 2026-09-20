@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto'
 import { jwt } from '@elysiajs/jwt'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
+import { env } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
 
@@ -17,7 +18,7 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
         jti: t.String(),
         type: t.String(),
       }),
-      secret: process.env.WS_TICKET_SECRET || process.env.JWT_SECRET || 'dev-secret-change-me',
+      secret: env.WS_TICKET_SECRET || env.JWT_SECRET,
       exp: '60s',
     }),
   )

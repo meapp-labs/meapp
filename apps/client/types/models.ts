@@ -18,6 +18,8 @@ export type Message = {
   id: string
   /** Message index in conversation */
   index: number
+  /** Monotonic sequence in room */
+  sequence?: number
   /** Username of sender */
   from: string
   /** Message content */

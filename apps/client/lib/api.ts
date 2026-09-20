@@ -1,12 +1,14 @@
+import type { ApiError as SharedApiError } from '@meapp/shared'
 import { env } from './env'
 
-export type ApiErrorResponse = {
-  message: string
-  code: string
-}
+export type ApiErrorResponse = SharedApiError
 
 function sanitizeErrorMessage(rawMessage: string): string {
-  return rawMessage.replace(/[\w/]+\s+(?=[A-Z])/g, '')
+  if (!rawMessage || typeof rawMessage !== 'string') return 'An error occurred'
+  return rawMessage
+    .replace(/(?:\/[a-zA-Z0-9_.-]+)+/g, '[path]')
+    .replace(/[A-Za-z]:\\[\w\\.-]+/g, '[path]')
+    .trim()
 }
 
 export class ApiHttpError extends Error {

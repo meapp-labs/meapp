@@ -5,10 +5,11 @@ import {
   useQueryClient,
 } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
-import { Platform } from 'react-native'
 
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
+import { env } from '@/lib/env'
 import { Keys } from '@/lib/keys'
+import { useAuthStore } from '@/lib/stores'
 import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@/types/models'
 
 // Re-export for backwards compatibility
@@ -57,6 +58,14 @@ export function useSendMessage({ conversationId }: { conversationId: string }) {
       }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
         if (!old || !old.pages[0]) return old
 
+        const exists = old.pages[0].messages.some(
+          (m) =>
+            m.id === newMessage.id ||
+            (newMessage.sequence && m.sequence === newMessage.sequence) ||
+            (newMessage.index && m.index === newMessage.index),
+        )
+        if (exists) return old
+
         const updatedMessages = [...old.pages[0].messages, newMessage]
 
         return {
@@ -80,19 +89,8 @@ export function useSendMessage({ conversationId }: { conversationId: string }) {
 }
 
 /**
- * Get the last message index from cached data
- */
-function getLastMessageIndex(data: { pages: MessagesResponse[] } | undefined): number | undefined {
-  if (!data?.pages[0]?.messages.length) return undefined
-
-  const firstPage = data.pages[0]
-  const lastMessage = firstPage.messages[firstPage.messages.length - 1]
-  return lastMessage?.index
-}
-
-/**
  * Get messages for a conversation with infinite scroll
- * Uses custom polling to only fetch new messages (after last known index)
+ * Uses WebSocket subscription for real-time messages instead of polling
  */
 export function useGetMessages({
   conversationId,
@@ -102,7 +100,9 @@ export function useGetMessages({
   enabled?: boolean
 }) {
   const queryClient = useQueryClient()
-  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const token = useAuthStore((s) => s.token)
+  const wsRef = useRef<WebSocket | null>(null)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const query = useInfiniteQuery<
     MessagesResponse,
@@ -138,9 +138,9 @@ export function useGetMessages({
     getNextPageParam: (lastPage) => {
       if (lastPage.hasMore && lastPage.messages.length > 0) {
         const firstMessage = lastPage.messages[0]
-        const index = firstMessage?.index
-        if (index !== undefined) {
-          return { before: Number(index) }
+        const sequence = firstMessage?.sequence ?? firstMessage?.index
+        if (sequence !== undefined) {
+          return { before: Number(sequence) }
         }
       }
       return undefined
@@ -148,73 +148,113 @@ export function useGetMessages({
     enabled: !!conversationId && enabled,
   })
 
-  // Custom polling: fetch only new messages using `after` parameter
+  // Real-time WebSocket subscription
   useEffect(() => {
-    if (Platform.OS !== 'web' || !enabled || !conversationId) {
-      return
-    }
+    if (!enabled || !conversationId) return
 
-    const pollForNewMessages = async () => {
-      const currentData = queryClient.getQueryData<{
-        pages: MessagesResponse[]
-        pageParams: { after?: number; before?: number }[]
-      }>([Keys.Query.GET_MESSAGES, conversationId])
+    let isSubscribed = true
 
-      const lastIndex = getLastMessageIndex(currentData)
-      if (lastIndex === undefined) return
+    const connectWebSocket = () => {
+      if (!isSubscribed) return
 
       try {
-        // Fetch only messages after the last known index
-        const newMessages = await getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, {
-          conversationId,
-          after: lastIndex.toString(),
-          limit: '50',
-        })
+        const baseWsUrl = env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')
+        const wsUrl = `${baseWsUrl}/ws?roomId=${encodeURIComponent(conversationId)}`
+        const ws = new WebSocket(wsUrl)
+        wsRef.current = ws
 
-        if (newMessages.messages.length > 0) {
-          // Append new messages to the first page
-          queryClient.setQueryData<{
-            pages: MessagesResponse[]
-            pageParams: { after?: number; before?: number }[]
-          }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
-            if (!old || !old.pages[0]) return old
-
-            return {
-              ...old,
-              pages: [
-                {
-                  messages: [...old.pages[0].messages, ...newMessages.messages],
-                  hasMore: old.pages[0].hasMore,
-                  totalCount: newMessages.totalCount,
-                },
-                ...old.pages.slice(1),
-              ],
-              pageParams: old.pageParams,
-            }
-          })
-
-          // Update conversation list cache to sync preview
-          const latestMessage = newMessages.messages[newMessages.messages.length - 1]
-          if (latestMessage) {
-            updateConversationListCache(queryClient, conversationId, latestMessage)
+        ws.onopen = () => {
+          if (!isSubscribed) {
+            ws.close()
+            return
+          }
+          if (token) {
+            ws.send(JSON.stringify({ type: 'auth', payload: { token } }))
           }
         }
-      } catch {
-        // Silently ignore polling errors
+
+        ws.onmessage = (event) => {
+          if (!isSubscribed) return
+          try {
+            const data = JSON.parse(event.data)
+            if (data.type === 'message' && data.payload) {
+              const p = data.payload
+              if (p.roomId === conversationId) {
+                const incomingMessage: Message = {
+                  id: p.id,
+                  index: p.sequence,
+                  sequence: p.sequence,
+                  from: p.userId,
+                  text: p.text,
+                  type: 'text',
+                  timestamp: p.createdAt || new Date().toISOString(),
+                }
+
+                queryClient.setQueryData<{
+                  pages: MessagesResponse[]
+                  pageParams: { after?: number; before?: number }[]
+                }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
+                  if (!old || !old.pages[0]) return old
+
+                  const alreadyExists = old.pages[0].messages.some(
+                    (m) =>
+                      m.id === incomingMessage.id ||
+                      (incomingMessage.sequence && m.sequence === incomingMessage.sequence) ||
+                      (incomingMessage.index && m.index === incomingMessage.index),
+                  )
+                  if (alreadyExists) return old
+
+                  return {
+                    ...old,
+                    pages: [
+                      {
+                        messages: [...old.pages[0].messages, incomingMessage],
+                        hasMore: old.pages[0].hasMore,
+                        totalCount: old.pages[0].totalCount + 1,
+                      },
+                      ...old.pages.slice(1),
+                    ],
+                    pageParams: old.pageParams,
+                  }
+                })
+
+                updateConversationListCache(queryClient, conversationId, incomingMessage)
+              }
+            }
+          } catch (e) {
+            console.error('[WebSocket] Failed to parse message:', e)
+          }
+        }
+
+        ws.onclose = () => {
+          if (!isSubscribed) return
+          reconnectTimerRef.current = setTimeout(() => {
+            connectWebSocket()
+          }, 3000)
+        }
+
+        ws.onerror = () => {
+          ws.close()
+        }
+      } catch (err) {
+        console.error('[WebSocket] Connection error:', err)
       }
     }
 
-    pollingIntervalRef.current = setInterval(() => {
-      void pollForNewMessages()
-    }, 5000)
+    connectWebSocket()
 
     return () => {
-      if (pollingIntervalRef.current) {
-        clearInterval(pollingIntervalRef.current)
-        pollingIntervalRef.current = null
+      isSubscribed = false
+      if (reconnectTimerRef.current) {
+        clearTimeout(reconnectTimerRef.current)
+        reconnectTimerRef.current = null
+      }
+      if (wsRef.current) {
+        wsRef.current.close()
+        wsRef.current = null
       }
     }
-  }, [conversationId, enabled, queryClient])
+  }, [conversationId, enabled, token, queryClient])
 
   return query
 }

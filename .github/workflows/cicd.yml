@@ -45,7 +45,7 @@ jobs:
       - run: bunx @biomejs/biome check ./apps/client ./packages/shared
       - run: bunx expo-doctor
       - run: npx expo-modules-autolinking verify -v
-      - run: bun --filter client export:web
+      - run: bun --filter @meapp/client export:web
       - if: github.ref == 'refs/heads/main'
         run: rsync -avz apps/client/dist/ user@server:/var/www/meapp-web/dist/
       - if: github.ref == 'refs/heads/main'

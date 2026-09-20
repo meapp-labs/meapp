@@ -7,14 +7,14 @@ import { ConversationStorage, RememberMeStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
 export function Logout() {
-  const { setSelectedConversation } = useConversationStore()
+  const { setSelectedConversationId } = useConversationStore()
   const { setUsername } = useAuthStore()
 
   const { mutate: logout } = useLogoutUser({
     onSuccess: () => {
       void RememberMeStorage.clear()
       void ConversationStorage.clear()
-      setSelectedConversation(null)
+      setSelectedConversationId(null)
       setUsername('')
     },
   })

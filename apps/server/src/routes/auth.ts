@@ -1,4 +1,5 @@
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { db, eq, schema } from '@meapp/db'
 import { loginSchema, pushTokenSchema, registerSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
@@ -19,6 +20,8 @@ import { sessionJwtPlugin } from '../plugins/session.ts'
 const hashPassword = (password: string, salt: string): string =>
   scryptSync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH).toString('hex')
 
+const loginAttemptsKey = (username: string) => `ratelimit:login:${username}`
+
 export const authRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
   .use(redisPlugin)
@@ -26,11 +29,11 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/register',
-    async ({ body, redisService, set }) => {
-      const { username, password } = body
+    async ({ body, set }) => {
+      const { username, password, platform } = body
 
       const existingUser = await handleAsyncOperation(
-        () => redisService.getUser(username),
+        async () => db.select().from(schema.users).where(eq(schema.users.username, username)).get(),
         'Failed to check existing user',
         ErrorCode.DATABASE_ERROR,
       )
@@ -39,14 +42,20 @@ export const authRoutes = new Elysia({ prefix: '/api' })
       }
 
       const salt = randomBytes(LOGIN_CONFIG.SALT_LENGTH).toString('hex')
-      const wasSet = await handleAsyncOperation(
-        () => redisService.createUser(username, `${salt}:${hashPassword(password, salt)}`),
+      const passwordHash = `${salt}:${hashPassword(password, salt)}`
+      const userId = Bun.randomUUIDv7()
+
+      await handleAsyncOperation(
+        async () =>
+          db.insert(schema.users).values({
+            id: userId,
+            username,
+            passwordHash,
+            platform: platform ?? 'web',
+          }),
         'Failed to create user',
         ErrorCode.DATABASE_ERROR,
       )
-      if (wasSet !== 'OK') {
-        throw createUserExistsError(username)
-      }
 
       set.status = 201
       return username
@@ -56,47 +65,69 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/login',
-    async ({ body, cookie, sessionJwt, redisService }) => {
+    async ({ body, cookie, sessionJwt, redis }) => {
       const { username, password, platform } = body
 
-      const canAttempt = await redisService.checkRateLimit(username)
-      if (!canAttempt) {
-        throw createRateLimitError('Too many login attempts. Please try again later.', {
-          lockoutMinutes: LOGIN_CONFIG.LOCKOUT_DURATION_MS / 1000 / 60,
-          maxAttempts: LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS,
-        })
+      // Check login rate limit via Redis
+      const attemptKey = loginAttemptsKey(username)
+      try {
+        const attempts = await redis.get(attemptKey)
+        if (attempts && Number.parseInt(attempts, 10) >= LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS) {
+          throw createRateLimitError('Too many login attempts. Please try again later.', {
+            lockoutMinutes: LOGIN_CONFIG.LOCKOUT_DURATION_MS / 1000 / 60,
+            maxAttempts: LOGIN_CONFIG.MAX_LOGIN_ATTEMPTS,
+          })
+        }
+      } catch (err) {
+        if (err instanceof ApiError) throw err
+        // Degraded mode if Redis is offline
       }
 
       const user = await handleAsyncOperation(
-        () => redisService.getUser(username),
+        async () => db.select().from(schema.users).where(eq(schema.users.username, username)).get(),
         'Failed to retrieve user data',
         ErrorCode.DATABASE_ERROR,
       )
+
+      const recordFailedAttempt = async () => {
+        try {
+          const current = await redis.incr(attemptKey)
+          if (current === 1) {
+            await redis.expire(attemptKey, LOGIN_CONFIG.LOCKOUT_DURATION_MS / 1000)
+          }
+        } catch {}
+      }
+
       if (!user) {
-        await redisService.incrementLoginAttempts(username)
+        await recordFailedAttempt()
         throw createAuthError('Invalid credentials')
       }
 
-      const [salt, key] = user.split(':')
+      const [salt, key] = user.passwordHash.split(':')
       if (!salt || !key) {
-        await redisService.incrementLoginAttempts(username)
+        await recordFailedAttempt()
         throw new ApiError(ErrorCode.DATA_CORRUPTION, 'User data is corrupted', 500)
       }
 
       const hashedBuffer = scryptSync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH)
       const keyBuffer = Buffer.from(key, 'hex')
-      // timingSafeEqual throws on length mismatch, which corrupt hashes would hit.
       const matches =
         hashedBuffer.length === keyBuffer.length && timingSafeEqual(hashedBuffer, keyBuffer)
 
       if (!matches) {
-        await redisService.incrementLoginAttempts(username)
+        await recordFailedAttempt()
         throw createAuthError('Invalid credentials')
       }
 
-      await redisService.clearLoginAttempts(username)
+      try {
+        await redis.del(attemptKey)
+      } catch {}
 
-      const token = await sessionJwt.sign({ sub: username, username, platform })
+      const token = await sessionJwt.sign({
+        sub: user.id,
+        username: user.username ?? username,
+        platform: user.platform ?? platform ?? 'web',
+      })
       if (!token) {
         throw new ApiError(ErrorCode.INTERNAL_SERVER_ERROR, 'Failed to create session', 500)
       }
@@ -115,13 +146,13 @@ export const authRoutes = new Elysia({ prefix: '/api' })
     { body: loginSchema },
   )
 
-  .post('/logout', async ({ user, cookie, redisService }) => {
+  .post('/logout', async ({ user, cookie }) => {
     const me = requireUser(user)
 
     if (me.platform === 'android') {
-      // A missing push token is not an error.
       await handleAsyncOperation(
-        () => redisService.deletePushToken(me.username),
+        async () =>
+          db.update(schema.users).set({ pushToken: null }).where(eq(schema.users.id, me.id)),
         'Failed to delete push token',
         ErrorCode.DATABASE_ERROR,
       ).catch(() => undefined)
@@ -135,7 +166,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post(
     '/push-token',
-    async ({ user, body, redisService }) => {
+    async ({ user, body }) => {
       const me = requireUser(user)
 
       if (me.platform !== 'android') {
@@ -143,7 +174,8 @@ export const authRoutes = new Elysia({ prefix: '/api' })
       }
 
       await handleAsyncOperation(
-        () => redisService.setPushToken(me.username, body.token),
+        async () =>
+          db.update(schema.users).set({ pushToken: body.token }).where(eq(schema.users.id, me.id)),
         'Failed to store push token',
         ErrorCode.DATABASE_ERROR,
       )

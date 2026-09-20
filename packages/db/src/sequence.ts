@@ -23,16 +23,13 @@ export const insertMessageWithSequence = async (
   // Retry loop for UNIQUE(roomId, sequence) collision
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
-      // V8 FIX: Use raw bun:sqlite with BEGIN IMMEDIATE to acquire RESERVED write lock upfront
-      sqlite.exec('BEGIN IMMEDIATE')
-
-      try {
+      const runImmediate = sqlite.transaction(() => {
         const maxRow = sqlite
           .query('SELECT MAX(sequence) as maxSeq FROM messages WHERE room_id = ?')
           .get(opts.roomId) as { maxSeq: number | null }
 
         const nextSeq = (maxRow?.maxSeq || 0) + 1
-        const id = crypto.randomUUID()
+        const id = Bun.randomUUIDv7()
 
         sqlite
           .query(
@@ -40,12 +37,10 @@ export const insertMessageWithSequence = async (
           )
           .run(id, opts.clientId, opts.roomId, opts.userId, nextSeq, opts.text, Date.now())
 
-        sqlite.exec('COMMIT')
         return { id, sequence: nextSeq }
-      } catch (e) {
-        sqlite.exec('ROLLBACK')
-        throw e
-      }
+      })
+
+      return runImmediate.immediate()
     } catch (e: unknown) {
       const err = e as { code?: string; message?: string }
       if (err.code === 'SQLITE_CONSTRAINT' || err.message?.includes('UNIQUE')) {

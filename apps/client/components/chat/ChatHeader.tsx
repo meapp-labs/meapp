@@ -5,6 +5,7 @@ import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-nati
 import { DeleteFriend } from '@/components/chat/DeleteFriend'
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { useSelectedConversation } from '@/services/conversations'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
@@ -26,19 +27,20 @@ function getDisplayName(
 }
 
 export function ChatHeader() {
-  const { selectedConversation, setSelectedConversation } = useConversationStore()
+  const { setSelectedConversationId } = useConversationStore()
+  const selectedConversation = useSelectedConversation()
   const { username } = useAuthStore()
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
 
   const handlePress = () => {
-    setSelectedConversation(null)
+    setSelectedConversationId(null)
     void ConversationStorage.clear()
   }
 
   const handleDelete = () => {
     setShowMenu(false)
-    setSelectedConversation(null)
+    setSelectedConversationId(null)
     void ConversationStorage.clear()
   }
 

@@ -24,7 +24,7 @@ export function CreateGroup() {
   const [groupName, setGroupName] = useState('')
 
   const { data: friends = [] } = useGetFriends()
-  const { setSelectedConversation } = useConversationStore()
+  const { setSelectedConversationId } = useConversationStore()
   const { mutate: createGroup, isPending } = useCreateConversation()
 
   const handleToggleFriend = (friend: string) => {
@@ -44,7 +44,7 @@ export function CreateGroup() {
       },
       {
         onSuccess: (conversation) => {
-          setSelectedConversation(conversation)
+          setSelectedConversationId(conversation.id)
           void ConversationStorage.save(conversation.id)
           handleClose()
         },

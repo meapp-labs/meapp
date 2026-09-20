@@ -1,18 +1,56 @@
-const int = (value: string | undefined, fallback: number): number => {
-  const parsed = Number.parseInt(value ?? '', 10)
-  return Number.isNaN(parsed) ? fallback : parsed
-}
+import { z } from 'zod'
 
 export const isProduction = process.env.NODE_ENV === 'production'
 
-export const env = {
-  NODE_ENV: process.env.NODE_ENV ?? 'development',
-  PORT: int(process.env.PORT, 3000),
-  HOST: process.env.HOST ?? '127.0.0.1',
-  DOMAIN: process.env.DOMAIN,
-  REDIS_URL: process.env.REDIS_URL ?? 'redis://127.0.0.1:6379',
-  JWT_SECRET: process.env.JWT_SECRET ?? 'dev-secret-change-me',
-  WS_TICKET_SECRET: process.env.WS_TICKET_SECRET,
+const serverEnvSchema = z
+  .object({
+    NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+    PORT: z.coerce.number().default(3000),
+    HOST: z.string().default('127.0.0.1'),
+    DOMAIN: z.string().optional(),
+    REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
+    JWT_SECRET: z.string().default('dev-secret-change-me'),
+    WS_TICKET_SECRET: z.string().optional(),
+    MAX_UNAUTH_GLOBAL: z.coerce.number().default(100),
+    MAX_UNAUTH_PER_IP: z.coerce.number().default(10),
+    MAX_WS_CONNS_PER_USER: z.coerce.number().default(3),
+    MAX_ROOM_SUBS_PER_USER: z.coerce.number().default(10),
+    UNAUTH_TIMEOUT_MS: z.coerce.number().default(2000),
+  })
+  .superRefine((data, ctx) => {
+    if (data.NODE_ENV === 'production') {
+      if (!data.JWT_SECRET || data.JWT_SECRET === 'dev-secret-change-me') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'JWT_SECRET is required and cannot use dev fallback in production',
+          path: ['JWT_SECRET'],
+        })
+      }
+      if (!data.WS_TICKET_SECRET || data.WS_TICKET_SECRET === 'dev-secret-change-me') {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'WS_TICKET_SECRET is required and cannot use dev fallback in production',
+          path: ['WS_TICKET_SECRET'],
+        })
+      }
+    }
+  })
+
+const parsedEnv = serverEnvSchema.safeParse(process.env)
+
+if (!parsedEnv.success) {
+  console.error('❌ Invalid environment variables:', parsedEnv.error.format())
+  throw new Error(`Invalid environment configuration: ${parsedEnv.error.message}`)
+}
+
+export const env = parsedEnv.data
+
+export const WS_CONFIG = {
+  MAX_UNAUTH_GLOBAL: env.MAX_UNAUTH_GLOBAL,
+  MAX_UNAUTH_PER_IP: env.MAX_UNAUTH_PER_IP,
+  MAX_WS_CONNS_PER_USER: env.MAX_WS_CONNS_PER_USER,
+  MAX_ROOM_SUBS_PER_USER: env.MAX_ROOM_SUBS_PER_USER,
+  UNAUTH_TIMEOUT_MS: env.UNAUTH_TIMEOUT_MS,
 } as const
 
 export const SESSION_COOKIE_NAME = 'access_token'

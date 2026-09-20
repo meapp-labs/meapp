@@ -158,3 +158,30 @@ export const attachments = sqliteTable(
 
 export type Attachment = typeof attachments.$inferSelect
 export type NewAttachment = typeof attachments.$inferInsert
+
+// ─────────────────────────────────────────────────────────────
+// contacts (friends)
+// ─────────────────────────────────────────────────────────────
+
+export const contacts = sqliteTable(
+  'contacts',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    contactUserId: text('contact_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.contactUserId] }),
+    index('contacts_user_idx').on(t.userId),
+    index('contacts_contact_user_idx').on(t.contactUserId),
+  ],
+)
+
+export type Contact = typeof contacts.$inferSelect
+export type NewContact = typeof contacts.$inferInsert
