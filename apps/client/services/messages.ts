@@ -7,7 +7,7 @@ import {
 import { useEffect, useRef } from 'react'
 import { Platform } from 'react-native'
 
-import { type ApiError, getFetcher, postFetcher } from '@/lib/axios'
+import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@/types/models'
 

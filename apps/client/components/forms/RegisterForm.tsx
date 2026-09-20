@@ -8,7 +8,6 @@ import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
-import { extractErrorMessage } from '@/lib/axios'
 import { useRegisterUser } from '@/services/auth'
 import { theme } from '@/theme/theme'
 import { RegisterSchema, type RegisterType } from '@/validation/userValidation'
@@ -37,7 +36,7 @@ export function RegisterForm() {
         Toast.show({
           type: 'error',
           text1: 'Registration Failed',
-          text2: extractErrorMessage(error),
+          text2: error.message,
         })
       },
     }),

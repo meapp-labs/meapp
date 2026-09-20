@@ -10,7 +10,6 @@ import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
-import { extractErrorMessage } from '@/lib/axios'
 import { useAuthStore } from '@/lib/stores'
 import { useLoginUser } from '@/services/auth'
 import { RememberMeStorage } from '@/services/storage'
@@ -51,7 +50,7 @@ export function LoginForm() {
         Toast.show({
           type: 'error',
           text1: 'Login Failed',
-          text2: extractErrorMessage(error),
+          text2: error.message,
         })
       },
     })

@@ -3,7 +3,7 @@ import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 import Toast from 'react-native-toast-message'
 
-import { postFetcher } from '@/lib/axios'
+import { postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
 import type { MessagesResponse } from '@/services/messages'

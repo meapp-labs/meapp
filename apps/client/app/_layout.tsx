@@ -5,7 +5,7 @@ import { Platform, type PlatformOSType } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Loader } from '@/components/Loader'
-import { postFetcher } from '@/lib/axios'
+import { postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
 import { logStartupInfo } from '@/lib/startupInfo'

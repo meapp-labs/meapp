@@ -1,0 +1,161 @@
+import { env } from './env'
+
+export type ApiErrorResponse = {
+  message: string
+  code: string
+}
+
+function sanitizeErrorMessage(rawMessage: string): string {
+  return rawMessage.replace(/[\w/]+\s+(?=[A-Z])/g, '')
+}
+
+export class ApiHttpError extends Error {
+  readonly status: number
+  readonly response?: { data: ApiErrorResponse }
+
+  constructor(status: number, data?: unknown, statusText?: string) {
+    const errorData =
+      typeof data === 'object' && data !== null ? (data as ApiErrorResponse) : undefined
+    const rawMessage = errorData?.message || statusText || `Request failed with status ${status}`
+    const message = sanitizeErrorMessage(rawMessage)
+    super(message)
+    this.name = 'ApiHttpError'
+    this.status = status
+    if (errorData) {
+      this.response = { data: errorData }
+    }
+  }
+}
+
+export function isApiHttpError(error: unknown): error is ApiHttpError {
+  return error instanceof ApiHttpError
+}
+
+export function extractErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message
+  }
+  if (typeof error === 'string') {
+    return error
+  }
+  return 'An unexpected error occurred'
+}
+
+export type ApiError<T = ApiErrorResponse> = ApiHttpError & {
+  response?: { data: T }
+}
+
+function buildUrl(path: string, params?: Record<string, unknown>): string {
+  let url: URL
+  if (/^https?:\/\//i.test(path)) {
+    url = new URL(path)
+  } else {
+    const base = env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '')
+    const cleanPath = path.replace(/^\/+/, '')
+    url = new URL(`${base}/${cleanPath}`)
+  }
+
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      if (value !== undefined && value !== null) {
+        url.searchParams.append(key, String(value))
+      }
+    }
+  }
+
+  return url.toString()
+}
+
+async function request<T>(
+  method: string,
+  url: string,
+  body?: unknown,
+  init?: RequestInit,
+): Promise<T> {
+  const headers = new Headers(init?.headers)
+  if (!headers.has('Accept')) {
+    headers.set('Accept', 'application/json')
+  }
+  if (body !== undefined && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json')
+  }
+
+  const options: RequestInit = {
+    method,
+    headers,
+    credentials: 'include',
+    ...init,
+  }
+
+  if (body !== undefined) {
+    options.body = JSON.stringify(body)
+  }
+
+  const response = await fetch(url, options)
+
+  const contentType = response.headers.get('content-type')
+  let data: unknown
+  if (contentType?.includes('application/json')) {
+    try {
+      data = await response.json()
+    } catch {
+      data = null
+    }
+  } else {
+    try {
+      const text = await response.text()
+      data = text || null
+    } catch {
+      data = null
+    }
+  }
+
+  if (!response.ok) {
+    throw new ApiHttpError(response.status, data, response.statusText)
+  }
+
+  return data as T
+}
+
+export async function getFetcher<T, P = Record<string, unknown>>(
+  url: string,
+  params?: P,
+  init?: RequestInit,
+): Promise<T> {
+  const targetUrl = buildUrl(url, params as Record<string, unknown> | undefined)
+  return request<T>('GET', targetUrl, undefined, init)
+}
+
+export async function postFetcher<TResponse, TRequest = unknown>(
+  url: string,
+  body?: TRequest,
+  init?: RequestInit,
+): Promise<TResponse> {
+  const targetUrl = buildUrl(url)
+  return request<TResponse>('POST', targetUrl, body, init)
+}
+
+export async function putFetcher<TResponse, TRequest = unknown>(
+  url: string,
+  body?: TRequest,
+  init?: RequestInit,
+): Promise<TResponse> {
+  const targetUrl = buildUrl(url)
+  return request<TResponse>('PUT', targetUrl, body, init)
+}
+
+export async function deleteFetcher<TResponse, TRequest = unknown>(
+  url: string,
+  body?: TRequest,
+  init?: RequestInit,
+): Promise<TResponse> {
+  const targetUrl = buildUrl(url)
+  return request<TResponse>('DELETE', targetUrl, body, init)
+}
+
+export const api = {
+  get: getFetcher,
+  post: postFetcher,
+  put: putFetcher,
+  delete: deleteFetcher,
+}

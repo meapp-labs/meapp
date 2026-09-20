@@ -2,7 +2,7 @@ import { useMutation } from '@tanstack/react-query'
 import { router } from 'expo-router'
 import { Platform } from 'react-native'
 
-import { type ApiError, postFetcher } from '@/lib/axios'
+import { type ApiError, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
 import type { LoginType, RegisterType } from '@/validation/userValidation'
