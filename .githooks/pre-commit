@@ -1,4 +1,37 @@
 #!/bin/sh
 set -e
-bunx @biomejs/biome check --write --staged
-git add .
+
+# 1. Format and lint staged files with Biome
+bunx @biomejs/biome check --write --no-errors-on-unmatched --staged
+git update-index --again 2>/dev/null || git add -u
+
+# 2. Identify staged files to determine applicable checks
+STAGED_FILES=$(git diff --cached --name-only)
+
+SERVER_CHANGED=false
+CLIENT_CHANGED=false
+
+if echo "$STAGED_FILES" | grep -E '^(apps/server/|packages/db/|packages/shared/)' >/dev/null 2>&1; then
+  SERVER_CHANGED=true
+fi
+
+if echo "$STAGED_FILES" | grep -E '^(apps/client/|packages/shared/)' >/dev/null 2>&1; then
+  CLIENT_CHANGED=true
+fi
+
+# 3. Run typecheck and tests conditionally
+if [ "$SERVER_CHANGED" = true ]; then
+  echo "==> Staged changes detected in server codebase"
+  echo "==> Running server typecheck..."
+  bun run typecheck:server
+  echo "==> Running server tests..."
+  bun run test:server
+fi
+
+if [ "$CLIENT_CHANGED" = true ]; then
+  echo "==> Staged changes detected in client codebase"
+  echo "==> Running client typecheck..."
+  bun run typecheck:client
+  echo "==> Running client tests..."
+  bun run test:client
+fi

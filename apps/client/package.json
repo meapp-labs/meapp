@@ -12,7 +12,9 @@
     "lint": "bunx @biomejs/biome check .",
     "lint:fix": "bunx @biomejs/biome check --write .",
     "format": "bunx @biomejs/biome format .",
-    "format:fix": "bunx @biomejs/biome format --write ."
+    "format:fix": "bunx @biomejs/biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"No client tests defined yet\""
   },
   "engines": {
     "bun": ">=1.4"

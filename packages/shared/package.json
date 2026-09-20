@@ -9,6 +9,13 @@
     "./schemas": "./src/schemas/index.ts",
     "./types": "./src/types/index.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "bunx @biomejs/biome check .",
+    "lint:fix": "bunx @biomejs/biome check --write .",
+    "format": "bunx @biomejs/biome format .",
+    "format:fix": "bunx @biomejs/biome format --write ."
+  },
   "dependencies": {
     "zod": "^4.1.12"
   },

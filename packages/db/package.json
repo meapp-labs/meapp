@@ -9,6 +9,17 @@
     "./schema": "./src/schema.ts",
     "./client": "./src/client.ts"
   },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio",
+    "lint": "bunx @biomejs/biome check .",
+    "lint:fix": "bunx @biomejs/biome check --write .",
+    "format": "bunx @biomejs/biome format .",
+    "format:fix": "bunx @biomejs/biome format --write ."
+  },
   "dependencies": {
     "drizzle-orm": "^0.44.0"
   },
