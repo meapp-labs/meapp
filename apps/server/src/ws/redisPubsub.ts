@@ -35,7 +35,7 @@ export class RedisPubsub {
 
       this.subscriber = this.redis.duplicate()
       this.subscriber.on('error', () => {})
-      this.subscriber.on('message', (channel: string, message: string) => {
+      this.subscriber.on('pmessage', (_pattern: string, channel: string, message: string) => {
         publishLocal(channel, message)
       })
       // lazyConnect carries over to duplicates — connect explicitly.

@@ -44,22 +44,35 @@ export function useWebSocket(
             ws.close()
             return
           }
-          attempt = 0
           onOpenRef.current?.((data: string) => ws.send(data))
         }
 
         ws.onmessage = (event) => {
           if (cancelled) return
           try {
-            onMessageRef.current(JSON.parse(event.data as string))
+            const message: unknown = JSON.parse(event.data as string)
+            if (
+              typeof message === 'object' &&
+              message !== null &&
+              'type' in message &&
+              message.type === 'authenticated'
+            ) {
+              attempt = 0
+            }
+            onMessageRef.current(message)
           } catch (e) {
             console.error('[useWebSocket] Failed to parse message:', e)
           }
         }
 
-        ws.onclose = () => {
-          wsRef.current = null
+        ws.onclose = (event) => {
+          // A prior room's close event can arrive after its replacement opens.
+          // Keep the replacement's ref so cleanup can close the right socket.
+          if (wsRef.current === ws) wsRef.current = null
           if (cancelled) return
+          if (event.code !== 1000) {
+            console.warn('[WebSocket] Closed:', event.code, event.reason)
+          }
           const delay = Math.min(1000 * 2 ** attempt + Math.random() * 500, 30000)
           attempt++
           timerRef.current = setTimeout(connect, delay)

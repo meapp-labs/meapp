@@ -1,7 +1,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
-import { eq, getDbInstance, runMigrations, schema } from '@meapp/db'
+import { eq, getDbInstance, insertMessageWithSequence, runMigrations, schema } from '@meapp/db'
 
 import { app } from '../index.ts'
+import { startPubsub } from '../ws/chat.ts'
 
 beforeAll(() => {
   runMigrations()
@@ -10,6 +11,7 @@ beforeAll(() => {
 const runId = Date.now().toString(36)
 const alice = `alice_${runId}`
 const bob = `bob_${runId}`
+const charlie = `charlie_${runId}`
 const password = 'secret123'
 
 let sessionCookie = ''
@@ -41,6 +43,7 @@ afterAll(async () => {
   try {
     await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, alice))
     await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, bob))
+    await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, charlie))
   } catch {}
 })
 
@@ -249,6 +252,136 @@ describe('REST API (Drizzle SQLite backend)', () => {
     expect(((await after.json()) as { messages: { sequence: number }[] }).messages).toEqual([
       expect.objectContaining({ sequence: 2 }),
     ])
+  })
+
+  it('delivers a group HTTP send to a ticket-authenticated WebSocket', async () => {
+    const registered = await api('/register', {
+      method: 'POST',
+      body: { username: charlie, password, confirmPassword: password, platform: 'web' },
+    })
+    expect(registered.status).toBe(201)
+    const roomResponse = await api('/conversations', {
+      method: 'POST',
+      body: { type: 'group', participants: [bob, charlie], name: 'Socket test group' },
+      cookie: sessionCookie,
+    })
+    expect(roomResponse.status).toBe(201)
+    const { id: roomId } = (await roomResponse.json()) as { id: string }
+    const bobLogin = await api('/login', {
+      method: 'POST',
+      body: { username: bob, password, platform: 'web' },
+    })
+    const bobCookie = cookieHeaderFrom(bobLogin)
+    expect(bobCookie).toBeTruthy()
+
+    const ticketResponse = await app.handle(
+      new Request('http://localhost/ws/ticket', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie: bobCookie },
+        body: JSON.stringify({ roomId }),
+      }),
+    )
+    expect(ticketResponse.status).toBe(200)
+    const { ticket } = (await ticketResponse.json()) as { ticket: string }
+
+    app.listen({ port: 0, hostname: '127.0.0.1' })
+    await startPubsub(() => app.server ?? undefined)
+    const ws = new WebSocket(`ws://127.0.0.1:${app.server?.port}/ws?roomId=${roomId}`)
+    let authenticated!: () => void
+    let received!: (payload: { text: string; roomId: string }) => void
+    let failed!: (error: Error) => void
+    const authPromise = new Promise<void>((resolve, reject) => {
+      authenticated = resolve
+      failed = reject
+    })
+    const messagePromise = new Promise<{ text: string; roomId: string }>((resolve) => {
+      received = resolve
+    })
+    let timeout!: ReturnType<typeof setTimeout>
+    const timeoutPromise = new Promise<never>((_resolve, reject) => {
+      timeout = setTimeout(() => reject(new Error('WebSocket delivery timed out')), 5000)
+    })
+
+    ws.onopen = () => ws.send(JSON.stringify({ type: 'auth', payload: { ticket } }))
+    ws.onmessage = (event) => {
+      const message = JSON.parse(event.data as string) as {
+        type: string
+        payload: { text: string; roomId: string }
+      }
+      if (message.type === 'authenticated') authenticated()
+      if (message.type === 'message') received(message.payload)
+      if (message.type === 'error') failed(new Error(JSON.stringify(message.payload)))
+    }
+    ws.onerror = () => failed(new Error('WebSocket failed'))
+    ws.onclose = (event) => failed(new Error(`WebSocket closed: ${event.code}`))
+
+    try {
+      await Promise.race([authPromise, timeoutPromise])
+      const text = `live-${Bun.randomUUIDv7()}`
+      const sent = await api('/send-message', {
+        method: 'POST',
+        body: { conversationId: roomId, text, clientId: Bun.randomUUIDv7() },
+        cookie: sessionCookie,
+      })
+      expect(sent.status).toBe(200)
+      await expect(Promise.race([messagePromise, timeoutPromise])).resolves.toEqual(
+        expect.objectContaining({ roomId, text }),
+      )
+    } finally {
+      clearTimeout(timeout)
+      ws.close()
+      app.stop()
+    }
+  })
+
+  it('returns the latest messages first and paginates into older history', async () => {
+    const roomResponse = await api('/conversations', {
+      method: 'POST',
+      body: { type: 'dm', participants: [bob] },
+      cookie: sessionCookie,
+    })
+    const { id: roomId } = (await roomResponse.json()) as { id: string }
+    const user = await getDbInstance()
+      .db.select({ id: schema.users.id })
+      .from(schema.users)
+      .where(eq(schema.users.username, alice))
+      .get()
+    if (!user) throw new Error('Test user was not created')
+    for (let i = 0; i < 18; i++) {
+      await insertMessageWithSequence(getDbInstance().sqlite, {
+        roomId,
+        userId: user.id,
+        clientId: Bun.randomUUIDv7(),
+        text: `history ${i}`,
+      })
+    }
+
+    const latest = await api(`/get-messages?conversationId=${roomId}&limit=16`, {
+      cookie: sessionCookie,
+    })
+    expect(latest.status).toBe(200)
+    const page = (await latest.json()) as {
+      messages: { sequence: number; timestamp: string }[]
+      totalCount: number
+      hasMore: boolean
+    }
+    expect(page.totalCount).toBe(20)
+    expect(page.messages.map((message) => message.sequence)).toEqual(
+      Array.from({ length: 16 }, (_, index) => index + 5),
+    )
+    expect(page.hasMore).toBe(true)
+    const newest = page.messages.at(-1)
+    if (!newest) throw new Error('Latest page was empty')
+    expect(Math.abs(Date.parse(newest.timestamp) - Date.now())).toBeLessThan(60_000)
+
+    const older = await api(`/get-messages?conversationId=${roomId}&before=5&limit=16`, {
+      cookie: sessionCookie,
+    })
+    expect(
+      ((await older.json()) as { messages: { sequence: number }[] }).messages.map(
+        (m) => m.sequence,
+      ),
+    ).toEqual([1, 2, 3, 4])
   })
 
   it('blocks messaging for non participants', async () => {

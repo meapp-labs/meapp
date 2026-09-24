@@ -19,7 +19,7 @@ const bundleQuery = t.Object({
 
 export const e2eRoutes = new Elysia({ prefix: '/api/e2e' })
   .use(authPlugin)
-  .onBeforeHandle({ as: 'global' }, ({ set }) => {
+  .onBeforeHandle(({ set }) => {
     // Whole E2E surface is feature-flagged; 404 keeps it invisible when off.
     if (!isE2EEnabled()) {
       set.status = 404

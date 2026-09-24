@@ -12,33 +12,38 @@ import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
 import { inMemoryTickets } from '../routes/wsTicket.ts'
-import { WsConnectionManager, type WsSessionState } from './connectionManager.ts'
+import {
+  USER_CONNECTION_REFRESH_MS,
+  WsConnectionManager,
+  type WsSessionState,
+} from './connectionManager.ts'
 import { RedisPubsub, roomChannel, roomTypingChannel } from './redisPubsub.ts'
 
 const connectionManager = new WsConnectionManager(redis)
 const wsStates = new WeakMap<object, WsSessionState>()
 
 const pubsub = new RedisPubsub(redis)
+let getLocalServer:
+  | (() => { publish: (topic: string, data: string) => void } | undefined)
+  | undefined
 
 export const startPubsub = (
   getServer: () => { publish: (topic: string, data: string) => void } | undefined,
-) =>
-  pubsub.start((channel, message) => {
+) => {
+  getLocalServer = getServer
+  return pubsub.start((channel, message) => {
     const localTopic = channel.startsWith('meapp:room-typing:')
       ? `room:${channel.slice('meapp:room-typing:'.length)}`
       : `room:${channel.slice('meapp:room:'.length)}`
     getServer()?.publish(localTopic, message)
   })
+}
 
-const broadcastToRoom = async (
-  ws: { publish: (topic: string, message: string) => unknown },
-  roomId: string,
-  message: string,
-): Promise<void> => {
+export const broadcastToRoom = async (roomId: string, message: string): Promise<void> => {
   if (redis.status === 'ready') {
     await pubsub.publish(roomChannel(roomId), message)
   } else {
-    ws.publish(`room:${roomId}`, message)
+    getLocalServer?.()?.publish(`room:${roomId}`, message)
   }
 }
 
@@ -125,88 +130,51 @@ export const chatWs = new Elysia()
     }),
     body: incomingMessageBody,
     async open(ws) {
-      const { user, request, query } = ws.data
-      const roomId = query.roomId
+      const { request } = ws.data
       const ip = request.headers.get('x-forwarded-for') || 'unknown'
 
-      const state: WsSessionState = { ip, subscribedRooms: new Set<string>() }
-      wsStates.set(ws, state)
-
-      // If user was derived from HttpOnly cookie (Web flow)
-      if (user) {
-        const can = await canAccessRoom(user.id, roomId)
-        if (!can) {
-          ws.send(
-            JSON.stringify({
-              type: 'error',
-              payload: { code: 'FORBIDDEN', message: 'Not member of room' },
-            }),
-          )
-          ws.close(4403, 'Forbidden')
-          return
-        }
-
-        const allowed = await connectionManager.canUserConnect(user.id)
-        if (!allowed) {
-          ws.send(
-            JSON.stringify({
-              type: 'error',
-              payload: { code: 'RATE_LIMIT', message: 'Too many connections' },
-            }),
-          )
-          ws.close(4429, 'Too many connections')
-          return
-        }
-
-        const subscribed = await connectionManager.canSubscribeRoom(user.id, roomId)
-        if (!subscribed) {
-          ws.send(
-            JSON.stringify({
-              type: 'error',
-              payload: {
-                code: 'RATE_LIMIT',
-                message: 'Maximum room subscriptions per user exceeded',
-              },
-            }),
-          )
-          ws.close(4429, 'Too many subscriptions')
-          return
-        }
-
-        state.authenticatedUserId = user.id
-        state.subscribedRooms.add(roomId)
-        ws.subscribe(`room:${roomId}`)
-        ws.send(JSON.stringify({ type: 'authenticated', payload: { userId: user.id } }))
-      } else {
-        // Native unauthenticated connection
-        const allowedUnauth = await connectionManager.canAcceptUnauth(ip)
-        if (!allowedUnauth) {
-          ws.close(1013, 'Too many unauthenticated connections')
-          return
-        }
-
-        // Strict timeout window for AUTH message
-        state.authTimeoutTimer = setTimeout(async () => {
-          if (!state.authenticatedUserId) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'UNAUTHENTICATED', message: 'AUTH required within timeout' },
-              }),
-            )
-            ws.close(4401, 'Auth timeout')
-            await connectionManager.releaseUnauth(ip)
-          }
-        }, WS_CONFIG.UNAUTH_TIMEOUT_MS)
+      const state: WsSessionState = {
+        ip,
+        connectionId: Bun.randomUUIDv7(),
+        subscribedRooms: new Set<string>(),
       }
+      wsStates.set(ws.raw, state)
+
+      // Web and native clients both authenticate with a single-use ticket.
+      const allowedUnauth = await connectionManager.canAcceptUnauth(ip)
+      if (!allowedUnauth) {
+        ws.close(1013, 'Too many unauthenticated connections')
+        return
+      }
+      if (state.closed) {
+        await connectionManager.releaseUnauth(ip)
+        return
+      }
+      state.unauthCounted = true
+
+      state.authTimeoutTimer = setTimeout(() => {
+        if (!state.authenticatedUserId && !state.closed) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'UNAUTHENTICATED', message: 'AUTH required within timeout' },
+            }),
+          )
+          ws.close(4401, 'Auth timeout')
+        }
+      }, WS_CONFIG.UNAUTH_TIMEOUT_MS)
     },
 
     async message(ws, msg) {
-      const state = wsStates.get(ws)
+      const state = wsStates.get(ws.raw)
+      if (!state || state.closed) return
       const roomId = ws.data.query.roomId
 
       // Handle AUTH ticket
       if (msg.type === 'auth') {
+        // A socket can authenticate only once.
+        if (state?.authenticatedUserId) return
+
         const ticket = msg.payload.ticket || msg.payload.token
         if (!ticket) {
           ws.send(
@@ -288,7 +256,13 @@ export const chatWs = new Elysia()
             return
           }
 
-          const allowed = await connectionManager.canUserConnect(userId)
+          const allowed = await connectionManager.canUserConnect(userId, state.connectionId)
+          if (state.closed) {
+            if (allowed) {
+              await connectionManager.releaseUserConnection(userId, state.connectionId)
+            }
+            return
+          }
           if (!allowed) {
             ws.send(
               JSON.stringify({
@@ -300,7 +274,12 @@ export const chatWs = new Elysia()
             return
           }
 
+          state.authenticatedUserId = userId
           const subscribed = await connectionManager.canSubscribeRoom(userId, roomId)
+          if (state.closed) {
+            if (subscribed) await connectionManager.unsubscribeRoom(userId, roomId)
+            return
+          }
           if (!subscribed) {
             ws.send(
               JSON.stringify({
@@ -315,17 +294,23 @@ export const chatWs = new Elysia()
             return
           }
 
-          if (state) {
-            state.authenticatedUserId = userId
-            if (state.authTimeoutTimer) {
-              clearTimeout(state.authTimeoutTimer)
-              state.authTimeoutTimer = undefined
-            }
-            state.subscribedRooms.add(roomId)
+          if (state.authTimeoutTimer) {
+            clearTimeout(state.authTimeoutTimer)
+            state.authTimeoutTimer = undefined
           }
+          state.subscribedRooms.add(roomId)
 
           ws.subscribe(`room:${roomId}`)
-          await connectionManager.releaseUnauth(state?.ip || 'unknown')
+          if (state.unauthCounted) {
+            state.unauthCounted = false
+            await connectionManager.releaseUnauth(state.ip)
+          }
+
+          state.leaseTimer = setInterval(() => {
+            void connectionManager.canUserConnect(userId, state.connectionId).then((renewed) => {
+              if (!renewed && !state.closed) ws.close(4429, 'Connection lease expired')
+            })
+          }, USER_CONNECTION_REFRESH_MS)
 
           ws.send(JSON.stringify({ type: 'authenticated', payload: { userId } }))
         } catch {
@@ -341,7 +326,7 @@ export const chatWs = new Elysia()
       }
 
       // Ensure user is authenticated
-      const userId = state?.authenticatedUserId || ws.data.user?.id
+      const userId = state.authenticatedUserId
       if (!userId) {
         ws.send(
           JSON.stringify({
@@ -583,7 +568,7 @@ export const chatWs = new Elysia()
             payload: messageBroadcast,
           })
 
-          await broadcastToRoom(ws, payload.roomId, broadcastEnvelope)
+          await broadcastToRoom(payload.roomId, broadcastEnvelope)
         } catch (e) {
           console.error('[chatWs] Error writing message:', e)
           ws.send(
@@ -597,28 +582,30 @@ export const chatWs = new Elysia()
     },
 
     async close(ws) {
-      const state = wsStates.get(ws)
-      const roomId = ws.data.query.roomId
+      const state = wsStates.get(ws.raw)
+      if (!state) return
+      state.closed = true
 
-      if (state?.authTimeoutTimer) {
+      if (state.authTimeoutTimer) {
         clearTimeout(state.authTimeoutTimer)
       }
+      if (state.leaseTimer) clearInterval(state.leaseTimer)
 
-      if (!state?.authenticatedUserId) {
-        await connectionManager.releaseUnauth(state?.ip || 'unknown')
-        ws.unsubscribe(`room:${roomId}`)
-      } else {
+      if (state.unauthCounted) {
+        state.unauthCounted = false
+        await connectionManager.releaseUnauth(state.ip)
+      }
+
+      if (state.authenticatedUserId) {
         const userId = state.authenticatedUserId
-        await connectionManager.releaseUserConnection(userId)
+        await connectionManager.releaseUserConnection(userId, state.connectionId)
 
-        if (state) {
-          for (const rId of Array.from(state.subscribedRooms)) {
-            await connectionManager.unsubscribeRoom(userId, rId)
-            ws.unsubscribe(`room:${rId}`)
-          }
+        for (const rId of state.subscribedRooms) {
+          await connectionManager.unsubscribeRoom(userId, rId)
+          ws.unsubscribe(`room:${rId}`)
         }
       }
 
-      wsStates.delete(ws)
+      wsStates.delete(ws.raw)
     },
   })

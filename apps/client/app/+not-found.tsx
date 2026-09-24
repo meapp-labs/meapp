@@ -3,7 +3,7 @@ import { StyleSheet, View } from 'react-native'
 import { Text } from '@/components/common/Text'
 import { theme } from '@/theme/theme'
 
-export function NotFoundScreen() {
+export default function NotFoundScreen() {
   return (
     <View style={styles.container}>
       <Text>This screen does not exist.</Text>

@@ -4,9 +4,32 @@ import { WS_CONFIG } from '../lib/config.ts'
 export type WsSessionState = {
   authenticatedUserId?: string | undefined
   ip: string
+  connectionId: string
+  closed?: boolean
+  unauthCounted?: boolean
   authTimeoutTimer?: ReturnType<typeof setTimeout> | undefined
+  leaseTimer?: ReturnType<typeof setInterval> | undefined
   subscribedRooms: Set<string>
 }
+
+// Per-socket leases expire promptly if a process exits without close handlers.
+export const USER_CONNECTION_LEASE_MS = 15000
+export const USER_CONNECTION_REFRESH_MS = 5000
+
+const CONNECT_USER_LUA = `
+local now = tonumber(ARGV[1])
+local expires = now + tonumber(ARGV[2])
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
+if redis.call('ZSCORE', KEYS[1], ARGV[4]) then
+  redis.call('ZADD', KEYS[1], expires, ARGV[4])
+  redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[2]) * 2)
+  return 1
+end
+if redis.call('ZCARD', KEYS[1]) >= tonumber(ARGV[3]) then return 0 end
+redis.call('ZADD', KEYS[1], expires, ARGV[4])
+redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[2]) * 2)
+return 1
+`
 
 /** Atomic room-subscribe guard: SISMEMBER + cap check + SADD in one call. */
 const SUBSCRIBE_ROOM_LUA = `
@@ -46,7 +69,7 @@ return 1
 export class WsConnectionManager {
   private fallbackUnauthGlobal = 0
   private fallbackPerIpUnauth = new Map<string, number>()
-  private fallbackConnsPerUser = new Map<string, number>()
+  private fallbackConnsPerUser = new Map<string, Set<string>>()
   private fallbackRoomsPerUser = new Map<string, Set<string>>()
   private fallbackMsgRate = new Map<string, { count: number; reset: number }>()
   private fallbackTypingRate = new Map<string, { count: number; reset: number }>()
@@ -107,39 +130,41 @@ export class WsConnectionManager {
     }
   }
 
-  async canUserConnect(userId: string): Promise<boolean> {
+  async canUserConnect(userId: string, connectionId: string): Promise<boolean> {
     try {
-      const key = `ws:conns:user:${userId}`
-      const current = await this.redis.incr(key)
-      if (current === 1) await this.redis.expire(key, 3600)
-
-      if (current > WS_CONFIG.MAX_WS_CONNS_PER_USER) {
-        await this.redis.decr(key)
-        return false
-      }
-      return true
+      const result = (await this.redis.eval(
+        CONNECT_USER_LUA,
+        1,
+        `ws:connection_leases:user:${userId}`,
+        String(Date.now()),
+        String(USER_CONNECTION_LEASE_MS),
+        String(WS_CONFIG.MAX_WS_CONNS_PER_USER),
+        connectionId,
+      )) as number
+      return result === 1
     } catch {
-      const current = this.fallbackConnsPerUser.get(userId) || 0
-      if (current >= WS_CONFIG.MAX_WS_CONNS_PER_USER) return false
-      this.fallbackConnsPerUser.set(userId, current + 1)
+      let connections = this.fallbackConnsPerUser.get(userId)
+      if (!connections) {
+        connections = new Set()
+        this.fallbackConnsPerUser.set(userId, connections)
+      }
+      if (connections.has(connectionId)) return true
+      if (connections.size >= WS_CONFIG.MAX_WS_CONNS_PER_USER) return false
+      connections.add(connectionId)
       return true
     }
   }
 
-  async releaseUserConnection(userId: string): Promise<void> {
+  async releaseUserConnection(userId: string, connectionId: string): Promise<void> {
     try {
-      const key = `ws:conns:user:${userId}`
-      const remaining = await this.redis.decr(key)
-      if (remaining <= 0) {
-        await this.redis.del(key)
-      }
+      await this.redis.zrem(`ws:connection_leases:user:${userId}`, connectionId)
     } catch {
-      const current = this.fallbackConnsPerUser.get(userId) || 1
-      const updated = Math.max(0, current - 1)
-      if (updated === 0) {
+      // The Redis lease expires if the server cannot reach Redis.
+    } finally {
+      const connections = this.fallbackConnsPerUser.get(userId)
+      connections?.delete(connectionId)
+      if (connections?.size === 0) {
         this.fallbackConnsPerUser.delete(userId)
-      } else {
-        this.fallbackConnsPerUser.set(userId, updated)
       }
     }
   }

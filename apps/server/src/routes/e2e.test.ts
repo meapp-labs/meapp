@@ -109,6 +109,22 @@ describe('E2E Phase 10', () => {
     process.env.E2E_ENABLED = 'true'
   })
 
+  it('keeps WebSocket ticket auth available when E2E is off', async () => {
+    process.env.E2E_ENABLED = 'false'
+    try {
+      const response = await app.handle(
+        new Request('http://localhost/ws/ticket', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ roomId: Bun.randomUUIDv7() }),
+        }),
+      )
+      expect(response.status).toBe(401)
+    } finally {
+      process.env.E2E_ENABLED = 'true'
+    }
+  })
+
   it('registers a device and uploads a bundle when the flag is on', async () => {
     const reg = await api('/e2e/device', {
       method: 'POST',

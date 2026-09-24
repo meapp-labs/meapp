@@ -48,6 +48,27 @@ function insertIntoCache(old: MessagesCache, message: Message): MessagesCache {
   }
 }
 
+/** Removes only this send's pending message, preserving concurrent updates. */
+function removeFromCache(old: MessagesCache, messageId: string): MessagesCache {
+  const firstPage = old.pages[0]
+  if (!firstPage) return old
+
+  const messages = firstPage.messages.filter((message) => message.id !== messageId)
+  if (messages.length === firstPage.messages.length) return old
+
+  return {
+    ...old,
+    pages: [
+      {
+        ...firstPage,
+        messages,
+        totalCount: Math.max(0, (firstPage.totalCount ?? 0) - 1),
+      },
+      ...old.pages.slice(1),
+    ],
+  }
+}
+
 /**
  * Update the conversation list cache with a new message preview
  */
@@ -75,7 +96,6 @@ function updateConversationListCache(
  * Send a message to a conversation
  */
 type SendMessageContext = {
-  previous: MessagesCache | undefined
   optimisticId: string
 }
 
@@ -94,34 +114,30 @@ export function useSendMessage({ conversationId }: { conversationId: string }) {
       })
     },
     // Optimistic send: show the message immediately, roll back on failure.
-    onMutate: async ({ text }): Promise<SendMessageContext> => {
+    onMutate: ({ text }): SendMessageContext => {
       const optimistic: Message = {
-        id: `pending-${Date.now()}`,
+        id: `pending-${uuid()}`,
         from: useAuthStore.getState().username,
         text,
         type: 'text',
         timestamp: new Date().toISOString(),
       }
-      const previous = queryClient.getQueryData<MessagesCache>([
-        Keys.Query.GET_MESSAGES,
-        conversationId,
-      ])
       queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
         old ? insertIntoCache(old, optimistic) : old,
       )
-      return { previous, optimisticId: optimistic.id }
+      return { optimisticId: optimistic.id }
     },
     onError: (_error, _vars, context) => {
-      if (context?.previous) {
-        queryClient.setQueryData<MessagesCache>(
-          [Keys.Query.GET_MESSAGES, conversationId],
-          context.previous,
-        )
-      }
-    },
-    onSuccess: (newMessage) => {
+      if (!context) return
       queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
-        old ? insertIntoCache(old, newMessage) : old,
+        old ? removeFromCache(old, context.optimisticId) : old,
+      )
+    },
+    onSuccess: (newMessage, _vars, context) => {
+      queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
+        old
+          ? insertIntoCache(context ? removeFromCache(old, context.optimisticId) : old, newMessage)
+          : old,
       )
       updateConversationListCache(queryClient, conversationId, newMessage)
     },
@@ -173,9 +189,9 @@ export function useGetMessages({
     },
     initialPageParam: {},
     getNextPageParam: (lastPage) => {
-      // List is stored newest-first, so the cursor is the LAST message.
+      // Each page is ascending, so its first message is the oldest cursor.
       if (lastPage.hasMore && lastPage.messages.length > 0) {
-        const oldestMessage = lastPage.messages[lastPage.messages.length - 1]
+        const oldestMessage = lastPage.messages[0]
         const sequence = oldestMessage?.sequence ?? oldestMessage?.index
         if (sequence !== undefined) {
           return { before: Number(sequence) }
@@ -202,6 +218,13 @@ export function useGetMessages({
       },
       onMessage: (data) => {
         const msg = data as { type?: string; payload?: Record<string, unknown> }
+        if (msg.type === 'authenticated') {
+          // A reconnect can miss broadcasts, so reconcile with persisted messages.
+          void queryClient.invalidateQueries({
+            queryKey: [Keys.Query.GET_MESSAGES, conversationId],
+          })
+          return
+        }
         if (msg.type !== 'message' || !msg.payload) return
 
         const p = msg.payload as {

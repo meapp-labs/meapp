@@ -6,7 +6,7 @@ import { RegisterForm } from '@/components/forms/RegisterForm'
 import { DocumentTitle } from '@/misc/DocumentTitle'
 import { theme } from '@/theme/theme'
 
-export function RegisterScreen() {
+export default function RegisterScreen() {
   return (
     <SafeAreaView style={styles.container}>
       <DocumentTitle title="Register" />

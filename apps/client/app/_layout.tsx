@@ -57,7 +57,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-export function RootLayout() {
+export default function RootLayout() {
   const username = useAuthStore((state) => state.username)
   const isAuthenticated = !!username
 

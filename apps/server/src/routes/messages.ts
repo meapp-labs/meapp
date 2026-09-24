@@ -2,6 +2,7 @@ import {
   and,
   asc,
   count,
+  desc,
   eq,
   getDbInstance,
   gt,
@@ -22,6 +23,7 @@ import { Elysia, t } from 'elysia'
 
 import { canAccessRoom } from '../lib/authz.ts'
 import { isE2EEnabled } from '../lib/config.ts'
+import { chatTimestampIso } from '../lib/dbTime.ts'
 import {
   ErrorCode,
   createAuthError,
@@ -33,6 +35,7 @@ import {
 import { sendPushNotification } from '../lib/notification.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
+import { broadcastToRoom } from '../ws/chat.ts'
 
 // Phase 10: a message is either plaintext (`text`, transition/groups) or E2E
 // (`ciphertext` + type + deviceId). Exactly one of the two must be present.
@@ -128,7 +131,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             participants: [first, second],
             isGroup: false,
             name: existingRows.name,
-            createdAt: new Date(existingRows.createdAt).toISOString(),
+            createdAt: chatTimestampIso(existingRows.createdAt),
           } satisfies Conversation
         }
 
@@ -158,12 +161,12 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             .sqlite.query(
               'INSERT INTO rooms (id, name, created_by, created_at) VALUES (?, ?, ?, ?)',
             )
-            .run(roomId, dmName, me.id, Date.now())
+            .run(roomId, dmName, me.id, Math.floor(Date.now() / 1000))
           const insertMember = getDbInstance().sqlite.query(
             'INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)',
           )
-          insertMember.run(roomId, u1.id, 'member', Date.now())
-          insertMember.run(roomId, u2.id, 'member', Date.now())
+          insertMember.run(roomId, u1.id, 'member', Math.floor(Date.now() / 1000))
+          insertMember.run(roomId, u2.id, 'member', Math.floor(Date.now() / 1000))
         })()
 
         if (existingDmId) {
@@ -177,7 +180,9 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             participants: [first, second],
             isGroup: false,
             name: existingRoom?.name ?? dmName,
-            createdAt: new Date(existingRoom?.createdAt ?? Date.now()).toISOString(),
+            createdAt: existingRoom
+              ? chatTimestampIso(existingRoom.createdAt)
+              : new Date().toISOString(),
           } satisfies Conversation
         }
 
@@ -293,12 +298,12 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         participants: roomParticipants,
         isGroup: roomParticipants.length > 2,
         name: room.name,
-        createdAt: new Date(room.createdAt).toISOString(),
+        createdAt: chatTimestampIso(room.createdAt),
         ...(lastMsg
           ? {
               // Encrypted messages are never previewed in plaintext.
               lastMessagePreview: lastMsg.isEncrypted ? 'Encrypted message' : (lastMsg.text ?? ''),
-              lastMessageAt: new Date(lastMsg.createdAt).toISOString(),
+              lastMessageAt: chatTimestampIso(lastMsg.createdAt),
               lastMessageFrom: lastMsg.username ?? undefined,
             }
           : {}),
@@ -394,6 +399,29 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         }
       }
 
+      await broadcastToRoom(
+        conversationId,
+        JSON.stringify({
+          type: 'message',
+          payload: {
+            id: result.id,
+            clientId: msgClientId,
+            roomId: conversationId,
+            userId: me.id,
+            from: me.username,
+            sequence: result.sequence,
+            ...(isE2E
+              ? {
+                  ciphertext: body.ciphertext,
+                  ciphertextType: body.ciphertextType,
+                  fromDeviceId: body.deviceId,
+                }
+              : { text: body.text }),
+            createdAt: timestamp,
+          },
+        }),
+      )
+
       return {
         id: result.id,
         sequence: result.sequence,
@@ -470,10 +498,14 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         .from(schema.messages)
         .innerJoin(schema.users, eq(schema.messages.userId, schema.users.id))
         .where(whereClause)
-        .orderBy(asc(schema.messages.sequence))
+        .orderBy(
+          afterIndex === undefined ? desc(schema.messages.sequence) : asc(schema.messages.sequence),
+        )
         .limit(limit)
 
-      const messages = rows.map((r) => ({
+      // History pages fetch the latest window, then return it in ascending order.
+      const orderedRows = afterIndex === undefined ? rows.reverse() : rows
+      const messages = orderedRows.map((r) => ({
         id: r.id,
         index: r.sequence,
         sequence: r.sequence,
@@ -487,7 +519,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             }
           : { text: r.text ?? '' }),
         type: 'text',
-        timestamp: new Date(r.createdAt).toISOString(),
+        timestamp: chatTimestampIso(r.createdAt),
       }))
 
       // Unfiltered count for UI display; pagination uses filteredTotal.

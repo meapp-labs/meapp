@@ -60,7 +60,7 @@ export const insertMessageWithSequence = async (
             opts.ciphertext ?? null,
             opts.ciphertextType ?? null,
             opts.ciphertext !== undefined ? 1 : 0,
-            Date.now(),
+            Math.floor(Date.now() / 1000),
           )
 
         sqlite.exec('COMMIT')

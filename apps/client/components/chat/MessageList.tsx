@@ -30,11 +30,14 @@ export function MessageList({ conversationId }: ChatProps) {
     conversationId,
   })
 
-  // The API returns ascending sequences; pages are concatenated in order.
-  // Reversing once gives newest-first, which the inverted FlatList expects.
+  // Each history page is ascending, but pages arrive newest to oldest.
+  // Sort across pages before reversing for the inverted FlatList.
   const messages = React.useMemo(() => {
     if (!data?.pages) return []
-    return data.pages.flatMap((page) => page.messages).reverse()
+    return data.pages
+      .flatMap((page) => page.messages)
+      .sort((a, b) => Number(a.sequence ?? a.index ?? 0) - Number(b.sequence ?? b.index ?? 0))
+      .reverse()
   }, [data])
 
   const handleLoadMore = React.useCallback(() => {
