@@ -1,9 +1,14 @@
 import { jwt } from '@elysiajs/jwt'
 import { getDbInstance, insertMessageWithSequence } from '@meapp/db'
-import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
+import {
+  CIPHERTEXT_TYPE_PRE_KEY,
+  CIPHERTEXT_TYPE_WHISPER,
+  E2E_CIPHERTEXT_MAX,
+  MESSAGE_MAX_LENGTH,
+} from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
-import { WS_CONFIG, env } from '../lib/config.ts'
+import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
 import { inMemoryTickets } from '../routes/wsTicket.ts'
@@ -55,6 +60,19 @@ const incomingMessageBody = t.Union([
     payload: t.Object({
       roomId: t.String({ format: 'uuid' }),
       text: t.String({ minLength: 1, maxLength: MESSAGE_MAX_LENGTH }),
+      clientId: t.String({ format: 'uuid' }),
+    }),
+  }),
+  t.Object({
+    type: t.Literal('message'),
+    payload: t.Object({
+      roomId: t.String({ format: 'uuid' }),
+      ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
+      ciphertextType: t.Union([
+        t.Literal(CIPHERTEXT_TYPE_WHISPER),
+        t.Literal(CIPHERTEXT_TYPE_PRE_KEY),
+      ]),
+      deviceId: t.String({ format: 'uuid' }),
       clientId: t.String({ format: 'uuid' }),
     }),
   }),
@@ -428,14 +446,17 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Size check
-        if (payload.text.length > MESSAGE_MAX_LENGTH) {
+        // Size check (schema already enforces per-variant caps; belt-and-suspenders)
+        const isE2E = 'ciphertext' in payload
+        const contentLength = isE2E ? E2E_CIPHERTEXT_MAX : MESSAGE_MAX_LENGTH
+        const content = 'text' in payload ? payload.text : payload.ciphertext
+        if (content.length > contentLength) {
           ws.send(
             JSON.stringify({
               type: 'error',
               payload: {
                 code: 'TOO_LARGE',
-                message: `Message text exceeds ${MESSAGE_MAX_LENGTH} characters`,
+                message: `Message exceeds ${contentLength} characters`,
               },
             }),
           )
@@ -466,11 +487,48 @@ export const chatWs = new Elysia()
 
         // Atomic sequence insertion with BEGIN IMMEDIATE and retry
         try {
+          const isE2E = 'ciphertext' in payload
+
+          if (isE2E && !isE2EEnabled()) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                payload: { code: 'VALIDATION_ERROR', message: 'E2E messaging is not enabled' },
+              }),
+            )
+            return
+          }
+
+          // Sender must own the claimed device (same rule as the REST route).
+          if (isE2E) {
+            const device = getDbInstance()
+              .sqlite.query('SELECT 1 FROM devices WHERE user_id = ? AND device_id = ?')
+              .get(userId, payload.deviceId)
+            if (!device) {
+              ws.send(
+                JSON.stringify({
+                  type: 'error',
+                  payload: {
+                    code: 'VALIDATION_ERROR',
+                    message: 'deviceId is not registered to your account',
+                  },
+                }),
+              )
+              return
+            }
+          }
+
           const result = await insertMessageWithSequence(getDbInstance().sqlite, {
             roomId: payload.roomId,
             userId,
             clientId: payload.clientId,
-            text: payload.text,
+            ...(isE2E
+              ? {
+                  ciphertext: payload.ciphertext,
+                  ciphertextType: payload.ciphertextType,
+                  deviceId: payload.deviceId,
+                }
+              : { text: payload.text }),
           })
 
           if (!result) {
@@ -510,7 +568,13 @@ export const chatWs = new Elysia()
             userId,
             from: senderUsername,
             sequence: result.sequence,
-            text: payload.text,
+            ...(isE2E
+              ? {
+                  ciphertext: payload.ciphertext,
+                  ciphertextType: payload.ciphertextType,
+                  fromDeviceId: payload.deviceId,
+                }
+              : { text: payload.text }),
             createdAt: new Date().toISOString(),
           }
 

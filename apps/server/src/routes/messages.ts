@@ -11,10 +11,17 @@ import {
   schema,
   sql,
 } from '@meapp/db'
-import { type Conversation, createConversationSchema } from '@meapp/shared'
+import {
+  CIPHERTEXT_TYPE_PRE_KEY,
+  CIPHERTEXT_TYPE_WHISPER,
+  type Conversation,
+  E2E_CIPHERTEXT_MAX,
+  createConversationSchema,
+} from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 
 import { canAccessRoom } from '../lib/authz.ts'
+import { isE2EEnabled } from '../lib/config.ts'
 import {
   ErrorCode,
   createAuthError,
@@ -27,11 +34,25 @@ import { sendPushNotification } from '../lib/notification.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 
-const sendMessageBody = t.Object({
-  conversationId: t.String({ format: 'uuid' }),
-  text: t.String({ minLength: 1, maxLength: 2000 }),
-  clientId: t.Optional(t.String({ format: 'uuid' })),
-})
+// Phase 10: a message is either plaintext (`text`, transition/groups) or E2E
+// (`ciphertext` + type + deviceId). Exactly one of the two must be present.
+const sendMessageBody = t.Union([
+  t.Object({
+    conversationId: t.String({ format: 'uuid' }),
+    text: t.String({ minLength: 1, maxLength: 2000 }),
+    clientId: t.Optional(t.String({ format: 'uuid' })),
+  }),
+  t.Object({
+    conversationId: t.String({ format: 'uuid' }),
+    ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
+    ciphertextType: t.Union([
+      t.Literal(CIPHERTEXT_TYPE_WHISPER),
+      t.Literal(CIPHERTEXT_TYPE_PRE_KEY),
+    ]),
+    deviceId: t.String({ format: 'uuid' }),
+    clientId: t.Optional(t.String({ format: 'uuid' })),
+  }),
+])
 
 const getMessagesQuery = t.Object({
   conversationId: t.String({ format: 'uuid' }),
@@ -238,7 +259,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     const placeholders = roomIds.map(() => '?').join(',')
     const lastMessages = getDbInstance()
       .sqlite.query(
-        `SELECT m.room_id as roomId, m.text, m.created_at as createdAt, u.username
+        `SELECT m.room_id as roomId, m.text, m.is_encrypted as isEncrypted, m.created_at as createdAt, u.username
          FROM messages m
          INNER JOIN users u ON m.user_id = u.id
          WHERE (m.room_id, m.sequence) IN (
@@ -250,7 +271,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       )
       .all(...roomIds) as Array<{
       roomId: string
-      text: string
+      text: string | null
+      isEncrypted: number
       createdAt: number
       username: string | null
     }>
@@ -274,7 +296,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         createdAt: new Date(room.createdAt).toISOString(),
         ...(lastMsg
           ? {
-              lastMessagePreview: lastMsg.text,
+              // Encrypted messages are never previewed in plaintext.
+              lastMessagePreview: lastMsg.isEncrypted ? 'Encrypted message' : (lastMsg.text ?? ''),
               lastMessageAt: new Date(lastMsg.createdAt).toISOString(),
               lastMessageFrom: lastMsg.username ?? undefined,
             }
@@ -288,8 +311,26 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
   .post(
     '/send-message',
     async ({ body, user }) => {
-      const { conversationId, text, clientId } = body
       const me = requireUser(user)
+      const conversationId = body.conversationId
+      const isE2E = 'ciphertext' in body
+
+      if (isE2E && !isE2EEnabled()) {
+        throw createValidationError('E2E messaging is not enabled')
+      }
+
+      // Sender must own the device they claim the ciphertext came from,
+      // or the fromDeviceId metadata could be spoofed to frame another device.
+      if (isE2E) {
+        const device = await getDbInstance()
+          .db.select({ deviceId: schema.devices.deviceId })
+          .from(schema.devices)
+          .where(and(eq(schema.devices.userId, me.id), eq(schema.devices.deviceId, body.deviceId)))
+          .get()
+        if (!device) {
+          throw createValidationError('deviceId is not registered to your account')
+        }
+      }
 
       const canAccess = await canAccessRoom(me.id, conversationId)
       if (!canAccess) {
@@ -305,13 +346,19 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         throw createNotFoundError('Conversation')
       }
 
-      const msgClientId = clientId ?? Bun.randomUUIDv7()
+      const msgClientId = body.clientId ?? Bun.randomUUIDv7()
 
       const result = await insertMessageWithSequence(getDbInstance().sqlite, {
         roomId: conversationId,
         userId: me.id,
         clientId: msgClientId,
-        text,
+        ...(isE2E
+          ? {
+              ciphertext: body.ciphertext,
+              ciphertextType: body.ciphertextType,
+              deviceId: body.deviceId,
+            }
+          : { text: body.text }),
       })
 
       if (!result) {
@@ -339,7 +386,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           void sendPushNotification({
             expoPushToken: member.pushToken,
             senderUsername: me.username,
-            messageText: text,
+            // Server never sees E2E plaintext — push preview is generic.
+            messageText: isE2E ? 'Encrypted message' : body.text,
             messageIndex: result.sequence,
             timestamp,
           })
@@ -351,7 +399,13 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         sequence: result.sequence,
         index: result.sequence,
         from: me.username,
-        text,
+        ...(isE2E
+          ? {
+              ciphertext: body.ciphertext,
+              ciphertextType: body.ciphertextType,
+              fromDeviceId: body.deviceId,
+            }
+          : { text: body.text }),
         type: 'text',
         timestamp,
       }
@@ -406,6 +460,10 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           id: schema.messages.id,
           sequence: schema.messages.sequence,
           text: schema.messages.text,
+          ciphertext: schema.messages.ciphertext,
+          ciphertextType: schema.messages.ciphertextType,
+          isEncrypted: schema.messages.isEncrypted,
+          fromDeviceId: schema.messages.deviceId,
           createdAt: schema.messages.createdAt,
           from: schema.users.username,
         })
@@ -420,7 +478,14 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         index: r.sequence,
         sequence: r.sequence,
         from: r.from ?? '',
-        text: r.text,
+        // E2E messages carry ciphertext; plaintext during transition/groups.
+        ...(r.isEncrypted
+          ? {
+              ciphertext: r.ciphertext ?? '',
+              ciphertextType: r.ciphertextType,
+              fromDeviceId: r.fromDeviceId ?? undefined,
+            }
+          : { text: r.text ?? '' }),
         type: 'text',
         timestamp: new Date(r.createdAt).toISOString(),
       }))

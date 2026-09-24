@@ -10,6 +10,7 @@ import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { env } from '@/lib/env'
 import { Keys } from '@/lib/keys'
 import { useAuthStore } from '@/lib/stores'
+import { uuid } from '@/lib/uuid'
 import type { Conversation, Message, MessagesResponse, SendMessageRequest } from '@meapp/shared'
 
 // Re-export: notification.ts consumes MessagesResponse from this module.
@@ -85,7 +86,7 @@ export function useSendMessage({ conversationId }: { conversationId: string }) {
     mutationFn: ({ text }) => {
       // Idempotency key: server dedupes on (userId, clientId), so retries and
       // double-taps never duplicate messages or burn sequences.
-      const clientId = Bun.randomUUIDv7()
+      const clientId = uuid()
       return postFetcher<Message, SendMessageRequest>(Keys.Mutation.SEND_MESSAGE, {
         conversationId,
         text,

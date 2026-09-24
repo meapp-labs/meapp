@@ -9,6 +9,7 @@ import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redis, redisPlugin } from './plugins/redis.ts'
 import { authRoutes } from './routes/auth.ts'
+import { e2eRoutes } from './routes/e2e.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
@@ -127,6 +128,7 @@ export const app = new Elysia({
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
+  .use(e2eRoutes)
   .use(wsTicketRoutes)
   .use(chatWs)
 

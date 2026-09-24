@@ -2,19 +2,27 @@ import type { Database } from 'bun:sqlite'
 
 export type SequenceResult = { id: string; sequence: number } | null
 
+export type MessageInsert = {
+  roomId: string
+  userId: string
+  clientId: string
+  /** Plaintext (transition period / groups) — omit for E2E messages. */
+  text?: string
+  /** base64 Signal protocol body (E2E DMs). */
+  ciphertext?: string
+  /** 1=Whisper, 3=PreKeyWhisper */
+  ciphertextType?: number
+  deviceId?: string
+}
+
 /**
  * Inserts a message with a per-room monotonic sequence under an explicit
  * BEGIN IMMEDIATE transaction, retrying on UNIQUE(room_id, sequence)
- * collisions.
+ * collisions. Idempotent on (userId, clientId).
  */
 export const insertMessageWithSequence = async (
   sqlite: Database,
-  opts: {
-    roomId: string
-    userId: string
-    clientId: string
-    text: string
-  },
+  opts: MessageInsert,
 ): Promise<SequenceResult> => {
   // Idempotency check: if client_id exists for user, return existing record without burning a sequence
   const existing = sqlite
@@ -39,9 +47,21 @@ export const insertMessageWithSequence = async (
 
         sqlite
           .query(
-            'INSERT INTO messages (id, client_id, room_id, user_id, sequence, text, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO messages (id, client_id, room_id, user_id, device_id, sequence, text, ciphertext, ciphertext_type, is_encrypted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
-          .run(id, opts.clientId, opts.roomId, opts.userId, nextSeq, opts.text, Date.now())
+          .run(
+            id,
+            opts.clientId,
+            opts.roomId,
+            opts.userId,
+            opts.deviceId ?? null,
+            nextSeq,
+            opts.text ?? null,
+            opts.ciphertext ?? null,
+            opts.ciphertextType ?? null,
+            opts.ciphertext !== undefined ? 1 : 0,
+            Date.now(),
+          )
 
         sqlite.exec('COMMIT')
         return { id, sequence: nextSeq }

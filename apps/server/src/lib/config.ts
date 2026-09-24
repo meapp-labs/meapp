@@ -20,6 +20,10 @@ const serverEnvSchema = z
     MAX_WS_CONNS_PER_USER: z.coerce.number().default(3),
     MAX_ROOM_SUBS_PER_USER: z.coerce.number().default(10),
     UNAUTH_TIMEOUT_MS: z.coerce.number().default(2000),
+    E2E_ENABLED: z
+      .string()
+      .default('false')
+      .transform((v) => v === 'true' || v === '1'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
@@ -64,6 +68,10 @@ export const WS_CONFIG = {
   UNAUTH_TIMEOUT_MS: env.UNAUTH_TIMEOUT_MS,
 } as const
 
+/** Live read so the flag can be toggled without a process restart (also testable). */
+export const isE2EEnabled = (): boolean =>
+  process.env.E2E_ENABLED === 'true' || process.env.E2E_ENABLED === '1'
+
 export const SESSION_COOKIE_NAME = 'access_token'
 
 /** Login/session policy, carried over from the Fastify implementation. */
@@ -73,4 +81,14 @@ export const LOGIN_CONFIG = {
   MAX_LOGIN_ATTEMPTS: 5,
   LOCKOUT_DURATION_MS: 15 * 60 * 1000,
   SESSION_TTL_SECONDS: 30 * 24 * 60 * 60,
+} as const
+
+/** E2E (Signal protocol relay) limits — see MEAPP-PHASE-10-IMPROVED.md §10.9. */
+export const E2E_CONFIG = {
+  /** base64 ciphertext cap: ~8KB plaintext → ~11KB base64. */
+  CIPHERTEXT_MAX: 12 * 1024,
+  MAX_PREKEYS_PER_UPLOAD: 150,
+  MIN_PREKEYS_PER_UPLOAD: 100,
+  /** Signed prekey must not be valid longer than 30 days. */
+  SIGNED_PREKEY_MAX_TTL_MS: 30 * 24 * 60 * 60 * 1000,
 } as const

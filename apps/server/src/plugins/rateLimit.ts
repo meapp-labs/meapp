@@ -92,6 +92,27 @@ export const routePatterns: RouteRule[] = [
     windowMs: 60000,
   },
   {
+    method: 'POST',
+    regex: /^\/api\/e2e\/bundle$/,
+    key: 'POST:/api/e2e/bundle',
+    max: 10,
+    windowMs: 60000, // 10/min per user (Phase 10 §10.9)
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/e2e\/bundle$/,
+    key: 'GET:/api/e2e/bundle',
+    max: 30,
+    windowMs: 60000, // 30/min per user (Phase 10 §10.9)
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/e2e\/device$/,
+    key: 'POST:/api/e2e/device',
+    max: 10,
+    windowMs: 60000,
+  },
+  {
     method: 'GET',
     regex: /^\/rooms\/[^/]+\/messages$/,
     key: 'GET:/rooms/:roomId/messages',
@@ -136,6 +157,11 @@ const cleanupInterval = setInterval(
 )
 
 cleanupInterval.unref?.()
+
+/** Test-only: clears the in-memory fallback buckets (Redis-backed limits expire on their own). */
+export const resetInMemoryRateLimits = (): void => {
+  inMemoryBuckets.clear()
+}
 
 export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
   .use(authPlugin)
