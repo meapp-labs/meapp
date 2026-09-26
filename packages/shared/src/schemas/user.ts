@@ -19,3 +19,10 @@ export const addContactSchema = z.object({
 })
 
 export type AddContactInput = z.infer<typeof addContactSchema>
+
+export const friendRequestListsSchema = z.object({
+  incoming: z.array(usernameSchema),
+  outgoing: z.array(usernameSchema),
+})
+
+export type FriendRequestLists = z.infer<typeof friendRequestListsSchema>

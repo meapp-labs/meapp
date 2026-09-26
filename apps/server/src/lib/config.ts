@@ -22,11 +22,18 @@ const serverEnvSchema = z
     UNAUTH_TIMEOUT_MS: z.coerce.number().default(2000),
     E2E_ENABLED: z
       .string()
-      .default('false')
+      .default('true')
       .transform((v) => v === 'true' || v === '1'),
   })
   .superRefine((data, ctx) => {
     if (data.NODE_ENV === 'production') {
+      if (!data.E2E_ENABLED) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'E2E must be enabled in production',
+          path: ['E2E_ENABLED'],
+        })
+      }
       if (!data.JWT_SECRET || data.JWT_SECRET === 'dev-secret-change-me') {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
@@ -70,7 +77,7 @@ export const WS_CONFIG = {
 
 /** Live read so the flag can be toggled without a process restart (also testable). */
 export const isE2EEnabled = (): boolean =>
-  process.env.E2E_ENABLED === 'true' || process.env.E2E_ENABLED === '1'
+  isProduction || (process.env.E2E_ENABLED !== 'false' && process.env.E2E_ENABLED !== '0')
 
 export const SESSION_COOKIE_NAME = 'access_token'
 

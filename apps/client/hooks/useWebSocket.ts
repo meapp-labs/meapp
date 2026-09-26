@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type UseWebSocketOptions = {
   onMessage: (data: unknown) => void
-  onOpen?: (send: (data: string) => void) => void
+  getAuthMessage: () => Promise<string>
   enabled: boolean
 }
 
@@ -17,14 +17,14 @@ export type WebSocketHandle = {
  */
 export function useWebSocket(
   url: string,
-  { onMessage, onOpen, enabled }: UseWebSocketOptions,
+  { onMessage, getAuthMessage, enabled }: UseWebSocketOptions,
 ): WebSocketHandle | null {
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onMessageRef = useRef(onMessage)
-  const onOpenRef = useRef(onOpen)
+  const getAuthMessageRef = useRef(getAuthMessage)
   onMessageRef.current = onMessage
-  onOpenRef.current = onOpen
+  getAuthMessageRef.current = getAuthMessage
 
   useEffect(() => {
     if (!enabled || !url) return
@@ -32,10 +32,13 @@ export function useWebSocket(
     let cancelled = false
     let attempt = 0
 
-    const connect = () => {
+    const connect = async () => {
       if (cancelled) return
 
       try {
+        // Ticket latency is outside the server's two-second auth window.
+        const authMessage = await getAuthMessageRef.current()
+        if (cancelled) return
         const ws = new WebSocket(url)
         wsRef.current = ws
 
@@ -44,7 +47,7 @@ export function useWebSocket(
             ws.close()
             return
           }
-          onOpenRef.current?.((data: string) => ws.send(data))
+          ws.send(authMessage)
         }
 
         ws.onmessage = (event) => {
@@ -75,7 +78,7 @@ export function useWebSocket(
           }
           const delay = Math.min(1000 * 2 ** attempt + Math.random() * 500, 30000)
           attempt++
-          timerRef.current = setTimeout(connect, delay)
+          timerRef.current = setTimeout(() => void connect(), delay)
         }
 
         ws.onerror = () => {
@@ -86,11 +89,11 @@ export function useWebSocket(
         if (cancelled) return
         const delay = Math.min(1000 * 2 ** attempt + Math.random() * 500, 30000)
         attempt++
-        timerRef.current = setTimeout(connect, delay)
+        timerRef.current = setTimeout(() => void connect(), delay)
       }
     }
 
-    connect()
+    void connect()
 
     return () => {
       cancelled = true

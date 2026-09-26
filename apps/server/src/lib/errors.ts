@@ -90,11 +90,8 @@ export const createNotFoundError = (resource: string, details?: Record<string, u
 export const createForbiddenError = (message = 'Access denied') =>
   new ApiError(ErrorCode.FORBIDDEN, message, 403)
 
-export const createDatabaseError = (operation: string, originalError?: Error) =>
-  new ApiError(ErrorCode.DATABASE_ERROR, `Database ${operation} failed`, 500, {
-    operation,
-    originalError: originalError?.message,
-  })
+export const createDatabaseError = (operation: string) =>
+  new ApiError(ErrorCode.DATABASE_ERROR, `Database ${operation} failed`, 500)
 
 /**
  * Converts any thrown value into a status code and an `ApiError`-shaped body.
@@ -110,7 +107,6 @@ export const toErrorResponse = (error: unknown): { status: number; body: ErrorBo
     body: {
       message: 'An unexpected error occurred',
       code: ErrorCode.INTERNAL_SERVER_ERROR,
-      details: { originalError: error instanceof Error ? error.message : String(error) },
     },
   }
 }
@@ -127,8 +123,7 @@ export const handleAsyncOperation = async <T>(
     if (error instanceof ApiError) {
       throw error
     }
-    throw new ApiError(code, errorMessage, 500, {
-      originalError: error instanceof Error ? error.message : String(error),
-    })
+    console.error('[API] Operation failed:', error)
+    throw new ApiError(code, errorMessage, 500)
   }
 }

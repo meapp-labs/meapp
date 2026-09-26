@@ -1,6 +1,6 @@
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
-import { checkpoint, getDbInstance } from '@meapp/db'
+import { checkpoint, getDbInstance, runMigrations } from '@meapp/db'
 import { Elysia } from 'elysia'
 
 import { env, isProduction } from './lib/config.ts'
@@ -9,7 +9,8 @@ import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redis, redisPlugin } from './plugins/redis.ts'
 import { authRoutes } from './routes/auth.ts'
-import { e2eRoutes } from './routes/e2e.ts'
+import { deviceLinkRoutes } from './routes/deviceLink.ts'
+import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
@@ -20,6 +21,7 @@ const allowedOrigins: string[] =
     ? env.DOMAIN.split(',')
         .map((d) => d.trim())
         .filter(Boolean)
+        .map((d) => new URL(d.includes('://') ? d : `https://${d}`).origin)
     : []
 
 // In dev, allow localhost origins; in prod only the explicit DOMAIN list.
@@ -35,9 +37,10 @@ export const app = new Elysia({
       origin: corsOrigin,
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      maxAge: 600,
     }),
   )
-  .use(swagger())
+  .use(isProduction ? new Elysia() : swagger())
   .use(redisPlugin)
   .use(authPlugin)
   .use(rateLimitPlugin)
@@ -62,6 +65,7 @@ export const app = new Elysia({
       return { message: 'Not found', code: ErrorCode.ITEM_NOT_FOUND }
     }
 
+    console.error('[API] Unexpected error:', error)
     const { status, body } = toErrorResponse(error)
     set.status = status
     return body
@@ -104,19 +108,18 @@ export const app = new Elysia({
       timestamp: new Date().toISOString(),
     }
   })
-  // CSRF: reject cross-origin mutations in production. Compare parsed
-  // hostnames so ports/protocol variations in Origin don't break the check.
+  // CSRF: match the complete configured origin for cookie-authenticated writes.
   .onBeforeHandle({ as: 'global' }, ({ request, set }) => {
     if (request.method !== 'GET' && isProduction) {
       const origin = request.headers.get('origin')
       if (origin) {
-        let originHost: string | undefined
+        let parsedOrigin: string | undefined
         try {
-          originHost = new URL(origin).hostname
+          parsedOrigin = new URL(origin).origin
         } catch {
-          originHost = undefined
+          parsedOrigin = undefined
         }
-        const allowed = originHost !== undefined && allowedOrigins.some((o) => o === originHost)
+        const allowed = parsedOrigin !== undefined && allowedOrigins.includes(parsedOrigin)
         if (!allowed) {
           set.status = 403
           return { message: 'Cross-origin request rejected', code: ErrorCode.FORBIDDEN }
@@ -128,7 +131,8 @@ export const app = new Elysia({
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
-  .use(e2eRoutes)
+  .use(e2eRelayRoutes)
+  .use(deviceLinkRoutes)
   .use(wsTicketRoutes)
   .use(chatWs)
 
@@ -147,12 +151,14 @@ process.on('beforeExit', () => {
 })
 
 if (import.meta.main) {
+  // A new installation must have its schema before any HTTP or WS handler runs.
+  runMigrations()
   app.listen(
     {
       port: env.PORT,
       hostname: env.HOST,
       // Socket-level cap — cannot be bypassed by chunked requests.
-      maxRequestBodySize: 100 * 1024,
+      maxRequestBodySize: 700 * 1024,
       development: !isProduction,
     },
     () => {

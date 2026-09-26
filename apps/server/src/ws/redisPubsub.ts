@@ -47,12 +47,14 @@ export class RedisPubsub {
     }
   }
 
-  async publish(channel: string, message: string): Promise<void> {
+  async publish(channel: string, message: string): Promise<boolean> {
     try {
       if (this.redis.status === 'ready') {
         await this.redis.publish(channel, message)
+        return this.subscriber?.status === 'ready'
       }
     } catch {}
+    return false
   }
 
   async stop(): Promise<void> {

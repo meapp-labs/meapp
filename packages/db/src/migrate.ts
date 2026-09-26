@@ -5,6 +5,6 @@ import { getDbInstance } from './client.ts'
 
 export const runMigrations = (migrationsFolder?: string): void => {
   const currentDir = dirname(fileURLToPath(import.meta.url))
-  const folder = migrationsFolder ?? join(currentDir, '../drizzle')
+  const folder = migrationsFolder ?? join(currentDir, '../drizzle-current')
   migrate(getDbInstance().db, { migrationsFolder: folder })
 }

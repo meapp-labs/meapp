@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
 
 import { ConversationItem } from '@/components/ConversationItem'
@@ -8,17 +8,30 @@ import { CreateGroup } from '@/components/chat/CreateGroup'
 import { TopMenu } from '@/components/forms/TopMenu'
 import { UserSettings } from '@/components/settings/UserSettings'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
-import { useAuthStore } from '@/lib/stores'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useGetConversations } from '@/services/conversations'
+import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import type { Conversation } from '@meapp/shared'
 
 export function FriendsScreen() {
   const { isMobile } = useBreakpoint()
   const { username: currentUsername } = useAuthStore()
+  const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { data: conversations = [], isPending } = useGetConversations()
+
+  useEffect(() => {
+    if (
+      !isPending &&
+      selectedConversationId &&
+      !conversations.some((c) => c.id === selectedConversationId)
+    ) {
+      setSelectedConversationId(null)
+      void ConversationStorage.clear()
+    }
+  }, [conversations, isPending, selectedConversationId, setSelectedConversationId])
 
   const filteredConversations = useMemo(() => {
     if (!searchQuery.trim()) return conversations

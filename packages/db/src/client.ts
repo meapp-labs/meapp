@@ -1,5 +1,5 @@
 import { Database } from 'bun:sqlite'
-import { mkdirSync } from 'node:fs'
+import { chmodSync, mkdirSync } from 'node:fs'
 import { dirname } from 'node:path'
 import { drizzle } from 'drizzle-orm/bun-sqlite'
 import * as schema from './schema.ts'
@@ -27,6 +27,17 @@ export const createDb = (customPath?: string): DbInstance => {
   sqlite.exec('PRAGMA busy_timeout = 5000;')
   sqlite.exec('PRAGMA synchronous = NORMAL;')
   sqlite.exec('PRAGMA foreign_keys = ON;')
+
+  // Restrict the SQLite file and directory on Unix hosts. The database holds
+  // plaintext until the device-side encryption rollout is complete.
+  if (process.platform !== 'win32') {
+    try {
+      chmodSync(dirname(dbPath), 0o700)
+      chmodSync(dbPath, 0o600)
+    } catch (error) {
+      console.warn('[DB] Could not restrict database permissions:', error)
+    }
+  }
 
   const checkpoint = (): void => {
     try {

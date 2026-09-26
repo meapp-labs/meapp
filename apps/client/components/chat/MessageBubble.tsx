@@ -33,7 +33,7 @@ export const MessageBubble = {
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
         <View style={styles.messageTextWrapper}>
           <Text selectable style={styles.receivedMessageContainer}>
-            {message.text}
+            {message.text ?? 'Encrypted message unavailable on this device'}
           </Text>
         </View>
         <Text style={styles.time}>{time}</Text>
@@ -52,7 +52,7 @@ export const MessageBubble = {
         <Text style={styles.time}>{time}</Text>
         <View style={styles.messageTextWrapper}>
           <Text selectable style={styles.sentMessageContainer}>
-            {message.text}
+            {message.text ?? 'Encrypted message unavailable on this device'}
           </Text>
         </View>
       </View>

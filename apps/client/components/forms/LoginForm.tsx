@@ -11,9 +11,11 @@ import { Text } from '@/components/common/Text'
 import { FormContainer } from '@/components/forms/FormContainer'
 import { FormField } from '@/components/forms/FormInput'
 import { AuthStorage } from '@/lib/authStorage'
-import { useAuthStore } from '@/lib/stores'
+import { queryClient } from '@/lib/queryInit'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useLoginUser } from '@/services/auth'
-import { RememberMeStorage } from '@/services/storage'
+import { resetE2EContext } from '@/services/e2e'
+import { ConversationStorage, RememberMeStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import { LoginSchema, type LoginType } from '@meapp/shared'
 
@@ -37,6 +39,12 @@ export function LoginForm() {
   const onSubmit = handleSubmit((data: LoginType) => {
     mutate(data, {
       onSuccess: (res) => {
+        if (useAuthStore.getState().username !== data.username) {
+          resetE2EContext()
+          queryClient.clear()
+          useConversationStore.getState().setSelectedConversationId(null)
+          void ConversationStorage.clear()
+        }
         setUsername(data.username)
 
         if (typeof res === 'object' && res && 'token' in res) {

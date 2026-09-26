@@ -9,6 +9,7 @@ import {
   ApiError,
   ErrorCode,
   createAuthError,
+  createAuthenticationRequiredError,
   createRateLimitError,
   createUserExistsError,
   handleAsyncOperation,
@@ -199,7 +200,14 @@ export const authRoutes = new Elysia({ prefix: '/api' })
     return 'logged_out'
   })
 
-  .post('/me', ({ user }) => ({ username: requireUser(user).username }))
+  .post('/me', ({ user }) => {
+    const me = requireUser(user)
+    const existing = getDbInstance()
+      .sqlite.query('SELECT id, username FROM users WHERE id = ?')
+      .get(me.id) as { id: string; username: string } | null
+    if (!existing) throw createAuthenticationRequiredError()
+    return existing
+  })
 
   .post(
     '/push-token',

@@ -1,4 +1,7 @@
+import { createHash } from 'node:crypto'
 import {
+  IdempotencyConflictError,
+  type SequenceResult,
   and,
   asc,
   count,
@@ -13,11 +16,11 @@ import {
   sql,
 } from '@meapp/db'
 import {
-  CIPHERTEXT_TYPE_PRE_KEY,
   CIPHERTEXT_TYPE_WHISPER,
   type Conversation,
   E2E_CIPHERTEXT_MAX,
   createConversationSchema,
+  encryptedSendSchema,
 } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 
@@ -27,6 +30,7 @@ import { chatTimestampIso } from '../lib/dbTime.ts'
 import {
   ErrorCode,
   createAuthError,
+  createDuplicateItemError,
   createNotFoundError,
   createUserNotFoundError,
   createValidationError,
@@ -37,8 +41,7 @@ import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { broadcastToRoom } from '../ws/chat.ts'
 
-// Phase 10: a message is either plaintext (`text`, transition/groups) or E2E
-// (`ciphertext` + type + deviceId). Exactly one of the two must be present.
+// Plaintext is accepted only when E2E is explicitly disabled for local tests.
 const sendMessageBody = t.Union([
   t.Object({
     conversationId: t.String({ format: 'uuid' }),
@@ -47,18 +50,22 @@ const sendMessageBody = t.Union([
   }),
   t.Object({
     conversationId: t.String({ format: 'uuid' }),
-    ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
-    ciphertextType: t.Union([
-      t.Literal(CIPHERTEXT_TYPE_WHISPER),
-      t.Literal(CIPHERTEXT_TYPE_PRE_KEY),
-    ]),
-    deviceId: t.String({ format: 'uuid' }),
-    clientId: t.Optional(t.String({ format: 'uuid' })),
+    clientId: t.String({ format: 'uuid' }),
+    installId: t.String({ format: 'uuid' }),
+    envelopes: t.Array(
+      t.Object({
+        targetUserId: t.String({ format: 'uuid' }),
+        targetDeviceId: t.Integer({ minimum: 1, maximum: 5 }),
+        ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
+      }),
+      { minItems: 1, maxItems: 50 },
+    ),
   }),
 ])
 
 const getMessagesQuery = t.Object({
   conversationId: t.String({ format: 'uuid' }),
+  installId: t.Optional(t.String({ format: 'uuid' })),
   after: t.Optional(t.String({ pattern: '^\\d+$' })),
   before: t.Optional(t.String({ pattern: '^[1-9]\\d*$' })),
   limit: t.Optional(t.String({ pattern: '^[1-9]\\d*$' })),
@@ -318,23 +325,19 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     async ({ body, user }) => {
       const me = requireUser(user)
       const conversationId = body.conversationId
-      const isE2E = 'ciphertext' in body
+      const isEnvelopeSend = 'envelopes' in body
+      const isE2E = isEnvelopeSend
+
+      if (isEnvelopeSend) {
+        const parsed = encryptedSendSchema.safeParse(body)
+        if (!parsed.success) throw createValidationError('Invalid encrypted message envelope')
+      }
 
       if (isE2E && !isE2EEnabled()) {
         throw createValidationError('E2E messaging is not enabled')
       }
-
-      // Sender must own the device they claim the ciphertext came from,
-      // or the fromDeviceId metadata could be spoofed to frame another device.
-      if (isE2E) {
-        const device = await getDbInstance()
-          .db.select({ deviceId: schema.devices.deviceId })
-          .from(schema.devices)
-          .where(and(eq(schema.devices.userId, me.id), eq(schema.devices.deviceId, body.deviceId)))
-          .get()
-        if (!device) {
-          throw createValidationError('deviceId is not registered to your account')
-        }
+      if (!isE2E && isE2EEnabled()) {
+        throw createValidationError('Plaintext messaging is disabled while E2E is enabled')
       }
 
       const canAccess = await canAccessRoom(me.id, conversationId)
@@ -351,87 +354,158 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         throw createNotFoundError('Conversation')
       }
 
+      let envelopeDigest = ''
+      let senderProtocolDeviceId = 1
+      if (isEnvelopeSend) {
+        const sqlite = getDbInstance().sqlite
+        const linkedDevice = sqlite
+          .query('SELECT device_id FROM relay_identities WHERE user_id = ? AND install_id = ?')
+          .get(me.id, body.installId) as { device_id: number } | null
+        if (!linkedDevice) throw createAuthError('This device has not registered encryption keys')
+        senderProtocolDeviceId = linkedDevice.device_id
+        const recipients = sqlite
+          .query(`SELECT ri.user_id, ri.device_id FROM room_members rm
+                  JOIN relay_identities ri ON ri.user_id = rm.user_id
+                  WHERE rm.room_id = ? AND NOT (ri.user_id = ? AND ri.device_id = ?)`)
+          .all(conversationId, me.id, senderProtocolDeviceId) as Array<{
+          user_id: string
+          device_id: number
+        }>
+        const memberCount = sqlite
+          .query('SELECT COUNT(*) AS total FROM room_members WHERE room_id = ?')
+          .get(conversationId) as { total: number }
+        const encryptedMembers = sqlite
+          .query(`SELECT COUNT(DISTINCT rm.user_id) AS total FROM room_members rm
+                  JOIN relay_identities ri ON ri.user_id = rm.user_id WHERE rm.room_id = ?`)
+          .get(conversationId) as { total: number }
+        if (memberCount.total !== encryptedMembers.total)
+          throw createValidationError('A recipient has not enabled encryption')
+        const key = (userId: string, deviceId: number) => `${userId}:${deviceId}`
+        const expected = recipients.map((row) => key(row.user_id, row.device_id)).sort()
+        const actual = body.envelopes.map((row) => key(row.targetUserId, row.targetDeviceId)).sort()
+        if (
+          expected.length !== actual.length ||
+          expected.some((id, index) => id !== actual[index])
+        ) {
+          throw createValidationError(
+            'Encrypted envelopes must cover every recipient device exactly once',
+          )
+        }
+        const canonical = [...body.envelopes]
+          .sort((a, b) =>
+            key(a.targetUserId, a.targetDeviceId).localeCompare(
+              key(b.targetUserId, b.targetDeviceId),
+            ),
+          )
+          .map((entry) => `${key(entry.targetUserId, entry.targetDeviceId)}:${entry.ciphertext}`)
+          .join('|')
+        envelopeDigest = `v1:${createHash('sha256').update(canonical).digest('hex')}`
+      }
+
       const msgClientId = body.clientId ?? Bun.randomUUIDv7()
 
-      const result = await insertMessageWithSequence(getDbInstance().sqlite, {
-        roomId: conversationId,
-        userId: me.id,
-        clientId: msgClientId,
-        ...(isE2E
-          ? {
-              ciphertext: body.ciphertext,
-              ciphertextType: body.ciphertextType,
-              deviceId: body.deviceId,
-            }
-          : { text: body.text }),
-      })
-
-      if (!result) {
-        throw new Error('Failed to insert message')
-      }
-
-      const timestamp = new Date().toISOString()
-
-      // Look up other participants' push tokens
-      const otherMembers = await getDbInstance()
-        .db.select({
-          pushToken: schema.users.pushToken,
-        })
-        .from(schema.roomMembers)
-        .innerJoin(schema.users, eq(schema.roomMembers.userId, schema.users.id))
-        .where(
-          and(
-            eq(schema.roomMembers.roomId, conversationId),
-            sql`${schema.roomMembers.userId} != ${me.id}`,
-          ),
-        )
-
-      for (const member of otherMembers) {
-        if (member.pushToken) {
-          void sendPushNotification({
-            expoPushToken: member.pushToken,
-            senderUsername: me.username,
-            // Server never sees E2E plaintext — push preview is generic.
-            messageText: isE2E ? 'Encrypted message' : body.text,
-            messageIndex: result.sequence,
-            timestamp,
-          })
-        }
-      }
-
-      await broadcastToRoom(
-        conversationId,
-        JSON.stringify({
-          type: 'message',
-          payload: {
-            id: result.id,
-            clientId: msgClientId,
+      let result: SequenceResult
+      try {
+        result = await insertMessageWithSequence(
+          getDbInstance().sqlite,
+          {
             roomId: conversationId,
             userId: me.id,
-            from: me.username,
-            sequence: result.sequence,
-            ...(isE2E
+            clientId: msgClientId,
+            ...(isEnvelopeSend
               ? {
-                  ciphertext: body.ciphertext,
-                  ciphertextType: body.ciphertextType,
-                  fromDeviceId: body.deviceId,
+                  ciphertext: envelopeDigest,
+                  ciphertextType: CIPHERTEXT_TYPE_WHISPER,
+                  deviceId: body.installId,
+                  senderProtocolDeviceId,
                 }
               : { text: body.text }),
-            createdAt: timestamp,
           },
-        }),
-      )
+          isEnvelopeSend
+            ? (messageId) => {
+                const insertEnvelope = getDbInstance().sqlite.query(
+                  'INSERT INTO message_envelopes (message_id, target_user_id, target_device_id, ciphertext) VALUES (?, ?, ?, ?)',
+                )
+                for (const envelope of body.envelopes) {
+                  insertEnvelope.run(
+                    messageId,
+                    envelope.targetUserId,
+                    envelope.targetDeviceId,
+                    envelope.ciphertext,
+                  )
+                }
+              }
+            : undefined,
+        )
+      } catch (error) {
+        if (error instanceof IdempotencyConflictError) {
+          throw createDuplicateItemError(error.message)
+        }
+        throw error
+      }
+
+      const timestamp = chatTimestampIso(result.createdAt)
+
+      if (result.created) {
+        const otherMembers = await getDbInstance()
+          .db.select({ pushToken: schema.users.pushToken })
+          .from(schema.roomMembers)
+          .innerJoin(schema.users, eq(schema.roomMembers.userId, schema.users.id))
+          .where(
+            and(
+              eq(schema.roomMembers.roomId, conversationId),
+              sql`${schema.roomMembers.userId} != ${me.id}`,
+            ),
+          )
+
+        for (const member of otherMembers) {
+          if (member.pushToken) {
+            void sendPushNotification({
+              expoPushToken: member.pushToken,
+              senderUsername: me.username,
+              messageText: 'New message',
+              messageIndex: result.sequence,
+              timestamp,
+            })
+          }
+        }
+
+        await broadcastToRoom(
+          conversationId,
+          JSON.stringify({
+            type: 'message',
+            payload: {
+              id: result.id,
+              clientId: msgClientId,
+              roomId: conversationId,
+              userId: me.id,
+              from: me.username,
+              sequence: result.sequence,
+              ...(isEnvelopeSend
+                ? {
+                    ciphertext: envelopeDigest,
+                    ciphertextType: CIPHERTEXT_TYPE_WHISPER,
+                    fromDeviceId: body.installId,
+                    fromProtocolDeviceId: senderProtocolDeviceId,
+                  }
+                : { text: body.text }),
+              createdAt: timestamp,
+            },
+          }),
+        )
+      }
 
       return {
         id: result.id,
         sequence: result.sequence,
         index: result.sequence,
         from: me.username,
-        ...(isE2E
+        ...(isEnvelopeSend
           ? {
-              ciphertext: body.ciphertext,
-              ciphertextType: body.ciphertextType,
-              fromDeviceId: body.deviceId,
+              ciphertext: envelopeDigest,
+              ciphertextType: CIPHERTEXT_TYPE_WHISPER,
+              fromDeviceId: body.installId,
+              fromProtocolDeviceId: senderProtocolDeviceId,
             }
           : { text: body.text }),
         type: 'text',
@@ -446,6 +520,18 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     async ({ query, user }) => {
       const { conversationId, after, before } = query
       const me = requireUser(user)
+
+      let readerDeviceId = 1
+      if (isE2EEnabled()) {
+        if (!query.installId) throw createAuthError('An encrypted device is required')
+        const reader = getDbInstance()
+          .sqlite.query(
+            'SELECT device_id FROM relay_identities WHERE user_id = ? AND install_id = ?',
+          )
+          .get(me.id, query.installId) as { device_id: number } | null
+        if (!reader) throw createAuthError('This device has not registered encryption keys')
+        readerDeviceId = reader.device_id
+      }
 
       const canAccess = await canAccessRoom(me.id, conversationId)
       if (!canAccess) {
@@ -473,63 +559,74 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         ) as typeof whereClause
       }
 
-      // Count with the SAME filters as the page query, or pagination
-      // cursors would report hasMore forever.
-      const filteredCountRow = await getDbInstance()
-        .db.select({ total: count() })
-        .from(schema.messages)
-        .where(whereClause)
-        .get()
-
-      const filteredTotal = filteredCountRow?.total ?? 0
-
       const rows = await getDbInstance()
         .db.select({
           id: schema.messages.id,
+          clientId: schema.messages.clientId,
+          roomId: schema.messages.roomId,
+          userId: schema.messages.userId,
           sequence: schema.messages.sequence,
           text: schema.messages.text,
           ciphertext: schema.messages.ciphertext,
+          envelopeCiphertext: schema.messageEnvelopes.ciphertext,
+          envelopeSourceUserId: schema.messageEnvelopes.sourceUserId,
+          envelopeSourceDeviceId: schema.messageEnvelopes.sourceDeviceId,
           ciphertextType: schema.messages.ciphertextType,
           isEncrypted: schema.messages.isEncrypted,
           fromDeviceId: schema.messages.deviceId,
+          fromProtocolDeviceId: schema.messages.senderProtocolDeviceId,
           createdAt: schema.messages.createdAt,
           from: schema.users.username,
         })
         .from(schema.messages)
         .innerJoin(schema.users, eq(schema.messages.userId, schema.users.id))
+        .leftJoin(
+          schema.messageEnvelopes,
+          and(
+            eq(schema.messageEnvelopes.messageId, schema.messages.id),
+            eq(schema.messageEnvelopes.targetUserId, me.id),
+            eq(schema.messageEnvelopes.targetDeviceId, readerDeviceId),
+          ),
+        )
         .where(whereClause)
         .orderBy(
           afterIndex === undefined ? desc(schema.messages.sequence) : asc(schema.messages.sequence),
         )
-        .limit(limit)
+        .limit(limit + 1)
 
+      const hasMore = rows.length > limit
+      const pageRows = rows.slice(0, limit)
       // History pages fetch the latest window, then return it in ascending order.
-      const orderedRows = afterIndex === undefined ? rows.reverse() : rows
+      const orderedRows = afterIndex === undefined ? pageRows.reverse() : pageRows
       const messages = orderedRows.map((r) => ({
         id: r.id,
+        clientId: r.clientId,
+        roomId: r.roomId,
+        userId: r.userId,
         index: r.sequence,
         sequence: r.sequence,
         from: r.from ?? '',
         // E2E messages carry ciphertext; plaintext during transition/groups.
         ...(r.isEncrypted
           ? {
-              ciphertext: r.ciphertext ?? '',
+              ciphertext: r.envelopeCiphertext ?? r.ciphertext ?? '',
               ciphertextType: r.ciphertextType,
               fromDeviceId: r.fromDeviceId ?? undefined,
+              fromProtocolDeviceId: r.fromProtocolDeviceId,
+              envelopeSourceUserId: r.envelopeSourceUserId ?? undefined,
+              envelopeSourceDeviceId: r.envelopeSourceDeviceId ?? undefined,
             }
           : { text: r.text ?? '' }),
         type: 'text',
         timestamp: chatTimestampIso(r.createdAt),
       }))
 
-      // Unfiltered count for UI display; pagination uses filteredTotal.
+      // Unfiltered count for UI display; the extra fetched row handles pagination.
       const totalCountRow = await getDbInstance()
         .db.select({ total: count() })
         .from(schema.messages)
         .where(eq(schema.messages.roomId, conversationId))
         .get()
-
-      const hasMore = messages.length === limit && filteredTotal > limit
 
       return { messages, hasMore, totalCount: totalCountRow?.total ?? 0 }
     },

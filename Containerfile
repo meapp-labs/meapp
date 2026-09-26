@@ -27,8 +27,7 @@ RUN bun install --frozen-lockfile --production --ignore-scripts
 # migrate.js resolves the migrations folder relative to its own location,
 # so drizzle must exist at both paths.
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
-COPY packages/db/drizzle ./apps/server/drizzle
-COPY packages/db/drizzle ./packages/db/drizzle
+COPY packages/db/drizzle-current ./packages/db/drizzle-current
 
 # Migrate (idempotent), then serve.
 RUN printf '#!/bin/sh\nbun apps/server/dist/migrate.js\nexec bun apps/server/dist/index.js\n' \

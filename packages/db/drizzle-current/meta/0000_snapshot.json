@@ -1,8 +1,8 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "0263126c-104f-4ec5-81b4-ac9e9e0edea6",
-  "prevId": "575ff320-5edd-4967-abf5-db9c447f03fa",
+  "id": "11e5e2d0-7f96-4724-b5e6-480dcda11c51",
+  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contacts": {
       "name": "contacts",
@@ -154,6 +154,30 @@
           "notNull": true,
           "autoincrement": false
         },
+        "protocol_device_id": {
+          "name": "protocol_device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "history_complete": {
+          "name": "history_complete",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": true
+        },
+        "history_unavailable": {
+          "name": "history_unavailable",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
         "platform": {
           "name": "platform",
           "type": "text",
@@ -169,7 +193,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "devices_user_protocol_device_unique": {
+          "name": "devices_user_protocol_device_unique",
+          "columns": [
+            "user_id",
+            "protocol_device_id"
+          ],
+          "isUnique": true
+        }
+      },
       "foreignKeys": {
         "devices_user_id_users_id_fk": {
           "name": "devices_user_id_users_id_fk",
@@ -272,6 +305,117 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "message_envelopes": {
+      "name": "message_envelopes",
+      "columns": {
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_user_id": {
+          "name": "target_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "target_device_id": {
+          "name": "target_device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "source_user_id": {
+          "name": "source_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "source_device_id": {
+          "name": "source_device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "ciphertext": {
+          "name": "ciphertext",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "message_envelopes_target_idx": {
+          "name": "message_envelopes_target_idx",
+          "columns": [
+            "target_user_id",
+            "target_device_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "message_envelopes_message_id_messages_id_fk": {
+          "name": "message_envelopes_message_id_messages_id_fk",
+          "tableFrom": "message_envelopes",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "message_envelopes_target_user_id_users_id_fk": {
+          "name": "message_envelopes_target_user_id_users_id_fk",
+          "tableFrom": "message_envelopes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "target_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "message_envelopes_source_user_id_users_id_fk": {
+          "name": "message_envelopes_source_user_id_users_id_fk",
+          "tableFrom": "message_envelopes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "source_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "message_envelopes_message_id_target_user_id_target_device_id_pk": {
+          "columns": [
+            "message_id",
+            "target_user_id",
+            "target_device_id"
+          ],
+          "name": "message_envelopes_message_id_target_user_id_target_device_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "messages": {
       "name": "messages",
       "columns": {
@@ -309,6 +453,14 @@
           "primaryKey": false,
           "notNull": false,
           "autoincrement": false
+        },
+        "sender_protocol_device_id": {
+          "name": "sender_protocol_device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
         },
         "sequence": {
           "name": "sequence",
@@ -679,6 +831,200 @@
         }
       },
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "relay_identities": {
+      "name": "relay_identities",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "install_id": {
+          "name": "install_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "registration_id": {
+          "name": "registration_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "x25519_public_key": {
+          "name": "x25519_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ed25519_public_key": {
+          "name": "ed25519_public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "relay_identities_user_install_unique": {
+          "name": "relay_identities_user_install_unique",
+          "columns": [
+            "user_id",
+            "install_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "relay_identities_user_id_users_id_fk": {
+          "name": "relay_identities_user_id_users_id_fk",
+          "tableFrom": "relay_identities",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "relay_identities_user_id_device_id_pk": {
+          "columns": [
+            "user_id",
+            "device_id"
+          ],
+          "name": "relay_identities_user_id_device_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "relay_prekeys": {
+      "name": "relay_prekeys",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "device_id": {
+          "name": "device_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "key_id": {
+          "name": "key_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "public_key": {
+          "name": "public_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "signature": {
+          "name": "signature",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "consumed": {
+          "name": "consumed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "relay_prekeys_available_idx": {
+          "name": "relay_prekeys_available_idx",
+          "columns": [
+            "user_id",
+            "device_id",
+            "type",
+            "consumed"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "relay_prekeys_user_id_users_id_fk": {
+          "name": "relay_prekeys_user_id_users_id_fk",
+          "tableFrom": "relay_prekeys",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "relay_prekeys_user_id_device_id_type_key_id_pk": {
+          "columns": [
+            "user_id",
+            "device_id",
+            "type",
+            "key_id"
+          ],
+          "name": "relay_prekeys_user_id_device_id_type_key_id_pk"
+        }
+      },
       "uniqueConstraints": {},
       "checkConstraints": {}
     },

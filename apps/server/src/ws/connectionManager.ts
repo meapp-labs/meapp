@@ -66,6 +66,12 @@ end
 return 1
 `
 
+const RATE_LIMIT_LUA = `
+local current = redis.call('INCR', KEYS[1])
+if current == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end
+return current
+`
+
 export class WsConnectionManager {
   private fallbackUnauthGlobal = 0
   private fallbackPerIpUnauth = new Map<string, number>()
@@ -209,8 +215,7 @@ export class WsConnectionManager {
   async checkMessageRateLimit(userId: string): Promise<boolean> {
     try {
       const key = `ratelimit:ws_msg:${userId}`
-      const current = await this.redis.incr(key)
-      if (current === 1) await this.redis.expire(key, 10)
+      const current = (await this.redis.eval(RATE_LIMIT_LUA, 1, key, '10')) as number
       return current <= 10
     } catch {
       const now = Date.now()
@@ -228,8 +233,7 @@ export class WsConnectionManager {
   async checkTypingRateLimit(userId: string): Promise<boolean> {
     try {
       const key = `ratelimit:ws_typing:${userId}`
-      const current = await this.redis.incr(key)
-      if (current === 1) await this.redis.expire(key, 10)
+      const current = (await this.redis.eval(RATE_LIMIT_LUA, 1, key, '10')) as number
       return current <= 5
     } catch {
       const now = Date.now()

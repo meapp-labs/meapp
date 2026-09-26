@@ -21,7 +21,7 @@
     "format:fix": "bunx @biomejs/biome format --write ."
   },
   "dependencies": {
-    "drizzle-orm": "^0.44.0"
+    "drizzle-orm": "^0.45.1"
   },
   "devDependencies": {
     "@types/bun": "^1.4.2",

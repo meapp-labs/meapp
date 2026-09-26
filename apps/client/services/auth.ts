@@ -6,6 +6,7 @@ import { type ApiError, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
 import type { LoginType, RegisterType } from '@meapp/shared'
+import { resetE2EContext } from './e2e'
 
 export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({
@@ -25,6 +26,7 @@ export function useLogoutUser({ onSuccess }: { onSuccess: () => void }) {
   return useMutation<string, ApiError>({
     mutationFn: () => postFetcher<string, void>(Keys.Mutation.LOGOUT),
     onSuccess: () => {
+      resetE2EContext()
       queryClient.clear()
       router.replace('/login')
       onSuccess()

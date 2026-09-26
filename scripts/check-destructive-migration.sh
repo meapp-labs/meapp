@@ -7,7 +7,7 @@ set -e
 # ==============================================================================
 
 DIRS_TO_CHECK=""
-[ -d "packages/db/drizzle" ] && DIRS_TO_CHECK="$DIRS_TO_CHECK packages/db/drizzle"
+[ -d "packages/db/drizzle-current" ] && DIRS_TO_CHECK="$DIRS_TO_CHECK packages/db/drizzle-current"
 [ -d "migrations" ] && DIRS_TO_CHECK="$DIRS_TO_CHECK migrations"
 
 if [ -n "$DIRS_TO_CHECK" ]; then

@@ -1,150 +1,310 @@
 import {
-  type BundleResponse,
-  CIPHERTEXT_TYPE_PRE_KEY,
-  CIPHERTEXT_TYPE_WHISPER,
-  type DeviceInfo,
-  E2E_CIPHERTEXT_MAX,
-  type EncryptedMessageInput,
-  encryptedMessageSchema,
-} from '@meapp/shared'
+  ProtocolAddress,
+  type SignalProtocolLocalStore,
+  createSignalProtocolClient,
+} from '@open-e2ee/signal-protocol-sdk'
+import type { SignalProtocolRelayServer } from '@open-e2ee/signal-protocol-sdk/remote/relay'
+import { Platform } from 'react-native'
 
-import { getFetcher, postFetcher } from '../lib/api'
-import { uuid } from '../lib/uuid'
+import { getFetcher, postFetcher } from '@/lib/api'
+import { uuid } from '@/lib/uuid'
+import { type EncryptedSend, type Message, encryptedSendSchema } from '@meapp/shared'
 
-/**
- * Client scaffolding for the Phase-10 E2E relay. The server is a dumb relay:
- * it stores public keys and opaque ciphertext, and never sees plaintext or
- * private keys. This module owns the transport + local key-store contract;
- * actual X3DH/PQXDH + Double Ratchet crypto plugs in via E2ECryptoProvider
- * (libsignal) in a later phase.
- */
+import { deletePrivateMetadata, getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata'
+import { createMeappRelay } from './e2eRelay'
+import { getE2EStore } from './e2eStore'
 
-// ─────────────────────────────────────────────────────────────
-// Key storage (SecureStore on native; placeholder contract for web)
-// ─────────────────────────────────────────────────────────────
+type ProtocolClient = Awaited<ReturnType<typeof createSignalProtocolClient>>
+type Ciphertext = Parameters<ProtocolClient['decryptMessage']>[1]
+export type SafetyNumber = Awaited<ReturnType<ProtocolClient['verify']>>
 
-export interface E2EKeyStore {
-  get(key: string): Promise<string | null>
-  set(key: string, value: string): Promise<void>
-  remove(key: string): Promise<void>
+type E2EContext = {
+  userId: string
+  username: string
+  installId: string
+  storage: SignalProtocolLocalStore
+  relay: SignalProtocolRelayServer
+  client: ProtocolClient
+  deviceId: number
 }
 
-const keyStoreBackend: E2EKeyStore = {
-  // Wire to expo-secure-store in the crypto phase; native-only for now.
-  async get() {
-    return null
-  },
-  async set() {},
-  async remove() {},
-}
+const ACCOUNT_KEY = 'meapp:e2e:account'
+const INSTALL_KEY = 'meapp:e2e:install'
+const DEVICE_KEY = 'meapp:e2e:device-id'
+const cacheKey = (messageId: string) => `meapp:e2e:message:${messageId}`
+const pendingKey = (clientId: string) => `meapp:e2e:pending:${clientId}`
+const pendingTextKey = (clientId: string) => `meapp:e2e:pending-text:${clientId}`
+const OUTBOX_KEY = 'meapp:e2e:outbox'
 
-export const E2EKeyNamespace = {
-  identityPrivate: (deviceId: string) => `e2e_identity_priv_${deviceId}`,
-  signedPrekeyPrivate: (deviceId: string, id: number) => `e2e_sprekey_priv_${deviceId}_${id}`,
-  oneTimePrekeyPrivate: (deviceId: string, id: number) => `e2e_otprekey_priv_${deviceId}_${id}`,
-  session: (remoteUserId: string, remoteDeviceId: string) =>
-    `e2e_session_${remoteUserId}_${remoteDeviceId}`,
-} as const
+let contextPromise: Promise<E2EContext> | null = null
+let sendQueue = Promise.resolve()
 
-// ─────────────────────────────────────────────────────────────
-// Device identity
-// ─────────────────────────────────────────────────────────────
-
-const DEVICE_ID_KEY = 'meapp_e2e_device_id'
-
-/**
- * Stable per-install device id (uuidv7). Persisted so re-registrations are
- * idempotent across app restarts.
- */
-export async function getOrCreateDeviceId(): Promise<string> {
-  const existing = await keyStoreBackend.get(DEVICE_ID_KEY)
-  if (existing) return existing
-
-  const deviceId = uuid()
-  await keyStoreBackend.set(DEVICE_ID_KEY, deviceId)
-  return deviceId
-}
-
-/** Registers this install's device + identity key with the relay. */
-export async function registerDevice(input: {
-  deviceId: string
-  platform: 'ios' | 'android' | 'web'
-  identityKeyPublic: string
-}): Promise<{ deviceId: string; registered: boolean }> {
-  return postFetcher('e2e/device', input)
-}
-
-// ─────────────────────────────────────────────────────────────
-// Prekey bundles
-// ─────────────────────────────────────────────────────────────
-
-export interface PrekeyUpload {
-  prekeyId: number
-  prekeyPublic: string
-  signedPrekeyId: number
-  signedPrekeyPublic: string
-  signedPrekeySignature: string
-  signedPrekeyExpiresAt: string
-  kyberPrekeyId: number
-  kyberPrekeyPublic: string
-  kyberPrekeySignature: string
-  isLastResort: boolean
-}
-
-/**
- * Uploads a batch of one-time prekeys (server caps at 150). Call after
- * registration and whenever the remaining OTP count drops low — the server
- * only signals refill via GET /e2e/devices consumers.
- */
-export async function uploadPrekeyBundle(input: {
-  deviceId: string
-  identityKeyPublic: string
-  prekeys: PrekeyUpload[]
-}): Promise<{ uploaded: number; deviceId: string }> {
-  return postFetcher('e2e/bundle', input)
-}
-
-/**
- * Fetches (and atomically consumes) a prekey bundle for the target user.
- * One-time prekeys are single-use server-side; falling back to a
- * last-resort bundle is normal under load and still safe (signed prekey).
- */
-export async function fetchBundle(targetUserId: string): Promise<BundleResponse[]> {
-  return getFetcher<BundleResponse[]>('e2e/bundle', { userId: targetUserId })
-}
-
-/** Lists a user's registered devices (safety-number UI, refill signal). */
-export async function listDevices(targetUserId: string): Promise<DeviceInfo[]> {
-  return getFetcher<DeviceInfo[]>('e2e/devices', { userId: targetUserId })
-}
-
-// ─────────────────────────────────────────────────────────────
-// Encrypted send
-// ─────────────────────────────────────────────────────────────
-
-/** Validates + sends an opaque ciphertext message through the relay. */
-export async function sendEncryptedMessage(
-  input: EncryptedMessageInput,
-): Promise<{ id: string; sequence: number }> {
-  const parsed = encryptedMessageSchema.safeParse(input)
-  if (!parsed.success) {
-    throw new Error(`Invalid encrypted message: ${parsed.error.issues[0]?.message}`)
+async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
+  const { storage } = context
+  const sent = new Map<string, Message>()
+  const raw = await getPrivateMetadata(storage, OUTBOX_KEY)
+  const ids: unknown = raw ? JSON.parse(raw) : []
+  if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+    throw new Error('Encrypted outbox index is invalid')
   }
-  return postFetcher('send-message', parsed.data)
+  for (const clientId of ids as string[]) {
+    const pending = await getPrivateMetadata(storage, pendingKey(clientId))
+    const text = await getPrivateMetadata(storage, pendingTextKey(clientId))
+    if (!pending || text === null) throw new Error('Encrypted outbox entry is incomplete')
+    const payload = encryptedSendSchema.parse(JSON.parse(pending))
+    if (payload.clientId !== clientId || payload.installId !== context.installId) {
+      throw new Error('Encrypted outbox entry belongs to another device')
+    }
+    const response = await postFetcher<Message>('send-message', payload)
+    await setPrivateMetadata(storage, cacheKey(response.id), text)
+    sent.set(clientId, response)
+    await setPrivateMetadata(
+      storage,
+      OUTBOX_KEY,
+      JSON.stringify((ids as string[]).filter((id) => id !== clientId)),
+    )
+    await deletePrivateMetadata(storage, pendingKey(clientId))
+    await deletePrivateMetadata(storage, pendingTextKey(clientId))
+  }
+  return sent
 }
 
-/**
- * Guard for the crypto phase: ciphertext must fit the server-side cap
- * BEFORE base64 expansion is applied client-side.
- */
-export const maxPlaintextBytesForCiphertext = (ciphertextB64Length: number): number =>
-  Math.floor((ciphertextB64Length * 3) / 4)
+async function openContext(): Promise<E2EContext> {
+  const me = await postFetcher<{ id: string; username: string }>('me', {})
+  const storage = await getE2EStore(me.id)
+  const accountId = await storage.getMetadata(ACCOUNT_KEY)
+  if (accountId && accountId !== me.id) {
+    throw new Error('This installation has encryption keys for another account')
+  }
 
-export const CIPHERTEXT_LIMITS = {
-  /** Max base64 ciphertext accepted by the server. */
-  ciphertextB64Max: E2E_CIPHERTEXT_MAX,
-  /** Practical max plaintext to encrypt (~8KB after base64 + ratchet overhead). */
-  plaintextBytes: 8 * 1024,
-} as const
+  let installId = await storage.getMetadata(INSTALL_KEY)
+  if (!installId) {
+    installId = uuid()
+    await storage.setMetadata(INSTALL_KEY, installId)
+  }
+  const deviceId = Number((await storage.getMetadata(DEVICE_KEY)) ?? 1)
+  if (!Number.isInteger(deviceId) || deviceId < 1 || deviceId > 5)
+    throw new Error('Stored encryption device ID is invalid')
+  const relay = createMeappRelay(me.id, installId, deviceId)
+  await relay.registerDevice(me.id, {
+    deviceId,
+    deviceType: Platform.OS === 'web' ? 'web' : 'mobile',
+  })
 
-export { CIPHERTEXT_TYPE_PRE_KEY, CIPHERTEXT_TYPE_WHISPER }
+  const client = await createSignalProtocolClient({
+    identity: { userId: me.id, deviceId },
+    adapters: { storage, relay },
+  })
+  // The SDK can create an offline client when initial synchronization fails.
+  // Require successful key publication before sending or receiving messages.
+  await client.syncToServer()
+  if (!accountId) await storage.setMetadata(ACCOUNT_KEY, me.id)
+  if (!(await storage.getMetadata(DEVICE_KEY)))
+    await storage.setMetadata(DEVICE_KEY, String(deviceId))
+  const context = {
+    userId: me.id,
+    username: me.username,
+    installId,
+    storage,
+    relay,
+    client,
+    deviceId,
+  }
+  // Reuse exactly the same envelopes after a lost response or app restart.
+  await flushOutbox(context).catch((error: unknown) => {
+    console.warn('[E2E] Encrypted outbox retry deferred:', error)
+  })
+  return context
+}
+
+export function getE2EContext(): Promise<E2EContext> {
+  contextPromise ??= openContext().catch((error: unknown) => {
+    contextPromise = null
+    throw error
+  })
+  return contextPromise
+}
+
+export function resetE2EContext(): void {
+  contextPromise = null
+}
+
+export async function getE2EInstallId(): Promise<string> {
+  return (await getE2EContext()).installId
+}
+
+export async function sendE2EMessage(
+  conversationId: string,
+  text: string,
+  clientId: string,
+): Promise<Message> {
+  const previous = sendQueue
+  let release: () => void = () => {}
+  sendQueue = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await sendE2EMessageSerial(conversationId, text, clientId)
+  } finally {
+    release()
+  }
+}
+
+async function sendE2EMessageSerial(
+  conversationId: string,
+  text: string,
+  clientId: string,
+): Promise<Message> {
+  if (!text.trim() || text.length > 2000)
+    throw new Error('Message must contain 1 to 2000 characters')
+  const context = await getE2EContext()
+  const { client, installId, storage, relay, userId, username } = context
+  const previouslySent = await flushOutbox(context)
+  const recovered = previouslySent.get(clientId)
+  if (recovered) {
+    return { ...recovered, clientId, roomId: conversationId, userId, from: username, text }
+  }
+  let pending = await getPrivateMetadata(storage, pendingKey(clientId))
+  if (!pending) {
+    const recipients = await getFetcher<Array<{ userId: string; deviceId: number }>>(
+      'e2e/relay/recipients',
+      { conversationId, installId },
+    )
+    const content = JSON.stringify({ conversationId, clientId, senderId: userId, text })
+    const envelopes: EncryptedSend['envelopes'] = []
+    for (const recipient of recipients) {
+      const address = ProtocolAddress.create(recipient.userId, recipient.deviceId)
+      if (!(await client.hasSession(address))) {
+        const bundle = await relay.fetchPreKeyBundle(recipient.userId, recipient.deviceId)
+        if (!bundle) throw new Error('A recipient has no usable encryption keys')
+        await client.establishSession(address, bundle)
+      }
+      const ciphertext = await client.encryptMessage(address, content)
+      if (ciphertext.length > 12 * 1024) throw new Error('Encrypted message is too large')
+      envelopes.push({
+        targetUserId: recipient.userId,
+        targetDeviceId: recipient.deviceId,
+        ciphertext,
+      })
+    }
+    pending = JSON.stringify({
+      conversationId,
+      clientId,
+      installId,
+      envelopes,
+    } satisfies EncryptedSend)
+    // Save the exact ciphertext before sending so a retry never advances the
+    // ratchet twice or submits a new body under the same idempotency key.
+    await setPrivateMetadata(storage, pendingTextKey(clientId), text)
+    await setPrivateMetadata(storage, pendingKey(clientId), pending)
+    const rawOutbox = await getPrivateMetadata(storage, OUTBOX_KEY)
+    const outbox: string[] = rawOutbox ? JSON.parse(rawOutbox) : []
+    if (!outbox.includes(clientId)) {
+      await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify([...outbox, clientId]))
+    }
+  }
+
+  const payload = encryptedSendSchema.parse(JSON.parse(pending))
+  if (payload.conversationId !== conversationId || payload.clientId !== clientId) {
+    throw new Error('Pending encrypted message does not match this send')
+  }
+  const pendingText = await getPrivateMetadata(storage, pendingTextKey(clientId))
+  if (pendingText !== text) throw new Error('Pending encrypted message text has changed')
+  const rawOutbox = await getPrivateMetadata(storage, OUTBOX_KEY)
+  const outbox: string[] = rawOutbox ? JSON.parse(rawOutbox) : []
+  if (!outbox.includes(clientId)) {
+    await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify([...outbox, clientId]))
+  }
+  const sent = (await flushOutbox(context)).get(clientId)
+  if (!sent) throw new Error('Encrypted message was not confirmed by the server')
+  return {
+    id: sent.id,
+    clientId,
+    roomId: conversationId,
+    userId,
+    sequence: sent.sequence,
+    index: sent.index,
+    from: username,
+    text,
+    type: 'text',
+    timestamp: sent.timestamp,
+  }
+}
+
+export async function decryptE2EMessage(message: Message): Promise<Message> {
+  if (!message.ciphertext) return message
+  const { client, storage, userId, deviceId } = await getE2EContext()
+  const cached = await getPrivateMetadata(storage, cacheKey(message.id))
+  if (cached !== null) {
+    const { ciphertext: _ciphertext, ...rest } = message
+    return { ...rest, text: cached }
+  }
+  if (
+    message.userId === userId &&
+    message.fromProtocolDeviceId === deviceId &&
+    !message.envelopeSourceDeviceId
+  ) {
+    const pendingText = message.clientId
+      ? await getPrivateMetadata(storage, pendingTextKey(message.clientId))
+      : null
+    if (pendingText !== null) {
+      await setPrivateMetadata(storage, cacheKey(message.id), pendingText)
+      const { ciphertext: _ciphertext, ...rest } = message
+      return { ...rest, text: pendingText }
+    }
+    return { ...message, type: 'undecryptable' }
+  }
+  if (!message.userId || !message.roomId || !message.clientId) {
+    throw new Error('Encrypted message is missing routing metadata')
+  }
+  const address = ProtocolAddress.create(
+    message.envelopeSourceUserId ?? message.userId,
+    message.envelopeSourceDeviceId ?? message.fromProtocolDeviceId ?? 1,
+  )
+  const plaintext = await client.decryptMessage(address, message.ciphertext as Ciphertext)
+  const decoded: unknown = JSON.parse(plaintext)
+  if (
+    !decoded ||
+    typeof decoded !== 'object' ||
+    !('conversationId' in decoded) ||
+    decoded.conversationId !== message.roomId ||
+    !('clientId' in decoded) ||
+    decoded.clientId !== message.clientId ||
+    !('senderId' in decoded) ||
+    decoded.senderId !== message.userId ||
+    !('text' in decoded) ||
+    typeof decoded.text !== 'string' ||
+    decoded.text.length < 1 ||
+    decoded.text.length > 2000
+  ) {
+    throw new Error('Encrypted message metadata failed verification')
+  }
+  await setPrivateMetadata(storage, cacheKey(message.id), decoded.text)
+  const { ciphertext: _ciphertext, ...rest } = message
+  return { ...rest, text: decoded.text }
+}
+
+export async function getConversationSafetyNumber(conversationId: string): Promise<SafetyNumber> {
+  const { client, relay, installId, userId } = await getE2EContext()
+  const recipients = await getFetcher<Array<{ userId: string; deviceId: number }>>(
+    'e2e/relay/recipients',
+    { conversationId, installId },
+  )
+  const recipient = recipients.find((entry) => entry.userId !== userId)
+  if (!recipient) {
+    throw new Error('Open a direct conversation to compare safety numbers')
+  }
+  const address = ProtocolAddress.create(recipient.userId, recipient.deviceId)
+  if (!(await client.hasSession(address))) {
+    const bundle = await relay.fetchPreKeyBundle(recipient.userId, recipient.deviceId)
+    if (!bundle) throw new Error('This contact has no encryption keys yet')
+    await client.establishSession(address, bundle)
+  }
+  return client.verify(recipient.userId)
+}
+
+export async function confirmConversationSafetyNumber(number: SafetyNumber): Promise<void> {
+  const { client } = await getE2EContext()
+  await client.confirmSafetyNumber(number.confirmation)
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { E2E_CIPHERTEXT_MAX } from './e2e.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Message Schemas (V7 FINAL - Sequence cursor + WS Ticket auth)
@@ -6,20 +7,30 @@ import { z } from 'zod'
 
 export const MESSAGE_MAX_LENGTH = 2000
 
-export const messageSchema = z.object({
-  id: z.string(),
-  clientId: z.string().optional(),
-  roomId: z.string().optional(),
-  userId: z.string().optional(),
-  sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
-  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
-  createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
-  // Compatibility & UI fields across REST and WebSocket
-  index: z.union([z.number(), z.string()]).optional(),
-  from: z.string().optional(),
-  type: z.string().optional().default('text'),
-  timestamp: z.string().optional(),
-})
+export const messageSchema = z
+  .object({
+    id: z.string(),
+    clientId: z.string().optional(),
+    roomId: z.string().optional(),
+    userId: z.string().optional(),
+    sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
+    text: z.string().min(1).max(MESSAGE_MAX_LENGTH).optional(),
+    ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX).optional(),
+    ciphertextType: z.number().int().optional(),
+    fromDeviceId: z.string().uuid().optional(),
+    fromProtocolDeviceId: z.number().int().min(1).max(5).optional(),
+    envelopeSourceUserId: z.string().uuid().optional(),
+    envelopeSourceDeviceId: z.number().int().min(1).max(5).optional(),
+    createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
+    // Compatibility & UI fields across REST and WebSocket
+    index: z.union([z.number(), z.string()]).optional(),
+    from: z.string().optional(),
+    type: z.string().optional().default('text'),
+    timestamp: z.string().optional(),
+  })
+  .refine((message) => (message.text === undefined) !== (message.ciphertext === undefined), {
+    message: 'A message must contain either text or ciphertext',
+  })
 
 export type Message = z.infer<typeof messageSchema>
 
@@ -43,7 +54,10 @@ export const createMessageSchema = z.object({
 export type CreateMessageInput = z.infer<typeof createMessageSchema>
 
 export const messageWsIncomingSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('message'), payload: createMessageSchema }),
+  z.object({
+    type: z.literal('message'),
+    payload: createMessageSchema,
+  }),
   z.object({ type: z.literal('typing'), payload: z.object({ roomId: z.string().uuid() }) }),
   z.object({
     type: z.literal('auth'),

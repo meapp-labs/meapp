@@ -113,6 +113,27 @@ export const routePatterns: RouteRule[] = [
     windowMs: 60000,
   },
   {
+    method: 'POST',
+    regex: /^\/api\/e2e\/relay\/prekeys$/,
+    key: 'POST:/api/e2e/relay/prekeys',
+    max: 10,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/e2e\/link\/(start|connect|complete|ack|revoke)$/,
+    key: 'POST:/api/e2e/link/control',
+    max: 20,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/e2e\/link\/history$/,
+    key: 'POST:/api/e2e/link/history',
+    max: 100,
+    windowMs: 60000,
+  },
+  {
     method: 'GET',
     regex: /^\/rooms\/[^/]+\/messages$/,
     key: 'GET:/rooms/:roomId/messages',
@@ -175,11 +196,18 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
     const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
     const ip = socketIp || forwarded || '127.0.0.1'
 
-    // Defense in depth: real cap is socket-level (maxRequestBodySize).
+    // E2E group sends contain one ciphertext per recipient; key publication
+    // contains a batch of post-quantum public keys. The socket enforces 700KB.
     const contentLength = request.headers.get('content-length')
     if (contentLength) {
       const bytes = Number.parseInt(contentLength, 10)
-      if (bytes > 100 * 1024) {
+      const needsE2EBatch =
+        method === 'POST' &&
+        (path === '/api/send-message' ||
+          path === '/api/e2e/relay/prekeys' ||
+          path === '/api/e2e/link/history')
+      const maxBytes = needsE2EBatch ? 700 * 1024 : 100 * 1024
+      if (bytes > maxBytes) {
         set.status = 413
         return { message: 'Payload too large', code: ErrorCode.PAYLOAD_TOO_LARGE }
       }

@@ -26,6 +26,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       const rememberMe = await RememberMeStorage.get()
 
       if (!rememberMe) {
+        setUsername('')
         setIsCheckingAuth(false)
         return
       }
@@ -42,6 +43,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         // Session invalid or expired - clear remember me flag and token
         await RememberMeStorage.clear()
         await AuthStorage.clear()
+        setUsername('')
       } finally {
         setIsCheckingAuth(false)
       }

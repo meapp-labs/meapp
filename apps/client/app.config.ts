@@ -54,6 +54,8 @@ export const expoConfig = {
         },
       ],
       'expo-router',
+      'expo-secure-store',
+      ['expo-sqlite', { useSQLCipher: true }],
       [
         'expo-splash-screen',
         {

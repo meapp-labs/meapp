@@ -5,6 +5,8 @@
 export const Keys = {
   Query: {
     GET_FRIENDS: 'get-others',
+    FRIEND_REQUESTS: 'friend-requests',
+    IGNORED_USERS: 'ignored-users',
     GET_MESSAGES: 'get-messages',
     GET_CONVERSATIONS: 'conversations',
     ME: 'me',
@@ -16,6 +18,9 @@ export const Keys = {
     REGISTER: 'register',
     LOGOUT: 'logout',
     ADD_FRIEND: 'add-other',
+    ACCEPT_FRIEND_REQUEST: 'friend-requests/accept',
+    IGNORE_FRIEND_REQUEST: 'friend-requests/ignore',
+    UNIGNORE_USER: 'ignored-users/remove',
     REMOVE_FRIEND: 'remove-other',
     PUSH_TOKEN: 'push-token',
   },

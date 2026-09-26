@@ -1,11 +1,6 @@
 import { jwt } from '@elysiajs/jwt'
-import { getDbInstance, insertMessageWithSequence } from '@meapp/db'
-import {
-  CIPHERTEXT_TYPE_PRE_KEY,
-  CIPHERTEXT_TYPE_WHISPER,
-  E2E_CIPHERTEXT_MAX,
-  MESSAGE_MAX_LENGTH,
-} from '@meapp/shared'
+import { IdempotencyConflictError, getDbInstance, insertMessageWithSequence } from '@meapp/db'
+import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
 import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
@@ -40,9 +35,7 @@ export const startPubsub = (
 }
 
 export const broadcastToRoom = async (roomId: string, message: string): Promise<void> => {
-  if (redis.status === 'ready') {
-    await pubsub.publish(roomChannel(roomId), message)
-  } else {
+  if (!(await pubsub.publish(roomChannel(roomId), message))) {
     getLocalServer?.()?.publish(`room:${roomId}`, message)
   }
 }
@@ -52,9 +45,7 @@ const broadcastTypingToRoom = async (
   roomId: string,
   message: string,
 ): Promise<void> => {
-  if (redis.status === 'ready') {
-    await pubsub.publish(roomTypingChannel(roomId), message)
-  } else {
+  if (!(await pubsub.publish(roomTypingChannel(roomId), message))) {
     ws.publish(`room:${roomId}`, message)
   }
 }
@@ -65,19 +56,6 @@ const incomingMessageBody = t.Union([
     payload: t.Object({
       roomId: t.String({ format: 'uuid' }),
       text: t.String({ minLength: 1, maxLength: MESSAGE_MAX_LENGTH }),
-      clientId: t.String({ format: 'uuid' }),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('message'),
-    payload: t.Object({
-      roomId: t.String({ format: 'uuid' }),
-      ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
-      ciphertextType: t.Union([
-        t.Literal(CIPHERTEXT_TYPE_WHISPER),
-        t.Literal(CIPHERTEXT_TYPE_PRE_KEY),
-      ]),
-      deviceId: t.String({ format: 'uuid' }),
       clientId: t.String({ format: 'uuid' }),
     }),
   }),
@@ -130,8 +108,8 @@ export const chatWs = new Elysia()
     }),
     body: incomingMessageBody,
     async open(ws) {
-      const { request } = ws.data
-      const ip = request.headers.get('x-forwarded-for') || 'unknown'
+      const { request, server } = ws.data
+      const ip = server?.requestIP?.(request)?.address ?? 'unknown'
 
       const state: WsSessionState = {
         ip,
@@ -420,6 +398,18 @@ export const chatWs = new Elysia()
 
       // Handle message events
       if (msg.type === 'message') {
+        if (isE2EEnabled()) {
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: {
+                code: 'VALIDATION_ERROR',
+                message: 'Encrypted messages use the authenticated send endpoint',
+              },
+            }),
+          )
+          return
+        }
         const payload = msg.payload
         if (payload.roomId !== roomId && !state?.subscribedRooms.has(payload.roomId)) {
           ws.send(
@@ -431,17 +421,14 @@ export const chatWs = new Elysia()
           return
         }
 
-        // Size check (schema already enforces per-variant caps; belt-and-suspenders)
-        const isE2E = 'ciphertext' in payload
-        const contentLength = isE2E ? E2E_CIPHERTEXT_MAX : MESSAGE_MAX_LENGTH
-        const content = 'text' in payload ? payload.text : payload.ciphertext
-        if (content.length > contentLength) {
+        // Size check mirrors the shared schema.
+        if (payload.text.length > MESSAGE_MAX_LENGTH) {
           ws.send(
             JSON.stringify({
               type: 'error',
               payload: {
                 code: 'TOO_LARGE',
-                message: `Message exceeds ${contentLength} characters`,
+                message: `Message exceeds ${MESSAGE_MAX_LENGTH} characters`,
               },
             }),
           )
@@ -472,59 +459,12 @@ export const chatWs = new Elysia()
 
         // Atomic sequence insertion with BEGIN IMMEDIATE and retry
         try {
-          const isE2E = 'ciphertext' in payload
-
-          if (isE2E && !isE2EEnabled()) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'VALIDATION_ERROR', message: 'E2E messaging is not enabled' },
-              }),
-            )
-            return
-          }
-
-          // Sender must own the claimed device (same rule as the REST route).
-          if (isE2E) {
-            const device = getDbInstance()
-              .sqlite.query('SELECT 1 FROM devices WHERE user_id = ? AND device_id = ?')
-              .get(userId, payload.deviceId)
-            if (!device) {
-              ws.send(
-                JSON.stringify({
-                  type: 'error',
-                  payload: {
-                    code: 'VALIDATION_ERROR',
-                    message: 'deviceId is not registered to your account',
-                  },
-                }),
-              )
-              return
-            }
-          }
-
           const result = await insertMessageWithSequence(getDbInstance().sqlite, {
             roomId: payload.roomId,
             userId,
             clientId: payload.clientId,
-            ...(isE2E
-              ? {
-                  ciphertext: payload.ciphertext,
-                  ciphertextType: payload.ciphertextType,
-                  deviceId: payload.deviceId,
-                }
-              : { text: payload.text }),
+            text: payload.text,
           })
-
-          if (!result) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'DB_ERROR', message: 'Failed to commit message after retries' },
-              }),
-            )
-            return
-          }
 
           // Acknowledge sender
           ws.send(
@@ -537,6 +477,8 @@ export const chatWs = new Elysia()
               },
             }),
           )
+
+          if (!result.created) return
 
           // Client compares message.from against the username, not the UUID.
           const senderRow = getDbInstance()
@@ -553,14 +495,8 @@ export const chatWs = new Elysia()
             userId,
             from: senderUsername,
             sequence: result.sequence,
-            ...(isE2E
-              ? {
-                  ciphertext: payload.ciphertext,
-                  ciphertextType: payload.ciphertextType,
-                  fromDeviceId: payload.deviceId,
-                }
-              : { text: payload.text }),
-            createdAt: new Date().toISOString(),
+            text: payload.text,
+            createdAt: new Date(result.createdAt * 1000).toISOString(),
           }
 
           const broadcastEnvelope = JSON.stringify({
@@ -570,6 +506,15 @@ export const chatWs = new Elysia()
 
           await broadcastToRoom(payload.roomId, broadcastEnvelope)
         } catch (e) {
+          if (e instanceof IdempotencyConflictError) {
+            ws.send(
+              JSON.stringify({
+                type: 'error',
+                payload: { code: 'CONFLICT', message: e.message },
+              }),
+            )
+            return
+          }
           console.error('[chatWs] Error writing message:', e)
           ws.send(
             JSON.stringify({

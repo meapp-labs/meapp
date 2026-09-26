@@ -4,6 +4,9 @@ import { eq, getDbInstance, insertMessageWithSequence, runMigrations, schema } f
 import { app } from '../index.ts'
 import { startPubsub } from '../ws/chat.ts'
 
+// Legacy plaintext API behavior is tested only with encryption explicitly off.
+process.env.E2E_ENABLED = 'false'
+
 beforeAll(() => {
   runMigrations()
 })
@@ -113,7 +116,7 @@ describe('REST API (Drizzle SQLite backend)', () => {
       cookie: sessionCookie,
     })
     expect(me.status).toBe(200)
-    expect(await me.json()).toEqual({ username: alice })
+    expect(await me.json()).toEqual({ id: expect.any(String), username: alice })
   })
 
   it('creates a second account for friend/messaging flows', async () => {
@@ -212,10 +215,11 @@ describe('REST API (Drizzle SQLite backend)', () => {
       cookie: sessionCookie,
     })
     const { id: conversationId } = (await created.json()) as { id: string }
+    const clientId = Bun.randomUUIDv7()
 
     const sent = await api('/send-message', {
       method: 'POST',
-      body: { conversationId, text: 'hello bob' },
+      body: { conversationId, text: 'hello bob', clientId },
       cookie: sessionCookie,
     })
     expect(sent.status).toBe(200)
@@ -224,6 +228,21 @@ describe('REST API (Drizzle SQLite backend)', () => {
     expect(message.sequence).toBe(1)
     expect(message.from).toBe(alice)
     expect(message.text).toBe('hello bob')
+
+    const retry = await api('/send-message', {
+      method: 'POST',
+      body: { conversationId, text: 'hello bob', clientId },
+      cookie: sessionCookie,
+    })
+    expect(retry.status).toBe(200)
+    expect(((await retry.json()) as { sequence: number }).sequence).toBe(1)
+
+    const collision = await api('/send-message', {
+      method: 'POST',
+      body: { conversationId, text: 'changed', clientId },
+      cookie: sessionCookie,
+    })
+    expect(collision.status).toBe(409)
 
     const second = await api('/send-message', {
       method: 'POST',

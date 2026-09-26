@@ -95,10 +95,11 @@ export const messages = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id),
-    deviceId: text('device_id'), // nullable in N, NOT NULL in N+1
+    deviceId: text('device_id'), // sender device for encrypted messages
+    senderProtocolDeviceId: integer('sender_protocol_device_id').notNull().default(1),
     sequence: integer('sequence').notNull(), // Monotonic per room, gaps possible after conflict/retry
-    text: text('text'), // nullable in N (dual-write), dropped in N+2
-    ciphertext: text('ciphertext'), // base64 Signal protocol body, nullable in N
+    text: text('text'), // null for encrypted messages
+    ciphertext: text('ciphertext'), // base64 Signal protocol body; null for plaintext
     ciphertextType: integer('ciphertext_type'), // 1=Whisper, 3=PreKeyWhisper
     isEncrypted: integer('is_encrypted', { mode: 'boolean' }).default(false),
     createdAt: integer('created_at', { mode: 'timestamp' })
@@ -118,7 +119,7 @@ export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
-// devices (V10 - per-install device registry, 1 device per user in V10.0)
+// devices - one install ID and one protocol device ID per linked device.
 // ─────────────────────────────────────────────────────────────
 
 export const devices = sqliteTable(
@@ -128,10 +129,16 @@ export const devices = sqliteTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     deviceId: text('device_id').notNull(), // uuid v7 client-generated, stable per install
+    protocolDeviceId: integer('protocol_device_id').notNull().default(1),
+    historyComplete: integer('history_complete', { mode: 'boolean' }).notNull().default(true),
+    historyUnavailable: integer('history_unavailable').notNull().default(0),
     platform: text('platform', { enum: ['ios', 'android', 'web'] }).notNull(),
     lastActiveAt: integer('last_active_at', { mode: 'timestamp' }),
   },
-  (t) => [primaryKey({ columns: [t.userId, t.deviceId] })],
+  (t) => [
+    primaryKey({ columns: [t.userId, t.deviceId] }),
+    unique('devices_user_protocol_device_unique').on(t.userId, t.protocolDeviceId),
+  ],
 )
 
 export type Device = typeof devices.$inferSelect
@@ -198,6 +205,69 @@ export const prekeyBundles = sqliteTable(
 
 export type PrekeyBundle = typeof prekeyBundles.$inferSelect
 export type NewPrekeyBundle = typeof prekeyBundles.$inferInsert
+
+// Public Signal SDK relay state. Device secret keys and ratchet sessions stay on
+// the client; the server only stores public prekeys and opaque envelopes.
+export const relayIdentities = sqliteTable(
+  'relay_identities',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    deviceId: integer('device_id').notNull().default(1),
+    installId: text('install_id').notNull(),
+    registrationId: integer('registration_id').notNull(),
+    x25519PublicKey: text('x25519_public_key').notNull(),
+    ed25519PublicKey: text('ed25519_public_key').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.deviceId] }),
+    unique('relay_identities_user_install_unique').on(t.userId, t.installId),
+  ],
+)
+
+export const relayPrekeys = sqliteTable(
+  'relay_prekeys',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    deviceId: integer('device_id').notNull().default(1),
+    type: text('type', {
+      enum: ['ecPreKey', 'ecSignedPreKey', 'kemOneTimePreKey', 'kemLastResortPreKey'],
+    }).notNull(),
+    keyId: integer('key_id').notNull(),
+    publicKey: text('public_key').notNull(),
+    signature: text('signature'),
+    consumed: integer('consumed', { mode: 'boolean' }).notNull().default(false),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.deviceId, t.type, t.keyId] }),
+    index('relay_prekeys_available_idx').on(t.userId, t.deviceId, t.type, t.consumed),
+  ],
+)
+
+export const messageEnvelopes = sqliteTable(
+  'message_envelopes',
+  {
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    targetUserId: text('target_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    targetDeviceId: integer('target_device_id').notNull().default(1),
+    sourceUserId: text('source_user_id').references(() => users.id),
+    sourceDeviceId: integer('source_device_id'),
+    ciphertext: text('ciphertext').notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.messageId, t.targetUserId, t.targetDeviceId] }),
+    index('message_envelopes_target_idx').on(t.targetUserId, t.targetDeviceId),
+  ],
+)
 
 // ─────────────────────────────────────────────────────────────
 // contacts (friends)

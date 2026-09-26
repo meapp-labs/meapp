@@ -5,7 +5,7 @@ import { defineConfig } from 'drizzle-kit'
 //      bunx drizzle-kit migrate
 export default defineConfig({
   schema: './src/schema.ts',
-  out: './drizzle',
+  out: './drizzle-current',
   dialect: 'sqlite',
   dbCredentials: {
     url: process.env.DATABASE_URL ?? './data.db',

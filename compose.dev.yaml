@@ -16,6 +16,7 @@ services:
     volumes:
       - ./apps/server:/app/apps/server:z
       - ./packages/db/src:/app/packages/db/src:z
+      - ./packages/db/drizzle-current:/app/packages/db/drizzle-current:ro,z
       - ./packages/shared/src:/app/packages/shared/src:z
       - ./package.json:/app/package.json:ro,z
       - ./bun.lock:/app/bun.lock:ro,z

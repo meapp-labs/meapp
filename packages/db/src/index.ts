@@ -2,6 +2,6 @@ export { schema, checkpoint, createDb, getDbInstance, openDefaultDb } from './cl
 export type { DB, DbInstance } from './client.ts'
 export { eq, and, or, desc, asc, max, inArray, count, gt, lt, sql } from 'drizzle-orm'
 export { runMigrations } from './migrate.ts'
-export { insertMessageWithSequence } from './sequence.ts'
+export { IdempotencyConflictError, insertMessageWithSequence } from './sequence.ts'
 export type { SequenceResult } from './sequence.ts'
 export * from './schema.ts'
