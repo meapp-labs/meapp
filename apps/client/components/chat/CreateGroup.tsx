@@ -1,299 +1,328 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
+  ActivityIndicator,
   FlatList,
-  Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native'
 
 import { Text } from '@/components/common/Text'
-import { useConversationStore } from '@/lib/stores'
-import { useCreateConversation } from '@/services/conversations'
+import { type GroupCandidate, getGroupCandidates } from '@/lib/groupCandidates'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { useCreateConversation, useGetConversations } from '@/services/conversations'
 import { useGetFriends } from '@/services/others'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
-export function CreateGroup() {
-  const [showModal, setShowModal] = useState(false)
-  const [step, setStep] = useState<1 | 2>(1)
-  const [selectedFriends, setSelectedFriends] = useState<string[]>([])
+export function CreateGroup({ onClose }: { onClose: () => void }) {
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<string[]>([])
   const [groupName, setGroupName] = useState('')
+  const currentUsername = useAuthStore((state) => state.username)
+  const setSelectedConversationId = useConversationStore((state) => state.setSelectedConversationId)
+  const { data: friends = [], isPending: friendsPending, isError: friendsError } = useGetFriends()
+  const {
+    data: conversations = [],
+    isPending: conversationsPending,
+    isError: conversationsError,
+  } = useGetConversations()
+  const createGroup = useCreateConversation()
 
-  const { data: friends = [] } = useGetFriends()
-  const { setSelectedConversationId } = useConversationStore()
-  const { mutate: createGroup, isPending } = useCreateConversation()
+  const people = useMemo(
+    () => getGroupCandidates(friends, conversations, currentUsername),
+    [friends, conversations, currentUsername],
+  )
 
-  const handleToggleFriend = (friend: string) => {
-    setSelectedFriends((prev) =>
-      prev.includes(friend) ? prev.filter((f) => f !== friend) : [...prev, friend],
+  const filteredPeople = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase()
+    return query
+      ? people.filter((person) => person.username.toLocaleLowerCase().includes(query))
+      : people
+  }, [people, search])
+
+  const close = () => {
+    if (createGroup.isPending) return
+    onClose()
+  }
+
+  const togglePerson = (username: string) => {
+    setSelected((previous) =>
+      previous.includes(username)
+        ? previous.filter((person) => person !== username)
+        : [...previous, username],
     )
   }
 
-  const handleCreate = () => {
-    if (!groupName.trim() || selectedFriends.length === 0) return
-
-    createGroup(
-      {
-        type: 'group',
-        participants: selectedFriends,
-        name: groupName.trim(),
-      },
+  const canCreate = groupName.trim().length > 0 && selected.length >= 2 && !createGroup.isPending
+  const create = () => {
+    if (!canCreate) return
+    createGroup.mutate(
+      { type: 'group', participants: selected, name: groupName.trim() },
       {
         onSuccess: (conversation) => {
           setSelectedConversationId(conversation.id)
           void ConversationStorage.save(conversation.id)
-          handleClose()
+          onClose()
         },
       },
     )
   }
 
-  const handleClose = () => {
-    setShowModal(false)
-    setStep(1)
-    setSelectedFriends([])
-    setGroupName('')
-  }
-
-  const renderFriend = ({ item: friend }: { item: string }) => {
-    const isSelected = selectedFriends.includes(friend)
-    return (
-      <TouchableOpacity
-        style={[styles.friendItem, isSelected && styles.friendItemSelected]}
-        onPress={() => handleToggleFriend(friend)}
-      >
-        <MaterialIcons
-          name={isSelected ? 'check-box' : 'check-box-outline-blank'}
-          size={24}
-          color={isSelected ? theme.colors.primary : theme.colors.textSecondary}
-        />
-        <Text style={styles.friendName}>{friend}</Text>
-      </TouchableOpacity>
-    )
-  }
-
   return (
-    <>
-      <TouchableOpacity style={styles.triggerButton} onPress={() => setShowModal(true)}>
-        <MaterialIcons name="groups" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
-
-      <Modal transparent animationType="fade" visible={showModal}>
-        <Pressable style={styles.overlay} onPress={handleClose}>
-          <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
-            <View style={styles.header}>
-              <Text style={styles.title}>{step === 1 ? 'New Group' : 'Group Details'}</Text>
-            </View>
-
-            {step === 1 ? (
-              <View style={styles.stepContainer}>
-                <Text style={styles.description}>Select friends to add to the new group chat.</Text>
-                <View style={styles.listContainer}>
-                  <FlatList
-                    data={friends}
-                    renderItem={renderFriend}
-                    keyExtractor={(item) => item}
-                    style={styles.friendList}
-                    ListEmptyComponent={<Text style={styles.emptyText}>No friends found.</Text>}
-                  />
-                </View>
-                <Text style={styles.counter}>{selectedFriends.length} friend(s) selected</Text>
-                <View style={styles.footerButtons}>
-                  <Pressable style={[styles.button, styles.cancelButton]} onPress={handleClose}>
-                    <Text style={styles.cancelButtonText}>Cancel</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.button,
-                      styles.confirmButton,
-                      selectedFriends.length === 0 && styles.disabledButton,
-                    ]}
-                    onPress={() => setStep(2)}
-                    disabled={selectedFriends.length === 0}
-                  >
-                    <Text style={styles.confirmButtonText}>Next</Text>
-                  </Pressable>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.stepContainer}>
-                <View style={styles.iconPreview}>
-                  <MaterialIcons name="groups" size={42} color={theme.colors.primary} />
-                </View>
-                <Text style={styles.description}>Give your group a name to get started.</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Group Name"
-                  placeholderTextColor={theme.colors.textTertiary}
-                  value={groupName}
-                  onChangeText={setGroupName}
-                  autoFocus
-                />
-                <View style={styles.footerButtons}>
-                  <Pressable
-                    style={[styles.button, styles.cancelButton]}
-                    onPress={() => setStep(1)}
-                  >
-                    <Text style={styles.cancelButtonText}>Back</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[
-                      styles.button,
-                      styles.confirmButton,
-                      (!groupName.trim() || isPending) && styles.disabledButton,
-                    ]}
-                    onPress={handleCreate}
-                    disabled={!groupName.trim() || isPending}
-                  >
-                    <Text style={styles.confirmButtonText}>
-                      {isPending ? 'Creating...' : 'Create'}
-                    </Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </Pressable>
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Back to chats"
+          style={styles.back}
+          onPress={close}
+        >
+          <MaterialIcons name="arrow-back" size={22} color={theme.colors.text} />
         </Pressable>
-      </Modal>
-    </>
+        <View style={styles.headerCopy}>
+          <Text style={styles.title}>New group</Text>
+          <Text style={styles.subtitle}>Friends and people from your chats</Text>
+        </View>
+      </View>
+
+      <View style={styles.form}>
+        <Text style={styles.label}>Group name</Text>
+        <TextInput
+          accessibilityLabel="Group name"
+          value={groupName}
+          onChangeText={setGroupName}
+          maxLength={100}
+          placeholder="Give your group a name"
+          placeholderTextColor={theme.colors.textTertiary}
+          style={styles.input}
+          returnKeyType="done"
+        />
+
+        <View style={styles.peopleHeader}>
+          <Text style={styles.label}>Add people</Text>
+          <Text style={styles.count}>{selected.length} selected</Text>
+        </View>
+        <View style={styles.searchBox}>
+          <MaterialIcons name="search" size={20} color={theme.colors.textSecondary} />
+          <TextInput
+            accessibilityLabel="Search people"
+            value={search}
+            onChangeText={setSearch}
+            placeholder="Search friends and chats"
+            placeholderTextColor={theme.colors.textTertiary}
+            style={styles.searchInput}
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {search.length > 0 && (
+            <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')}>
+              <MaterialIcons name="close" size={19} color={theme.colors.textSecondary} />
+            </Pressable>
+          )}
+        </View>
+
+        {selected.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips}>
+            {selected.map((username) => (
+              <Pressable
+                key={username}
+                accessibilityLabel={`Remove ${username}`}
+                style={styles.chip}
+                onPress={() => togglePerson(username)}
+              >
+                <Text style={styles.chipText}>{username}</Text>
+                <MaterialIcons name="close" size={16} color={theme.colors.primary} />
+              </Pressable>
+            ))}
+          </ScrollView>
+        )}
+
+        <FlatList<GroupCandidate>
+          data={filteredPeople}
+          keyExtractor={(person) => person.username}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+          style={styles.list}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const isSelected = selected.includes(item.username)
+            return (
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityState={{ checked: isSelected }}
+                accessibilityLabel={`${item.username}, ${item.isFriend ? 'friend' : 'chat contact'}`}
+                style={[styles.person, isSelected && styles.personSelected]}
+                onPress={() => togglePerson(item.username)}
+              >
+                <View style={styles.avatar}>
+                  <MaterialIcons name="person" size={21} color={theme.colors.textSecondary} />
+                </View>
+                <View style={styles.personCopy}>
+                  <Text style={styles.personName}>{item.username}</Text>
+                  <Text style={styles.personType}>
+                    {item.isFriend ? 'Friend' : 'From your chats'}
+                  </Text>
+                </View>
+                <MaterialIcons
+                  name={isSelected ? 'check-circle' : 'radio-button-unchecked'}
+                  size={23}
+                  color={isSelected ? theme.colors.primary : theme.colors.textTertiary}
+                />
+              </Pressable>
+            )
+          }}
+          ListEmptyComponent={
+            friendsPending || conversationsPending ? (
+              <ActivityIndicator style={styles.empty} color={theme.colors.primary} />
+            ) : (
+              <Text style={styles.empty}>
+                {search
+                  ? 'No people match your search.'
+                  : friendsError || conversationsError
+                    ? 'Could not load people. Close and try again.'
+                    : 'No friends or chats found yet.'}
+              </Text>
+            )
+          }
+        />
+      </View>
+
+      <View style={styles.footer}>
+        <Text style={styles.hint}>Choose at least two people to make a group.</Text>
+        {createGroup.error && (
+          <Text style={styles.error}>
+            {createGroup.error.response?.data?.message ?? createGroup.error.message}
+          </Text>
+        )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Create group"
+          disabled={!canCreate}
+          style={[styles.createButton, !canCreate && styles.disabled]}
+          onPress={create}
+        >
+          <Text style={styles.createText}>
+            {createGroup.isPending ? 'Creating…' : 'Create group'}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
   )
 }
 
 const styles = StyleSheet.create({
-  triggerButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: theme.colors.card,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  overlay: {
+  container: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: theme.spacing.lg,
-  },
-  modalContent: {
+    minHeight: 0,
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.spacing.lg,
-    padding: theme.spacing.xl,
-    width: '100%',
-    maxWidth: 340,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
   },
   header: {
-    marginBottom: theme.spacing.md,
-    alignItems: 'center',
-  },
-  title: {
-    ...theme.typography.h2,
-    color: theme.colors.text,
-  },
-  description: {
-    ...theme.typography.body,
-    textAlign: 'center',
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.lg,
-    lineHeight: 20,
-  },
-  stepContainer: {
-    width: '100%',
-    alignItems: 'center',
-  },
-  listContainer: {
-    width: '100%',
-    maxHeight: 200,
-    marginBottom: theme.spacing.md,
-    backgroundColor: theme.colors.card,
-    borderRadius: theme.spacing.md,
-  },
-  friendList: {
-    width: '100%',
-  },
-  friendItem: {
     flexDirection: 'row',
     alignItems: 'center',
     padding: theme.spacing.md,
     gap: theme.spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSecondary,
   },
-  friendItemSelected: {
-    backgroundColor: 'rgba(245, 186, 48, 0.05)',
-  },
-  friendName: {
-    ...theme.typography.body,
-    color: theme.colors.text,
-  },
-  counter: {
-    ...theme.typography.caption,
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.lg,
-  },
-  iconPreview: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: 'rgba(245, 186, 48, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: theme.spacing.md,
-  },
-  input: {
-    width: '100%',
-    height: 50,
+  back: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
     backgroundColor: theme.colors.card,
-    borderRadius: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    color: theme.colors.text,
-    ...theme.typography.body,
-    marginBottom: theme.spacing.lg,
-  },
-  footerButtons: {
-    flexDirection: 'row',
-    gap: theme.spacing.md,
-    width: '100%',
-  },
-  button: {
-    flex: 1,
-    height: 50,
-    borderRadius: theme.spacing.md,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  disabledButton: {
-    opacity: 0.5,
+  headerCopy: { flex: 1 },
+  title: { color: theme.colors.text, fontSize: 20, fontWeight: '700' },
+  subtitle: { color: theme.colors.textSecondary, marginTop: 2, fontSize: 12 },
+  form: {
+    flex: 1,
+    minHeight: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.lg,
   },
-  cancelButton: {
-    backgroundColor: 'transparent',
+  label: { color: theme.colors.text, fontWeight: '600', marginBottom: theme.spacing.sm },
+  input: {
+    height: 46,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: theme.colors.card,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    color: theme.colors.text,
+    paddingHorizontal: theme.spacing.md,
+    fontSize: 15,
   },
-  confirmButton: {
+  peopleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: theme.spacing.lg,
+  },
+  count: { color: theme.colors.textSecondary, fontSize: 13 },
+  searchBox: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.sm,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingHorizontal: theme.spacing.md,
+  },
+  searchInput: { flex: 1, minWidth: 0, color: theme.colors.text, fontSize: 14 },
+  chips: { flexGrow: 0, marginTop: theme.spacing.md },
+  chip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginRight: theme.spacing.sm,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 18,
+    backgroundColor: theme.colors.card,
+  },
+  chipText: { color: theme.colors.primary, fontSize: 13 },
+  list: { flex: 1, minHeight: 0, marginTop: theme.spacing.sm },
+  listContent: { paddingBottom: theme.spacing.sm },
+  person: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minHeight: 54,
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.sm,
+    borderRadius: 12,
+  },
+  personSelected: { backgroundColor: theme.colors.card },
+  avatar: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: theme.colors.surfaceElevated,
+  },
+  personCopy: { flex: 1 },
+  personName: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
+  personType: { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 },
+  empty: { color: theme.colors.textSecondary, textAlign: 'center', padding: theme.spacing.xl },
+  footer: {
+    padding: theme.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.borderSecondary,
+  },
+  hint: { color: theme.colors.textSecondary, fontSize: 12, marginBottom: theme.spacing.md },
+  error: { color: theme.colors.error, fontSize: 13, marginBottom: theme.spacing.md },
+  createButton: {
+    height: 46,
+    borderRadius: 12,
     backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  cancelButtonText: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-  },
-  confirmButtonText: {
-    ...theme.typography.body,
-    color: 'black',
-    fontWeight: '600',
-  },
-  emptyText: {
-    ...theme.typography.body,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    padding: theme.spacing.xl,
-  },
+  createText: { color: '#111', fontWeight: '700' },
+  disabled: { opacity: 0.45 },
 })

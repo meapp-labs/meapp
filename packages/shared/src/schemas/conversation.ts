@@ -19,6 +19,11 @@ export const conversationSchema = z.object({
   lastMessagePreview: z.string().optional(),
   lastMessageEncrypted: z.boolean().optional(),
   lastMessageFrom: z.string().optional(),
+  lastIncomingMessageId: z.string().optional(),
+  lastIncomingMessageSequence: z.number().int().nonnegative().optional(),
+  lastIncomingMessagePreview: z.string().optional(),
+  lastIncomingMessageEncrypted: z.boolean().optional(),
+  lastIncomingMessageAt: z.string().datetime().optional(),
   /** { "alice": 42 } — last read message index per user */
   readState: z.record(z.string(), z.number().int().nonnegative()).optional(),
   mutedBy: z.array(z.string()).optional(),

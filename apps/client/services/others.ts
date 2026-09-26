@@ -17,7 +17,8 @@ export function useFriendRequests() {
   return useQuery<FriendRequestLists, ApiError>({
     queryKey: [Keys.Query.FRIEND_REQUESTS],
     queryFn: () => getFetcher<FriendRequestLists>(Keys.Query.FRIEND_REQUESTS),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   })
 }
 

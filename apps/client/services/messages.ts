@@ -85,16 +85,27 @@ function updateConversationListCache(
   conversationId: string,
   lastMessage: Message,
 ) {
+  const currentUsername = useAuthStore.getState().username
   queryClient.setQueryData<Conversation[]>([Keys.Query.GET_CONVERSATIONS], (old) => {
     if (!old) return old
     return old.map((c: Conversation) => {
       if (c.id === conversationId) {
-        return {
+        const latest = {
           ...c,
           lastMessageEncrypted: Boolean(lastMessage.ciphertext),
           lastMessageId: lastMessage.id,
           lastMessagePreview: lastMessage.ciphertext ? undefined : (lastMessage.text ?? ''),
           lastMessageAt: lastMessage.timestamp,
+          lastMessageFrom: lastMessage.from,
+        }
+        if (!lastMessage.from || lastMessage.from === currentUsername) return latest
+        return {
+          ...latest,
+          lastIncomingMessageId: lastMessage.id,
+          lastIncomingMessageSequence: lastMessage.sequence,
+          lastIncomingMessageEncrypted: Boolean(lastMessage.ciphertext),
+          lastIncomingMessagePreview: lastMessage.ciphertext ? undefined : (lastMessage.text ?? ''),
+          lastIncomingMessageAt: lastMessage.timestamp,
         }
       }
       return c
@@ -266,6 +277,8 @@ export function useGetMessages({
           createdAt?: string
         }
         if (p.roomId !== conversationId || !p.id || p.sequence === undefined) return
+
+        void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
 
         if (p.ciphertext) {
           // Broadcasts contain only an opaque marker. Fetch the envelope

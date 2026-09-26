@@ -1,5 +1,6 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useMemo, useState } from 'react'
-import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
+import { ActivityIndicator, FlatList, Pressable, StyleSheet, View } from 'react-native'
 
 import { ConversationItem } from '@/components/ConversationItem'
 import { Logout } from '@/components/Logout'
@@ -19,6 +20,7 @@ export function FriendsScreen() {
   const { username: currentUsername } = useAuthStore()
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const [showSettings, setShowSettings] = useState<boolean>(false)
+  const [creatingGroup, setCreatingGroup] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { data: conversations = [], isPending } = useGetConversations()
 
@@ -48,26 +50,39 @@ export function FriendsScreen() {
   }, [conversations, searchQuery, currentUsername])
 
   return (
-    <View style={[styles.friendList, isMobile && { flex: 1 }]}>
-      <View style={styles.topMenu}>
-        <TopMenu searchQuery={searchQuery} onSearchChange={setSearchQuery} />
-      </View>
-      {isPending ? (
-        <ActivityIndicator />
+    <View style={[styles.friendList, isMobile && styles.mobileList]}>
+      {creatingGroup ? (
+        <CreateGroup onClose={() => setCreatingGroup(false)} />
       ) : (
-        <FlatList<Conversation>
-          data={filteredConversations}
-          renderItem={({ item }) => <ConversationItem conversation={item} />}
-          keyExtractor={(item) => item.id}
-        />
-      )}
+        <>
+          <View style={styles.topMenu}>
+            <TopMenu searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+            <Pressable
+              accessibilityLabel="Create group"
+              style={styles.groupTrigger}
+              onPress={() => setCreatingGroup(true)}
+            >
+              <MaterialIcons name="group-add" size={24} color={theme.colors.text} />
+            </Pressable>
+          </View>
+          {isPending ? (
+            <ActivityIndicator />
+          ) : (
+            <FlatList<Conversation>
+              data={filteredConversations}
+              renderItem={({ item }) => <ConversationItem conversation={item} />}
+              keyExtractor={(item) => item.id}
+              style={styles.conversations}
+            />
+          )}
 
-      <View style={styles.buttons}>
-        <UserSettings showSettings={showSettings} setShowSettings={setShowSettings} />
-        <FriendRequests />
-        <CreateGroup />
-        <Logout />
-      </View>
+          <View style={styles.buttons}>
+            <UserSettings showSettings={showSettings} setShowSettings={setShowSettings} />
+            <FriendRequests />
+            <Logout />
+          </View>
+        </>
+      )}
     </View>
   )
 }
@@ -75,7 +90,12 @@ export function FriendsScreen() {
 const styles = StyleSheet.create({
   friendList: {
     backgroundColor: theme.colors.surface,
+    width: 375,
+    height: '100%',
+    flexShrink: 0,
   },
+  mobileList: { flex: 1, width: '100%' },
+  conversations: { flex: 1 },
   buttons: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
@@ -87,5 +107,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginHorizontal: theme.spacing.lg,
     gap: theme.spacing.sm,
+  },
+  groupTrigger: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 })

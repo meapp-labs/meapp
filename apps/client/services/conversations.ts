@@ -37,29 +37,39 @@ export function useGetConversations(enabled = true) {
     queryFn: () => getFetcher<Conversation[]>(Keys.Query.GET_CONVERSATIONS),
     enabled,
     staleTime: 30000, // 30 seconds
-    refetchInterval: 15000,
+    refetchInterval: 5000,
+    refetchOnWindowFocus: true,
   })
 }
 
-/** Decrypts the latest message on this device for the conversation list. */
+/** Decrypts the latest incoming message on this device for the conversation list. */
 export function useConversationPreview(conversation: Conversation) {
   return useQuery<string | null, ApiError>({
-    queryKey: [Keys.Query.CONVERSATION_PREVIEW, conversation.id, conversation.lastMessageId],
-    enabled: Boolean(conversation.lastMessageId && conversation.lastMessageEncrypted),
+    queryKey: [
+      Keys.Query.CONVERSATION_PREVIEW,
+      conversation.id,
+      conversation.lastIncomingMessageId,
+    ],
+    enabled: Boolean(
+      conversation.lastIncomingMessageId &&
+        conversation.lastIncomingMessageSequence !== undefined &&
+        conversation.lastIncomingMessageEncrypted,
+    ),
     queryFn: async () => {
       const installId = await getE2EInstallId()
       const response = await getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, {
         conversationId: conversation.id,
         installId,
+        before: String((conversation.lastIncomingMessageSequence ?? 0) + 1),
         limit: '16',
       })
       let preview: string | null = null
       for (const message of response.messages) {
         try {
           const decrypted = await decryptE2EMessage(message)
-          if (message.id === conversation.lastMessageId) preview = decrypted.text ?? null
+          if (message.id === conversation.lastIncomingMessageId) preview = decrypted.text ?? null
         } catch {
-          if (message.id === conversation.lastMessageId) preview = null
+          if (message.id === conversation.lastIncomingMessageId) preview = null
         }
       }
       return preview

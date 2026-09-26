@@ -25,10 +25,10 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
     ? conversation.name || others.join(', ') || 'Group'
     : others[0] || 'Unknown'
   const preview = useConversationPreview(conversation)
-  const lastMessagePreview = conversation.lastMessageEncrypted
+  const incomingMessagePreview = conversation.lastIncomingMessageEncrypted
     ? (preview.data ??
       (preview.isPending ? 'Loading message…' : 'Message unavailable on this device'))
-    : conversation.lastMessagePreview
+    : conversation.lastIncomingMessagePreview
   const isSelected = selectedConversationId === conversation.id
 
   const handleSelect = () => {
@@ -53,15 +53,15 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
         />
         <View style={styles.content}>
           <Text>{displayName}</Text>
-          {lastMessagePreview && (
+          {incomingMessagePreview && (
             <Text style={theme.typography.caption} numberOfLines={1}>
-              {lastMessagePreview}
+              {incomingMessagePreview}
             </Text>
           )}
         </View>
         <Text style={styles.timestamp}>
-          {conversation.lastMessageAt
-            ? new Date(conversation.lastMessageAt).toLocaleDateString()
+          {conversation.lastIncomingMessageAt
+            ? new Date(conversation.lastIncomingMessageAt).toLocaleDateString()
             : ''}
         </Text>
       </View>

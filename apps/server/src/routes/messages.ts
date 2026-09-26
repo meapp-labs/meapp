@@ -306,6 +306,26 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     }>
 
     const lastMsgByRoom = new Map(lastMessages.map((m) => [m.roomId, m]))
+    const lastIncomingMessages = getDbInstance()
+      .sqlite.query(
+        `SELECT m.id, m.room_id as roomId, m.sequence, m.text, m.is_encrypted as isEncrypted, m.created_at as createdAt
+         FROM messages m
+         WHERE (m.room_id, m.sequence) IN (
+           SELECT room_id, MAX(sequence)
+           FROM messages
+           WHERE room_id IN (${placeholders}) AND user_id <> ?
+           GROUP BY room_id
+         )`,
+      )
+      .all(...roomIds, me.id) as Array<{
+      roomId: string
+      id: string
+      sequence: number
+      text: string | null
+      isEncrypted: number
+      createdAt: number
+    }>
+    const lastIncomingByRoom = new Map(lastIncomingMessages.map((m) => [m.roomId, m]))
     const conversations: Conversation[] = []
 
     for (const room of rooms) {
@@ -315,6 +335,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         .filter(Boolean) as string[]
 
       const lastMsg = lastMsgByRoom.get(room.id)
+      const lastIncoming = lastIncomingByRoom.get(room.id)
 
       conversations.push({
         id: room.id,
@@ -330,6 +351,17 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               ...(lastMsg.isEncrypted ? {} : { lastMessagePreview: lastMsg.text ?? '' }),
               lastMessageAt: chatTimestampIso(lastMsg.createdAt),
               lastMessageFrom: lastMsg.username ?? undefined,
+            }
+          : {}),
+        ...(lastIncoming
+          ? {
+              lastIncomingMessageId: lastIncoming.id,
+              lastIncomingMessageSequence: lastIncoming.sequence,
+              lastIncomingMessageEncrypted: Boolean(lastIncoming.isEncrypted),
+              ...(lastIncoming.isEncrypted
+                ? {}
+                : { lastIncomingMessagePreview: lastIncoming.text ?? '' }),
+              lastIncomingMessageAt: chatTimestampIso(lastIncoming.createdAt),
             }
           : {}),
       })

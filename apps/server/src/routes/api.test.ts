@@ -507,6 +507,50 @@ describe('REST API (Drizzle SQLite backend)', () => {
     ).toEqual([1, 2, 3, 4])
   })
 
+  it('keeps the latest message from another user as the conversation preview', async () => {
+    const created = await api('/conversations', {
+      method: 'POST',
+      body: { type: 'dm', participants: [bob] },
+      cookie: sessionCookie,
+    })
+    const { id: conversationId } = (await created.json()) as { id: string }
+    const bobLogin = await api('/login', {
+      method: 'POST',
+      body: { username: bob, password, platform: 'web' },
+    })
+    const bobCookie = cookieHeaderFrom(bobLogin)
+
+    const send = (cookie: string, text: string) =>
+      api('/send-message', {
+        method: 'POST',
+        body: { conversationId, text, clientId: Bun.randomUUIDv7() },
+        cookie,
+      })
+    const preview = async (cookie: string) => {
+      const response = await api('/conversations', { cookie })
+      const conversations = (await response.json()) as Array<{
+        id: string
+        lastIncomingMessagePreview?: string
+        lastIncomingMessageSequence?: number
+      }>
+      return conversations.find((conversation) => conversation.id === conversationId)
+    }
+
+    expect((await send(sessionCookie, 'alice first')).status).toBe(200)
+    expect((await preview(sessionCookie))?.lastIncomingMessagePreview).toBeUndefined()
+    expect((await preview(bobCookie))?.lastIncomingMessagePreview).toBe('alice first')
+
+    const reply = await send(bobCookie, 'bob reply')
+    expect(reply.status).toBe(200)
+    const { sequence } = (await reply.json()) as { sequence: number }
+    expect((await send(sessionCookie, 'alice again')).status).toBe(200)
+    expect(await preview(sessionCookie)).toMatchObject({
+      lastIncomingMessagePreview: 'bob reply',
+      lastIncomingMessageSequence: sequence,
+    })
+    expect((await preview(bobCookie))?.lastIncomingMessagePreview).toBe('alice again')
+  })
+
   it('blocks messaging for non participants', async () => {
     const outsider = `outsider_${runId}`
 

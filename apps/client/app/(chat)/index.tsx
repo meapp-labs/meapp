@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   BackHandler,
   KeyboardAvoidingView,
@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
+import Toast from 'react-native-toast-message'
 
 import { FriendsScreen } from '@/components/FriendsScreen'
 import { ChatHeader } from '@/components/chat/ChatHeader'
@@ -28,6 +29,7 @@ import {
   registerForPushNotificationsAsync,
   setupNotificationListeners,
 } from '@/services/notification'
+import { useFriendRequests } from '@/services/others'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
@@ -39,6 +41,30 @@ export default function ChatApp() {
   const logout = useLogoutUser()
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { data: conversations } = useGetConversations()
+  const { data: friendRequests } = useFriendRequests()
+  const seenRequests = useRef<Set<string> | null>(null)
+
+  useEffect(() => {
+    if (!friendRequests) return
+    const incoming = new Set(friendRequests.incoming)
+    if (Platform.OS === 'web') {
+      const newSenders = friendRequests.incoming.filter(
+        (sender) => !seenRequests.current?.has(sender),
+      )
+      if (newSenders.length > 0) {
+        Toast.show({
+          type: 'info',
+          text1: newSenders.length === 1 ? 'New friend request' : 'New friend requests',
+          text2:
+            newSenders.length === 1
+              ? `${newSenders[0]} sent you a friend request`
+              : `${newSenders.length} people sent you friend requests`,
+          position: 'top',
+        })
+      }
+    }
+    seenRequests.current = incoming
+  }, [friendRequests])
   const visibleConversationId = conversations?.some(
     (conversation) => conversation.id === selectedConversationId,
   )

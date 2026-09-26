@@ -257,12 +257,18 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
       lastMessageId?: string
       lastMessageEncrypted?: boolean
       lastMessagePreview?: string
+      lastIncomingMessageId?: string
+      lastIncomingMessageEncrypted?: boolean
+      lastIncomingMessagePreview?: string
     }>
   >('conversations', bob.cookie)
   const listedRoom = conversationList.find((item) => item.id === room.id)
   expect(listedRoom?.lastMessageId).toBe(sent.id)
   expect(listedRoom?.lastMessageEncrypted).toBe(true)
   expect(listedRoom?.lastMessagePreview).toBeUndefined()
+  expect(listedRoom?.lastIncomingMessageId).toBe(sent.id)
+  expect(listedRoom?.lastIncomingMessageEncrypted).toBe(true)
+  expect(listedRoom?.lastIncomingMessagePreview).toBeUndefined()
   const history = await api<{ messages: Array<{ id: string; ciphertext: string }> }>(
     `get-messages?conversationId=${room.id}&installId=${bob.installId}`,
     bob.cookie,
