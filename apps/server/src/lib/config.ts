@@ -79,7 +79,7 @@ export const WS_CONFIG = {
 export const isE2EEnabled = (): boolean =>
   isProduction || (process.env.E2E_ENABLED !== 'false' && process.env.E2E_ENABLED !== '0')
 
-export const SESSION_COOKIE_NAME = 'access_token'
+export const SESSION_COOKIE_NAME = isProduction ? '__Host-access_token' : 'access_token'
 
 /** Login/session policy, carried over from the Fastify implementation. */
 export const LOGIN_CONFIG = {

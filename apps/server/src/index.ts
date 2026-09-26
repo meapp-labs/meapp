@@ -9,7 +9,7 @@ import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redis, redisPlugin } from './plugins/redis.ts'
 import { authRoutes } from './routes/auth.ts'
-import { deviceLinkRoutes } from './routes/deviceLink.ts'
+import { cleanupExpiredDeviceLinks, deviceLinkRoutes } from './routes/deviceLink.ts'
 import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { messageRoutes } from './routes/messages.ts'
@@ -32,6 +32,10 @@ const corsOrigin = allowedOrigins.length > 0 ? allowedOrigins : devOriginRegex
 export const app = new Elysia({
   serve: { development: !isProduction },
 })
+  .onAfterHandle({ as: 'global' }, ({ set }) => {
+    set.headers['X-Content-Type-Options'] = 'nosniff'
+    set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+  })
   // Cookie sessions require credentialed CORS with an explicit origin.
   .use(
     cors({
@@ -104,7 +108,6 @@ export const app = new Elysia({
       status: healthy ? 'ok' : 'degraded',
       db: dbStatus,
       redis: redisStatus,
-      podman: true,
       bun: Bun.version,
       timestamp: new Date().toISOString(),
     }
@@ -155,6 +158,7 @@ process.on('beforeExit', () => {
 if (import.meta.main) {
   // A new installation must have its schema before any HTTP or WS handler runs.
   runMigrations()
+  cleanupExpiredDeviceLinks()
   app.listen(
     {
       port: env.PORT,
@@ -165,6 +169,7 @@ if (import.meta.main) {
     },
     () => {
       console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
+      if (isProduction) console.log('[CORS] Allowed origins:', allowedOrigins.join(', '))
       void startPubsub(() => app.server ?? undefined)
     },
   )

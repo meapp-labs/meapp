@@ -1,8 +1,9 @@
 import { jwt } from '@elysiajs/jwt'
 import { IdempotencyConflictError, getDbInstance, insertMessageWithSequence } from '@meapp/db'
-import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
+import { MESSAGE_MAX_LENGTH, messageWsIncomingSchema } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
+import { clientIpOf } from '../lib/clientIp.ts'
 import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
@@ -50,42 +51,6 @@ const broadcastTypingToRoom = async (
   }
 }
 
-const incomingMessageBody = t.Union([
-  t.Object({
-    type: t.Literal('message'),
-    payload: t.Object({
-      roomId: t.String({ format: 'uuid' }),
-      text: t.String({ minLength: 1, maxLength: MESSAGE_MAX_LENGTH }),
-      clientId: t.String({ format: 'uuid' }),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('typing'),
-    payload: t.Object({
-      roomId: t.String({ format: 'uuid' }),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('auth'),
-    payload: t.Object({
-      ticket: t.Optional(t.String()),
-      token: t.Optional(t.String()),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('subscribe'),
-    payload: t.Object({
-      roomId: t.String({ format: 'uuid' }),
-    }),
-  }),
-  t.Object({
-    type: t.Literal('unsubscribe'),
-    payload: t.Object({
-      roomId: t.String({ format: 'uuid' }),
-    }),
-  }),
-])
-
 export const chatWs = new Elysia()
   .use(authPlugin)
   .use(redisPlugin)
@@ -106,10 +71,10 @@ export const chatWs = new Elysia()
     query: t.Object({
       roomId: t.String({ format: 'uuid' }),
     }),
-    body: incomingMessageBody,
+    body: messageWsIncomingSchema,
     async open(ws) {
       const { request, server } = ws.data
-      const ip = server?.requestIP?.(request)?.address ?? 'unknown'
+      const ip = clientIpOf(request, server)
 
       const state: WsSessionState = {
         ip,
@@ -125,10 +90,11 @@ export const chatWs = new Elysia()
         return
       }
       if (state.closed) {
-        await connectionManager.releaseUnauth(ip)
+        await connectionManager.releaseUnauth(ip, allowedUnauth)
         return
       }
       state.unauthCounted = true
+      state.unauthSource = allowedUnauth
 
       state.authTimeoutTimer = setTimeout(() => {
         if (!state.authenticatedUserId && !state.closed) {
@@ -281,7 +247,8 @@ export const chatWs = new Elysia()
           ws.subscribe(`room:${roomId}`)
           if (state.unauthCounted) {
             state.unauthCounted = false
-            await connectionManager.releaseUnauth(state.ip)
+            if (state.unauthSource)
+              await connectionManager.releaseUnauth(state.ip, state.unauthSource)
           }
 
           state.leaseTimer = setInterval(() => {
@@ -538,7 +505,7 @@ export const chatWs = new Elysia()
 
       if (state.unauthCounted) {
         state.unauthCounted = false
-        await connectionManager.releaseUnauth(state.ip)
+        if (state.unauthSource) await connectionManager.releaseUnauth(state.ip, state.unauthSource)
       }
 
       if (state.authenticatedUserId) {

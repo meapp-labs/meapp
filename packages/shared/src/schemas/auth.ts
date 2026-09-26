@@ -69,6 +69,7 @@ export const loginSchema = z
     username: usernameSchema,
     password: passwordSchema,
     platform: platformSchema.optional().default('web'),
+    rememberMe: z.boolean().optional().default(false),
   })
   .refine((data) => !data.password.includes(data.username), {
     message: 'Password cannot contain the username.',

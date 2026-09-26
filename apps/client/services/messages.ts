@@ -28,11 +28,13 @@ type MessagesCache = {
 function insertIntoCache(old: MessagesCache, message: Message): MessagesCache {
   if (!old.pages[0]) return old
 
-  const exists = old.pages[0].messages.some(
-    (m) =>
-      m.id === message.id ||
-      (message.sequence !== undefined && m.sequence === message.sequence) ||
-      (message.index !== undefined && m.index === message.index),
+  const exists = old.pages.some((page) =>
+    page.messages.some(
+      (m) =>
+        m.id === message.id ||
+        (message.sequence !== undefined && m.sequence === message.sequence) ||
+        (message.index !== undefined && m.index === message.index),
+    ),
   )
   if (exists) {
     if (!message.text) return old
@@ -46,7 +48,11 @@ function insertIntoCache(old: MessagesCache, message: Message): MessagesCache {
     ...old,
     pages: [
       {
-        messages: [...old.pages[0].messages, message],
+        messages: [...old.pages[0].messages, message].sort(
+          (a, b) =>
+            Number(a.sequence ?? a.index ?? Number.MAX_SAFE_INTEGER) -
+            Number(b.sequence ?? b.index ?? Number.MAX_SAFE_INTEGER),
+        ),
         hasMore: old.pages[0].hasMore,
         totalCount: (old.pages[0].totalCount ?? 0) + 1,
       },
@@ -245,10 +251,14 @@ export function useGetMessages({
     `${env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')}/ws?roomId=${encodeURIComponent(conversationId)}`,
     {
       enabled: enabled && !!conversationId,
-      getAuthMessage: async () => {
-        const res = await postFetcher<{ ticket?: string }>('/ws/ticket', {
-          roomId: conversationId,
-        })
+      getAuthMessage: async (signal) => {
+        const res = await postFetcher<{ ticket?: string }>(
+          '/ws/ticket',
+          {
+            roomId: conversationId,
+          },
+          { signal },
+        )
         if (!res.ticket) throw new Error('WebSocket ticket missing')
         return JSON.stringify({ type: 'auth', payload: { ticket: res.ticket } })
       },

@@ -10,11 +10,11 @@ let inMemoryToken: string | null = null
  * cookie, so no JS-side token storage at all.
  */
 export const AuthStorage = {
-  async setToken(token: string | null): Promise<void> {
+  async setToken(token: string | null, persist = true): Promise<void> {
     inMemoryToken = token
     if (Platform.OS === 'web') return
     try {
-      if (token) {
+      if (token && persist) {
         await SecureStore.setItemAsync(TOKEN_KEY, token)
       } else {
         await SecureStore.deleteItemAsync(TOKEN_KEY)

@@ -4,6 +4,7 @@ import { eq, getDbInstance, schema } from '@meapp/db'
 import { loginSchema, pushTokenSchema, registerSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
+import { clientIpOf } from '../lib/clientIp.ts'
 import { LOGIN_CONFIG, SESSION_COOKIE_NAME, isProduction } from '../lib/config.ts'
 import {
   ApiError,
@@ -28,14 +29,11 @@ const hashPassword = async (password: string, salt: string): Promise<string> => 
 // Composite IP+username key: a per-username key alone would let anyone lock
 // out arbitrary users with 5 failed logins.
 const loginAttemptsKey = (ip: string, username: string) => `ratelimit:login:${ip}:${username}`
-
-const clientIpOf = (
-  request: Request,
-  server?: { requestIP?: (r: Request) => { address: string } | null } | null,
-) =>
-  server?.requestIP?.(request)?.address ??
-  request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-  '127.0.0.1'
+const LOGIN_ATTEMPT_LUA = `
+local count = redis.call('INCR', KEYS[1])
+if count == 1 then redis.call('PEXPIRE', KEYS[1], tonumber(ARGV[1])) end
+return count
+`
 
 export const authRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
@@ -88,7 +86,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
   .post(
     '/login',
     async ({ body, cookie, jwt: sessionJwt, redis, request, server }) => {
-      const { username, password, platform } = body
+      const { username, password, platform, rememberMe } = body
 
       const attemptKey = loginAttemptsKey(clientIpOf(request, server), username)
       try {
@@ -117,10 +115,12 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
       const recordFailedAttempt = async () => {
         try {
-          const current = await redis.incr(attemptKey)
-          if (current === 1) {
-            await redis.expire(attemptKey, LOGIN_CONFIG.LOCKOUT_DURATION_MS / 1000)
-          }
+          await redis.eval(
+            LOGIN_ATTEMPT_LUA,
+            1,
+            attemptKey,
+            String(LOGIN_CONFIG.LOCKOUT_DURATION_MS),
+          )
         } catch {}
       }
 
@@ -155,8 +155,9 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
       const token = await sessionJwt.sign({
         sub: user.id,
+        jti: Bun.randomUUIDv7(),
         username: user.username ?? username,
-        platform: user.platform ?? platform ?? 'web',
+        platform: platform ?? user.platform ?? 'web',
       })
       if (!token) {
         throw new ApiError(ErrorCode.INTERNAL_SERVER_ERROR, 'Failed to create session', 500)
@@ -167,7 +168,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
         httpOnly: true,
         sameSite: 'lax',
         path: '/',
-        maxAge: LOGIN_CONFIG.SESSION_TTL_SECONDS,
+        maxAge: rememberMe ? LOGIN_CONFIG.SESSION_TTL_SECONDS : undefined,
         secure: isProduction,
       })
 
@@ -182,6 +183,15 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
   .post('/logout', async ({ user, cookie }) => {
     const me = requireUser(user)
+    const sqlite = getDbInstance().sqlite
+    sqlite.transaction(() => {
+      sqlite
+        .query('DELETE FROM revoked_tokens WHERE expires_at <= ?')
+        .run(Math.floor(Date.now() / 1000))
+      sqlite
+        .query('INSERT OR IGNORE INTO revoked_tokens (jti, user_id, expires_at) VALUES (?, ?, ?)')
+        .run(me.tokenId, me.id, me.expiresAt)
+    })()
 
     // JWT platform claim may be stale — clear token for all native platforms.
     if (me.platform !== 'web') {
@@ -200,7 +210,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
     return 'logged_out'
   })
 
-  .post('/me', ({ user }) => {
+  .get('/me', ({ user }) => {
     const me = requireUser(user)
     const existing = getDbInstance()
       .sqlite.query('SELECT id, username FROM users WHERE id = ?')

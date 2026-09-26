@@ -94,22 +94,28 @@ export const e2eRelayRoutes = new Elysia({ prefix: '/api/e2e/relay' })
     ({ body, user }) => {
       const me = requireUser(user)
       const sqlite = getDbInstance().sqlite
-      const installed = sqlite
-        .query('SELECT protocol_device_id FROM devices WHERE user_id = ? AND device_id = ?')
-        .get(me.id, body.installId) as { protocol_device_id: number } | null
-      const anyDevice = sqlite
-        .query('SELECT 1 AS valid FROM devices WHERE user_id = ? LIMIT 1')
-        .get(me.id)
-      if (anyDevice && !installed) {
-        throw createDuplicateItemError('Approve this browser from an already linked device')
-      }
-      sqlite
-        .query(
-          `INSERT OR IGNORE INTO devices (user_id, device_id, platform, last_active_at)
-           VALUES (?, ?, ?, ?)`,
-        )
-        .run(me.id, body.installId, body.platform, Math.floor(Date.now() / 1000))
-      return { deviceId: installed?.protocol_device_id ?? 1 }
+      return sqlite.transaction(() => {
+        const installed = sqlite
+          .query('SELECT protocol_device_id FROM devices WHERE user_id = ? AND device_id = ?')
+          .get(me.id, body.installId) as { protocol_device_id: number } | null
+        if (installed) return { deviceId: installed.protocol_device_id }
+        // Bootstrap is only possible for a genuinely empty account. An old
+        // primary identity without its device row must not be claimed anew.
+        const occupied = sqlite
+          .query(`SELECT 1 FROM devices WHERE user_id = ?
+            UNION SELECT 1 FROM relay_identities WHERE user_id = ? LIMIT 1`)
+          .get(me.id, me.id)
+        if (occupied) {
+          throw createDuplicateItemError('Approve this browser from an already linked device')
+        }
+        sqlite
+          .query(
+            `INSERT INTO devices (user_id, device_id, protocol_device_id, platform, last_active_at)
+             VALUES (?, ?, 1, ?, ?)`,
+          )
+          .run(me.id, body.installId, body.platform, Math.floor(Date.now() / 1000))
+        return { deviceId: 1 }
+      })()
     },
     {
       body: t.Object({

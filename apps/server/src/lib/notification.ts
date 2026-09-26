@@ -10,6 +10,7 @@ export type ExpoPushNotificationOptions = {
   messageText: string
   messageIndex: number
   timestamp: string
+  conversationId?: string
   channelId?: string
   kind?: 'friend_request'
 }
@@ -21,6 +22,7 @@ export const sendPushNotification = async (options: ExpoPushNotificationOptions)
     messageText,
     messageIndex,
     timestamp,
+    conversationId,
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
     kind,
   } = options
@@ -35,6 +37,7 @@ export const sendPushNotification = async (options: ExpoPushNotificationOptions)
       text: messageText,
       index: messageIndex,
       timestamp,
+      conversationId,
     },
     channelId,
   })

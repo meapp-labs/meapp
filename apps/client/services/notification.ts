@@ -6,9 +6,7 @@ import Toast from 'react-native-toast-message'
 import { postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
-import type { MessagesResponse } from '@/services/messages'
 import { theme } from '@/theme/theme'
-import type { Message } from '@meapp/shared'
 
 export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
@@ -46,71 +44,13 @@ export function handleIncomingNotification(
   }
 
   if (title && data) {
-    const messageData = data as {
-      id?: string
-      conversationId?: string
-      from: string
-      text: string
-      index: number
-      timestamp: string
+    const conversationId = data.conversationId
+    if (typeof conversationId === 'string') {
+      // A push contains only a preview. Fetch the actual message so encrypted
+      // rooms can decrypt it and reconnects cannot add duplicate placeholders.
+      void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_MESSAGES, conversationId] })
+      void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
     }
-
-    // Need conversationId to update the right cache
-    const conversationId = messageData.conversationId
-    if (!conversationId) {
-      // Can't update cache without conversationId
-      Toast.show({
-        type: 'info',
-        text1: title || 'New message',
-        text2: body || '',
-        position: 'top',
-        visibilityTime: 4000,
-      })
-      return
-    }
-
-    const newMessage: Message = {
-      id: messageData.id || `${messageData.index}`,
-      from: messageData.from,
-      text: messageData.text,
-      type: 'text',
-      index: messageData.index,
-      timestamp: messageData.timestamp,
-    }
-
-    queryClient.setQueryData<{
-      pages: MessagesResponse[]
-      pageParams: { after?: number; before?: number }[]
-    }>([Keys.Query.GET_MESSAGES, conversationId], (old) => {
-      if (!old || !old.pages[0]) {
-        return {
-          pages: [
-            {
-              messages: [newMessage],
-              hasMore: false,
-              totalCount: 1,
-            },
-          ],
-          pageParams: [{}],
-        }
-      }
-
-      const updatedMessages = [...old.pages[0].messages, newMessage]
-
-      return {
-        ...old,
-        pages: [
-          {
-            messages: updatedMessages,
-            hasMore: old.pages[0].hasMore,
-            totalCount: (old.pages[0].totalCount ?? 0) + 1,
-          },
-          ...old.pages.slice(1),
-        ],
-        pageParams: old.pageParams,
-      }
-    })
-
     if (currentConversationId === conversationId) {
       return
     }

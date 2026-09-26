@@ -9,7 +9,7 @@ Bun workspaces: `apps/client`, `apps/server`, `packages/db`, `packages/shared`. 
 ## Commands
 
 ```sh
-bun run dev                # podman compose -f compose.dev.yaml up -d (redis + server)
+bun run dev                # start Redis via Podman, then server + Expo client
 bun run dev:server         # bun --filter @meapp/server dev
 bun run dev:client         # bun --filter @meapp/client dev (Expo)
 bun run dev:web            # bun --filter @meapp/client web

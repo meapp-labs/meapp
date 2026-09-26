@@ -5,6 +5,8 @@ export type SessionUser = {
   id: string
   username: string
   platform: string
+  tokenId: string
+  expiresAt: number
 }
 
 /** Narrows the optional derived user, throwing a 401 when the session is absent. */

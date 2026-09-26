@@ -1,4 +1,5 @@
 import { jwt } from '@elysiajs/jwt'
+import { getDbInstance } from '@meapp/db'
 import { Elysia } from 'elysia'
 
 import { LOGIN_CONFIG, SESSION_COOKIE_NAME, env } from '../lib/config.ts'
@@ -8,6 +9,8 @@ type JwtPayload = {
   sub?: string
   username?: string
   platform?: string
+  jti?: string
+  exp?: number
 }
 
 /**
@@ -36,15 +39,26 @@ export const authPlugin = new Elysia({ name: 'auth' })
 
     try {
       const payload = (await jwt.verify(token)) as JwtPayload | false
-      if (!payload || !payload.sub) {
+      if (!payload || !payload.sub || !payload.jti || !payload.exp) {
         return { user: null as SessionUser | null }
       }
+
+      const sqlite = getDbInstance().sqlite
+      const existing = sqlite
+        .query(`SELECT u.username FROM users u
+          WHERE u.id = ? AND NOT EXISTS (
+            SELECT 1 FROM revoked_tokens r WHERE r.jti = ?
+          )`)
+        .get(payload.sub, payload.jti) as { username: string | null } | null
+      if (!existing) return { user: null as SessionUser | null }
 
       return {
         user: {
           id: payload.sub,
-          username: payload.username ?? payload.sub,
+          username: existing.username ?? payload.sub,
           platform: payload.platform ?? 'web',
+          tokenId: payload.jti,
+          expiresAt: payload.exp,
         } satisfies SessionUser,
       }
     } catch {

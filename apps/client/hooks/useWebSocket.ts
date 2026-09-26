@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 
 export type UseWebSocketOptions = {
   onMessage: (data: unknown) => void
-  getAuthMessage: () => Promise<string>
+  getAuthMessage: (signal: AbortSignal) => Promise<string>
   enabled: boolean
 }
 
@@ -31,13 +31,14 @@ export function useWebSocket(
 
     let cancelled = false
     let attempt = 0
+    const controller = new AbortController()
 
     const connect = async () => {
       if (cancelled) return
 
       try {
         // Ticket latency is outside the server's two-second auth window.
-        const authMessage = await getAuthMessageRef.current()
+        const authMessage = await getAuthMessageRef.current(controller.signal)
         if (cancelled) return
         const ws = new WebSocket(url)
         wsRef.current = ws
@@ -73,6 +74,11 @@ export function useWebSocket(
           // Keep the replacement's ref so cleanup can close the right socket.
           if (wsRef.current === ws) wsRef.current = null
           if (cancelled) return
+          // Auth and permission failures need a new login or room selection.
+          if (event.code >= 4400 && event.code < 4500 && event.code !== 4429) {
+            console.warn('[WebSocket] Connection rejected:', event.code, event.reason)
+            return
+          }
           if (event.code !== 1000) {
             console.warn('[WebSocket] Closed:', event.code, event.reason)
           }
@@ -97,6 +103,7 @@ export function useWebSocket(
 
     return () => {
       cancelled = true
+      controller.abort()
       if (timerRef.current) {
         clearTimeout(timerRef.current)
         timerRef.current = null

@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { E2E_CIPHERTEXT_MAX } from './e2e.ts'
+import { E2E_CIPHERTEXT_MAX, encryptedSendSchema } from './e2e.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Message Schemas (V7 FINAL - Sequence cursor + WS Ticket auth)
@@ -117,22 +117,29 @@ export type MessageWsOutgoing = z.infer<typeof messageWsOutgoingSchema>
 // ─────────────────────────────────────────────────────────────
 
 export const getMessagesQuerySchema = z.object({
-  roomId: z.string().uuid().optional(),
-  conversationId: z.string().uuid().optional(),
-  afterSequence: z.coerce.number().int().nonnegative().optional(), // V7 sequence cursor
-  after: z.string().optional(),
-  before: z.string().optional(),
-  limit: z.coerce.number().int().positive().max(100).optional().default(50),
+  conversationId: z.string().uuid(),
+  installId: z.string().uuid().optional(),
+  after: z.string().regex(/^\d+$/).optional(),
+  before: z
+    .string()
+    .regex(/^[1-9]\d*$/)
+    .optional(),
+  limit: z
+    .string()
+    .regex(/^[1-9]\d*$/)
+    .optional(),
 })
 
 export type GetMessagesQuery = z.infer<typeof getMessagesQuerySchema>
 
-export const sendMessageSchema = z.object({
-  roomId: z.string().uuid().optional(),
-  conversationId: z.string().uuid().optional(),
-  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
-  clientId: z.string().uuid().optional(),
-})
+export const sendMessageSchema = z.union([
+  z.object({
+    conversationId: z.string().uuid(),
+    text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
+    clientId: z.string().uuid().optional(),
+  }),
+  encryptedSendSchema,
+])
 export type SendMessageInput = z.infer<typeof sendMessageSchema>
 export type SendMessageRequest = SendMessageInput
 

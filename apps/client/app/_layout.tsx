@@ -1,11 +1,10 @@
 import { QueryClientProvider } from '@tanstack/react-query'
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
-import { Platform, type PlatformOSType } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Loader } from '@/components/Loader'
-import { postFetcher } from '@/lib/api'
+import { getFetcher, postFetcher } from '@/lib/api'
 import { AuthStorage } from '@/lib/authStorage'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
@@ -26,18 +25,16 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
       const rememberMe = await RememberMeStorage.get()
 
       if (!rememberMe) {
+        // End a previous cookie or native session before showing the login screen.
+        await postFetcher('logout').catch(() => undefined)
+        await AuthStorage.clear()
         setUsername('')
         setIsCheckingAuth(false)
         return
       }
 
       try {
-        const response = await postFetcher<{ username: string }, { platform: PlatformOSType }>(
-          Keys.Query.ME,
-          {
-            platform: Platform.OS,
-          },
-        )
+        const response = await getFetcher<{ username: string }>(Keys.Query.ME)
         setUsername(response.username)
       } catch {
         // Session invalid or expired - clear remember me flag and token

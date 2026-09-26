@@ -18,11 +18,12 @@ import {
 import {
   CIPHERTEXT_TYPE_WHISPER,
   type Conversation,
-  E2E_CIPHERTEXT_MAX,
   createConversationSchema,
   encryptedSendSchema,
+  getMessagesQuerySchema,
+  sendMessageSchema,
 } from '@meapp/shared'
-import { Elysia, t } from 'elysia'
+import { Elysia } from 'elysia'
 
 import { canAccessRoom } from '../lib/authz.ts'
 import { isE2EEnabled } from '../lib/config.ts'
@@ -41,36 +42,6 @@ import { sendPushNotification } from '../lib/notification.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { broadcastToRoom } from '../ws/chat.ts'
-
-// Plaintext is accepted only when E2E is explicitly disabled for local tests.
-const sendMessageBody = t.Union([
-  t.Object({
-    conversationId: t.String({ format: 'uuid' }),
-    text: t.String({ minLength: 1, maxLength: 2000 }),
-    clientId: t.Optional(t.String({ format: 'uuid' })),
-  }),
-  t.Object({
-    conversationId: t.String({ format: 'uuid' }),
-    clientId: t.String({ format: 'uuid' }),
-    installId: t.String({ format: 'uuid' }),
-    envelopes: t.Array(
-      t.Object({
-        targetUserId: t.String({ format: 'uuid' }),
-        targetDeviceId: t.Integer({ minimum: 1, maximum: 5 }),
-        ciphertext: t.String({ minLength: 1, maxLength: E2E_CIPHERTEXT_MAX }),
-      }),
-      { minItems: 1, maxItems: 50 },
-    ),
-  }),
-])
-
-const getMessagesQuery = t.Object({
-  conversationId: t.String({ format: 'uuid' }),
-  installId: t.Optional(t.String({ format: 'uuid' })),
-  after: t.Optional(t.String({ pattern: '^\\d+$' })),
-  before: t.Optional(t.String({ pattern: '^[1-9]\\d*$' })),
-  limit: t.Optional(t.String({ pattern: '^[1-9]\\d*$' })),
-})
 
 const DEFAULT_MESSAGE_LIMIT = 50
 const MAX_MESSAGE_LIMIT = 100
@@ -516,6 +487,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               messageText: 'New message',
               messageIndex: result.sequence,
               timestamp,
+              conversationId,
             })
           }
         }
@@ -562,7 +534,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         timestamp,
       }
     },
-    { body: sendMessageBody },
+    { body: sendMessageSchema },
   )
 
   .get(
@@ -680,5 +652,5 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       return { messages, hasMore, totalCount: totalCountRow?.total ?? 0 }
     },
-    { query: getMessagesQuery },
+    { query: getMessagesQuerySchema },
   )

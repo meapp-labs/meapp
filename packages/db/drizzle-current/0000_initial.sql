@@ -17,6 +17,24 @@ CREATE TABLE `rooms` (
 	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
+CREATE TABLE `device_link_sessions` (
+	`id` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`owner_install_id` text NOT NULL,
+	`owner_public_key` text NOT NULL,
+	`new_install_id` text,
+	`new_public_key` text,
+	`platform` text,
+	`encrypted_message` text,
+	`device_id` integer NOT NULL,
+	`status` text NOT NULL,
+	`expires_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `device_link_sessions_user_idx` ON `device_link_sessions` (`user_id`);--> statement-breakpoint
+CREATE INDEX `device_link_sessions_expiry_idx` ON `device_link_sessions` (`expires_at`);--> statement-breakpoint
+CREATE UNIQUE INDEX `device_link_sessions_device_unique` ON `device_link_sessions` (`user_id`,`device_id`);--> statement-breakpoint
 CREATE TABLE `devices` (
 	`user_id` text NOT NULL,
 	`device_id` text NOT NULL,
@@ -40,17 +58,6 @@ CREATE TABLE `friend_requests` (
 );
 --> statement-breakpoint
 CREATE INDEX `friend_requests_recipient_idx` ON `friend_requests` (`recipient_id`);--> statement-breakpoint
-CREATE TABLE `identity_keys` (
-	`user_id` text NOT NULL,
-	`device_id` text NOT NULL,
-	`identity_key_public` text NOT NULL,
-	`created_at` integer NOT NULL,
-	`last_seen_at` integer,
-	PRIMARY KEY(`user_id`, `device_id`),
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `idx_identity_user` ON `identity_keys` (`user_id`);--> statement-breakpoint
 CREATE TABLE `ignored_users` (
 	`user_id` text NOT NULL,
 	`ignored_user_id` text NOT NULL,
@@ -109,29 +116,6 @@ CREATE TABLE `room_members` (
 --> statement-breakpoint
 CREATE INDEX `room_members_room_idx` ON `room_members` (`room_id`);--> statement-breakpoint
 CREATE INDEX `room_members_user_idx` ON `room_members` (`user_id`);--> statement-breakpoint
-CREATE TABLE `prekey_bundles` (
-	`id` text PRIMARY KEY NOT NULL,
-	`user_id` text NOT NULL,
-	`device_id` text NOT NULL,
-	`prekey_id` integer NOT NULL,
-	`prekey_public` text NOT NULL,
-	`signed_prekey_id` integer NOT NULL,
-	`signed_prekey_public` text NOT NULL,
-	`signed_prekey_signature` text NOT NULL,
-	`signed_prekey_expires_at` integer NOT NULL,
-	`kyber_prekey_id` integer NOT NULL,
-	`kyber_prekey_public` text NOT NULL,
-	`kyber_prekey_signature` text NOT NULL,
-	`is_last_resort` integer DEFAULT false NOT NULL,
-	`used` integer DEFAULT false NOT NULL,
-	`created_at` integer NOT NULL,
-	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
-);
---> statement-breakpoint
-CREATE INDEX `idx_prekey_fetch` ON `prekey_bundles` (`user_id`,`device_id`,`used`,`is_last_resort`);--> statement-breakpoint
-CREATE INDEX `idx_prekey_expiry` ON `prekey_bundles` (`signed_prekey_expires_at`);--> statement-breakpoint
-CREATE UNIQUE INDEX `uq_device_prekey` ON `prekey_bundles` (`user_id`,`device_id`,`prekey_id`);--> statement-breakpoint
-CREATE UNIQUE INDEX `uq_device_kyber` ON `prekey_bundles` (`user_id`,`device_id`,`kyber_prekey_id`);--> statement-breakpoint
 CREATE TABLE `relay_identities` (
 	`user_id` text NOT NULL,
 	`device_id` integer DEFAULT 1 NOT NULL,
@@ -159,6 +143,14 @@ CREATE TABLE `relay_prekeys` (
 );
 --> statement-breakpoint
 CREATE INDEX `relay_prekeys_available_idx` ON `relay_prekeys` (`user_id`,`device_id`,`type`,`consumed`);--> statement-breakpoint
+CREATE TABLE `revoked_tokens` (
+	`jti` text PRIMARY KEY NOT NULL,
+	`user_id` text NOT NULL,
+	`expires_at` integer NOT NULL,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `revoked_tokens_expiry_idx` ON `revoked_tokens` (`expires_at`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text,

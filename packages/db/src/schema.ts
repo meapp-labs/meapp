@@ -144,67 +144,43 @@ export const devices = sqliteTable(
 export type Device = typeof devices.$inferSelect
 export type NewDevice = typeof devices.$inferInsert
 
-// ─────────────────────────────────────────────────────────────
-// identity_keys (V10 - public identity keys for fingerprinting/safety number)
-// ─────────────────────────────────────────────────────────────
-
-export const identityKeys = sqliteTable(
-  'identity_keys',
+// Short-lived encrypted device provisioning handshakes survive server restarts.
+export const deviceLinkSessions = sqliteTable(
+  'device_link_sessions',
   {
+    id: text('id').primaryKey(),
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    deviceId: text('device_id').notNull(),
-    identityKeyPublic: text('identity_key_public').notNull(), // base64 X25519 public (32 bytes)
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .$defaultFn(() => new Date()),
-    lastSeenAt: integer('last_seen_at', { mode: 'timestamp' }),
-  },
-  (t) => [primaryKey({ columns: [t.userId, t.deviceId] }), index('idx_identity_user').on(t.userId)],
-)
-
-export type IdentityKey = typeof identityKeys.$inferSelect
-export type NewIdentityKey = typeof identityKeys.$inferInsert
-
-// ─────────────────────────────────────────────────────────────
-// prekey_bundles (V10 - Signal prekeys incl. PQ (ML-KEM-768) hybrid)
-// ─────────────────────────────────────────────────────────────
-
-export const prekeyBundles = sqliteTable(
-  'prekey_bundles',
-  {
-    id: text('id').primaryKey(), // uuidv7
-    userId: text('user_id')
-      .notNull()
-      .references(() => users.id, { onDelete: 'cascade' }),
-    deviceId: text('device_id').notNull(),
-    prekeyId: integer('prekey_id').notNull(), // 0..2^24-1
-    prekeyPublic: text('prekey_public').notNull(), // base64 X25519
-    signedPrekeyId: integer('signed_prekey_id').notNull(),
-    signedPrekeyPublic: text('signed_prekey_public').notNull(), // base64 X25519
-    signedPrekeySignature: text('signed_prekey_signature').notNull(), // base64 Ed25519 sig
-    signedPrekeyExpiresAt: integer('signed_prekey_expires_at', { mode: 'timestamp' }).notNull(),
-    // PQ hybrid (PQXDH)
-    kyberPrekeyId: integer('kyber_prekey_id').notNull(),
-    kyberPrekeyPublic: text('kyber_prekey_public').notNull(), // base64 ML-KEM-768 (~1184 bytes)
-    kyberPrekeySignature: text('kyber_prekey_signature').notNull(), // base64 Ed25519 sig
-    isLastResort: integer('is_last_resort', { mode: 'boolean' }).notNull().default(false),
-    used: integer('used', { mode: 'boolean' }).notNull().default(false),
-    createdAt: integer('created_at', { mode: 'timestamp' })
-      .notNull()
-      .$defaultFn(() => new Date()),
+    ownerInstallId: text('owner_install_id').notNull(),
+    ownerPublicKey: text('owner_public_key').notNull(),
+    newInstallId: text('new_install_id'),
+    newPublicKey: text('new_public_key'),
+    platform: text('platform', { enum: ['web', 'android'] }),
+    encryptedMessage: text('encrypted_message'),
+    deviceId: integer('device_id').notNull(),
+    status: text('status').notNull(),
+    expiresAt: integer('expires_at').notNull(),
   },
   (t) => [
-    unique('uq_device_prekey').on(t.userId, t.deviceId, t.prekeyId),
-    unique('uq_device_kyber').on(t.userId, t.deviceId, t.kyberPrekeyId),
-    index('idx_prekey_fetch').on(t.userId, t.deviceId, t.used, t.isLastResort),
-    index('idx_prekey_expiry').on(t.signedPrekeyExpiresAt),
+    unique('device_link_sessions_device_unique').on(t.userId, t.deviceId),
+    index('device_link_sessions_user_idx').on(t.userId),
+    index('device_link_sessions_expiry_idx').on(t.expiresAt),
   ],
 )
 
-export type PrekeyBundle = typeof prekeyBundles.$inferSelect
-export type NewPrekeyBundle = typeof prekeyBundles.$inferInsert
+// A logout revokes only that JWT, without ending other linked devices' sessions.
+export const revokedTokens = sqliteTable(
+  'revoked_tokens',
+  {
+    jti: text('jti').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (t) => [index('revoked_tokens_expiry_idx').on(t.expiresAt)],
+)
 
 // Public Signal SDK relay state. Device secret keys and ratchet sessions stay on
 // the client; the server only stores public prekeys and opaque envelopes.

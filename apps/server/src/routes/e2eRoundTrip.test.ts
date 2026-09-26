@@ -73,7 +73,7 @@ async function account(username: string) {
   )
   expect(login.status).toBe(200)
   const cookie = login.headers.get('set-cookie')?.split(';')[0] ?? ''
-  const me = await api<{ id: string }>('me', cookie, {})
+  const me = await api<{ id: string }>('me', cookie)
   return { id: me.id, cookie, username, installId: Bun.randomUUIDv7() }
 }
 
@@ -313,6 +313,11 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
   const linkedSession = link.searchParams.get('session')
   const primaryPublicKey = link.searchParams.get('key')
   if (!linkedSession || !primaryPublicKey) throw new Error('Provisioning link is malformed')
+  expect(
+    getDbInstance()
+      .sqlite.query('SELECT status FROM device_link_sessions WHERE id = ?')
+      .get(linkedSession),
+  ).toEqual({ status: 'waiting' })
   const newEphemeral = await connectToProvisioningSession(newRelay, linkedSession, {
     deviceName: 'Test browser',
     platform: 'web',
@@ -356,6 +361,11 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
     },
   )
   expect(provisioned.deviceId).toBe(2)
+  expect(
+    getDbInstance()
+      .sqlite.query('SELECT 1 FROM device_link_sessions WHERE id = ?')
+      .get(linkedSession),
+  ).toBeNull()
   const linkedClient = await createSignalProtocolClient({
     identity: { userId: bob.id, deviceId: 2 },
     adapters: { storage: linkedStorage, relay: newRelay },
@@ -545,3 +555,23 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
     ).total,
   ).toBe(0)
 }, 120_000)
+
+it('refuses to bootstrap a replacement primary over an orphaned identity', async () => {
+  const user = await account(`orphan_${suffix}`)
+  const sqlite = getDbInstance().sqlite
+  sqlite.query('DELETE FROM devices WHERE user_id = ?').run(user.id)
+  sqlite
+    .query(`INSERT INTO relay_identities
+    (user_id, device_id, install_id, registration_id, x25519_public_key, ed25519_public_key, created_at)
+    VALUES (?, 1, ?, 1, 'old-key', 'old-signing-key', ?)`)
+    .run(user.id, user.installId, Date.now())
+  const response = await app.handle(
+    new Request('http://localhost/api/e2e/relay/register', {
+      method: 'POST',
+      headers: { cookie: user.cookie, 'content-type': 'application/json' },
+      body: JSON.stringify({ installId: Bun.randomUUIDv7(), platform: 'web' }),
+    }),
+  )
+  expect(response.status).toBe(409)
+  sqlite.query('DELETE FROM users WHERE id = ?').run(user.id)
+})

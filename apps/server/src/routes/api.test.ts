@@ -21,11 +21,11 @@ let sessionCookie = ''
 
 const api = async (
   path: string,
-  init: { method?: string; body?: unknown; cookie?: string } = {},
+  init: { method?: string; body?: unknown; cookie?: string; ip?: string } = {},
 ): Promise<Response> => {
   const headers = new Headers({
     'content-type': 'application/json',
-    'x-forwarded-for': `api-test-${runId}`,
+    'x-forwarded-for': init.ip ?? `api-test-${runId}`,
   })
   if (init.cookie) headers.set('cookie', init.cookie)
 
@@ -55,7 +55,7 @@ afterAll(async () => {
 
 describe('REST API (Drizzle SQLite backend)', () => {
   it('rejects unauthenticated access to /api/me', async () => {
-    const res = await api('/me', { method: 'POST', body: { platform: 'web' } })
+    const res = await api('/me', { method: 'GET' })
 
     expect(res.status).toBe(401)
     expect((await readJson<{ code: string }>(res)).code).toBe('AUTHENTICATION_REQUIRED')
@@ -109,16 +109,24 @@ describe('REST API (Drizzle SQLite backend)', () => {
     const setCookie = login.headers.get('set-cookie') ?? ''
     expect(setCookie).toContain('access_token=')
     expect(setCookie.toLowerCase()).toContain('httponly')
+    expect(setCookie.toLowerCase()).not.toContain('max-age=')
+
+    const remembered = await api('/login', {
+      method: 'POST',
+      body: { username: alice, password, platform: 'web', rememberMe: true },
+      ip: `api-test-remember-${runId}`,
+    })
+    expect(remembered.headers.get('set-cookie')?.toLowerCase()).toContain('max-age=2592000')
 
     sessionCookie = cookieHeaderFrom(login)
     expect(sessionCookie).not.toBe('')
 
     const me = await api('/me', {
-      method: 'POST',
-      body: { platform: 'web' },
+      method: 'GET',
       cookie: sessionCookie,
     })
     expect(me.status).toBe(200)
+    expect(me.headers.get('x-content-type-options')).toBe('nosniff')
     expect(await me.json()).toEqual({ id: expect.any(String), username: alice })
   })
 
@@ -598,7 +606,9 @@ describe('REST API (Drizzle SQLite backend)', () => {
     const setCookie = res.headers.get('set-cookie') ?? ''
     expect(setCookie).toContain('access_token=')
 
-    const anonymous = await api('/me', { method: 'POST', body: { platform: 'web' } })
+    const anonymous = await api('/me', { method: 'GET' })
     expect(anonymous.status).toBe(401)
+    const revoked = await api('/me', { method: 'GET', cookie: sessionCookie })
+    expect(revoked.status).toBe(401)
   })
 })

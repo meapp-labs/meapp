@@ -7,6 +7,7 @@ export type WsSessionState = {
   connectionId: string
   closed?: boolean
   unauthCounted?: boolean
+  unauthSource?: 'redis' | 'fallback'
   authTimeoutTimer?: ReturnType<typeof setTimeout> | undefined
   leaseTimer?: ReturnType<typeof setInterval> | undefined
   subscribedRooms: Set<string>
@@ -66,6 +67,14 @@ end
 return 1
 `
 
+const UNAUTH_RELEASE_LUA = `
+for i = 1, 2 do
+  local count = tonumber(redis.call('GET', KEYS[i]) or '0')
+  if count > 0 then redis.call('DECR', KEYS[i]) end
+end
+return 1
+`
+
 const RATE_LIMIT_LUA = `
 local current = redis.call('INCR', KEYS[1])
 if current == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end
@@ -82,6 +91,10 @@ export class WsConnectionManager {
   private cleanupInterval: ReturnType<typeof setInterval>
 
   constructor(private readonly redis: Redis) {
+    this.redis.on('ready', () => {
+      this.fallbackUnauthGlobal = 0
+      this.fallbackPerIpUnauth.clear()
+    })
     this.cleanupInterval = setInterval(
       () => {
         const now = Date.now()
@@ -101,7 +114,7 @@ export class WsConnectionManager {
     this.cleanupInterval.unref?.()
   }
 
-  async canAcceptUnauth(ip: string): Promise<boolean> {
+  async canAcceptUnauth(ip: string): Promise<'redis' | 'fallback' | false> {
     try {
       const result = (await this.redis.eval(
         UNAUTH_LIMIT_LUA,
@@ -112,7 +125,7 @@ export class WsConnectionManager {
         String(WS_CONFIG.MAX_UNAUTH_PER_IP),
         '120',
       )) as number
-      return result === 1
+      return result === 1 ? 'redis' : false
     } catch {
       // Degraded in-memory fallback
       if (this.fallbackUnauthGlobal >= WS_CONFIG.MAX_UNAUTH_GLOBAL) return false
@@ -121,18 +134,21 @@ export class WsConnectionManager {
 
       this.fallbackUnauthGlobal++
       this.fallbackPerIpUnauth.set(ip, ipCount + 1)
-      return true
+      return 'fallback'
     }
   }
 
-  async releaseUnauth(ip: string): Promise<void> {
-    try {
-      await this.redis.decr('ws:unauth:global')
-      await this.redis.decr(`ws:unauth:ip:${ip}`)
-    } catch {
+  async releaseUnauth(ip: string, source: 'redis' | 'fallback'): Promise<void> {
+    if (source === 'fallback') {
       this.fallbackUnauthGlobal = Math.max(0, this.fallbackUnauthGlobal - 1)
-      const ipCount = this.fallbackPerIpUnauth.get(ip) || 1
+      const ipCount = this.fallbackPerIpUnauth.get(ip) ?? 0
       this.fallbackPerIpUnauth.set(ip, Math.max(0, ipCount - 1))
+      return
+    }
+    try {
+      await this.redis.eval(UNAUTH_RELEASE_LUA, 2, 'ws:unauth:global', `ws:unauth:ip:${ip}`)
+    } catch {
+      // Redis reservations expire after two minutes when Redis is unavailable.
     }
   }
 

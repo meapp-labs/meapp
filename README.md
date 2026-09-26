@@ -30,15 +30,18 @@ Prerequisites: [Bun](https://bun.sh) and [Podman](https://podman.io).
 cp apps/server/.env.example apps/server/.env.local
 # edit JWT_SECRET / WS_TICKET_SECRET
 
-# 2. Start redis + server
+# 2. Start Redis, the API server, and Expo
 bun run dev
 
-# 3. In another terminal, run the client
-bun run dev:client        # Expo dev server
-bun run dev:web           # or web only
+# Or run either app separately
+bun run dev:server
+bun run dev:client
+bun run dev:web
 ```
 
 The server listens on `127.0.0.1:3000` (loopback only — Caddy fronts it in production).
+`bun run dev` starts Redis directly through Podman, so it does not require a Compose provider.
+Redis remains available after the dev process exits and is reused on the next run.
 Interactive API docs are served at `/swagger` when the server is running.
 
 ## Development

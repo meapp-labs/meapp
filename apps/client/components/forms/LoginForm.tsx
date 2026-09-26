@@ -37,36 +37,39 @@ export function LoginForm() {
   })
 
   const onSubmit = handleSubmit((data: LoginType) => {
-    mutate(data, {
-      onSuccess: (res) => {
-        if (useAuthStore.getState().username !== data.username) {
-          resetE2EContext()
-          queryClient.clear()
-          useConversationStore.getState().setSelectedConversationId(null)
-          void ConversationStorage.clear()
-        }
-        setUsername(data.username)
+    mutate(
+      { ...data, rememberMe },
+      {
+        onSuccess: async (res) => {
+          if (useAuthStore.getState().username !== data.username) {
+            resetE2EContext()
+            queryClient.clear()
+            useConversationStore.getState().setSelectedConversationId(null)
+            await ConversationStorage.clear()
+          }
 
-        if (typeof res === 'object' && res && 'token' in res) {
-          void AuthStorage.setToken(res.token)
-        }
+          if (typeof res === 'object' && res && 'token' in res) {
+            await AuthStorage.setToken(res.token, rememberMe)
+          }
 
-        if (rememberMe) {
-          void RememberMeStorage.save()
-        } else {
-          void RememberMeStorage.clear()
-        }
+          if (rememberMe) {
+            await RememberMeStorage.save()
+          } else {
+            await RememberMeStorage.clear()
+          }
 
-        router.replace('/')
+          setUsername(data.username)
+          router.replace('/')
+        },
+        onError(error) {
+          Toast.show({
+            type: 'error',
+            text1: 'Login Failed',
+            text2: error.message,
+          })
+        },
       },
-      onError(error) {
-        Toast.show({
-          type: 'error',
-          text1: 'Login Failed',
-          text2: error.message,
-        })
-      },
-    })
+    )
   })
 
   return (

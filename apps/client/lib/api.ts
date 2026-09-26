@@ -91,30 +91,41 @@ async function request<T>(
     options.body = JSON.stringify(body)
   }
 
-  const response = await fetch(url, options)
-
-  const contentType = response.headers.get('content-type')
-  let data: unknown
-  if (contentType?.includes('application/json')) {
-    try {
-      data = await response.json()
-    } catch {
-      data = null
+  // AbortController is supported by both browsers and the native fetch runtime.
+  const controller = new AbortController()
+  const abort = () => controller.abort()
+  if (init?.signal?.aborted) abort()
+  else init?.signal?.addEventListener('abort', abort, { once: true })
+  const timer = setTimeout(abort, 30_000)
+  options.signal = controller.signal
+  try {
+    const response = await fetch(url, options)
+    const contentType = response.headers.get('content-type')
+    let data: unknown
+    if (contentType?.includes('application/json')) {
+      try {
+        data = await response.json()
+      } catch {
+        data = null
+      }
+    } else {
+      try {
+        const text = await response.text()
+        data = text || null
+      } catch {
+        data = null
+      }
     }
-  } else {
-    try {
-      const text = await response.text()
-      data = text || null
-    } catch {
-      data = null
+
+    if (!response.ok) {
+      throw new ApiHttpError(response.status, data, response.statusText)
     }
-  }
 
-  if (!response.ok) {
-    throw new ApiHttpError(response.status, data, response.statusText)
+    return data as T
+  } finally {
+    clearTimeout(timer)
+    init?.signal?.removeEventListener('abort', abort)
   }
-
-  return data as T
 }
 
 export async function getFetcher<T, P = Record<string, unknown>>(

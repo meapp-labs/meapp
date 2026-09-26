@@ -35,6 +35,7 @@ const DEVICE_KEY = 'meapp:e2e:device-id'
 const cacheKey = (messageId: string) => `meapp:e2e:message:${messageId}`
 const pendingKey = (clientId: string) => `meapp:e2e:pending:${clientId}`
 const pendingTextKey = (clientId: string) => `meapp:e2e:pending-text:${clientId}`
+const quarantinedKey = (clientId: string) => `meapp:e2e:quarantined:${clientId}`
 const OUTBOX_KEY = 'meapp:e2e:outbox'
 
 let contextPromise: Promise<E2EContext> | null = null
@@ -44,26 +45,44 @@ async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
   const { storage } = context
   const sent = new Map<string, Message>()
   const raw = await getPrivateMetadata(storage, OUTBOX_KEY)
-  const ids: unknown = raw ? JSON.parse(raw) : []
-  if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
-    throw new Error('Encrypted outbox index is invalid')
+  let ids: unknown
+  try {
+    ids = raw ? JSON.parse(raw) : []
+  } catch {
+    ids = null
   }
+  if (!Array.isArray(ids) || ids.some((id) => typeof id !== 'string')) {
+    await setPrivateMetadata(storage, `${OUTBOX_KEY}:quarantined`, raw ?? '')
+    await setPrivateMetadata(storage, OUTBOX_KEY, '[]')
+    console.warn('[E2E] Quarantined invalid outbox index')
+    return sent
+  }
+  let remaining = ids as string[]
   for (const clientId of ids as string[]) {
     const pending = await getPrivateMetadata(storage, pendingKey(clientId))
     const text = await getPrivateMetadata(storage, pendingTextKey(clientId))
-    if (!pending || text === null) throw new Error('Encrypted outbox entry is incomplete')
-    const payload = encryptedSendSchema.parse(JSON.parse(pending))
-    if (payload.clientId !== clientId || payload.installId !== context.installId) {
-      throw new Error('Encrypted outbox entry belongs to another device')
+    let payload: EncryptedSend | null = null
+    try {
+      if (!pending || text === null) throw new Error('Encrypted outbox entry is incomplete')
+      payload = encryptedSendSchema.parse(JSON.parse(pending))
+      if (payload.clientId !== clientId || payload.installId !== context.installId) {
+        throw new Error('Encrypted outbox entry belongs to another device')
+      }
+    } catch (error) {
+      // Keep the original ciphertext for recovery, but let later sends proceed.
+      await setPrivateMetadata(storage, quarantinedKey(clientId), JSON.stringify({ pending, text }))
+      remaining = remaining.filter((id) => id !== clientId)
+      await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify(remaining))
+      await deletePrivateMetadata(storage, pendingKey(clientId))
+      await deletePrivateMetadata(storage, pendingTextKey(clientId))
+      console.warn('[E2E] Quarantined invalid outbox entry:', clientId, error)
+      continue
     }
     const response = await postFetcher<Message>('send-message', payload)
     await setPrivateMetadata(storage, cacheKey(response.id), text)
     sent.set(clientId, response)
-    await setPrivateMetadata(
-      storage,
-      OUTBOX_KEY,
-      JSON.stringify((ids as string[]).filter((id) => id !== clientId)),
-    )
+    remaining = remaining.filter((id) => id !== clientId)
+    await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify(remaining))
     await deletePrivateMetadata(storage, pendingKey(clientId))
     await deletePrivateMetadata(storage, pendingTextKey(clientId))
   }
@@ -71,7 +90,7 @@ async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
 }
 
 async function openContext(): Promise<E2EContext> {
-  const me = await postFetcher<{ id: string; username: string }>('me', {})
+  const me = await getFetcher<{ id: string; username: string }>('me')
   const storage = await getE2EStore(me.id)
   const accountId = await storage.getMetadata(ACCOUNT_KEY)
   if (accountId && accountId !== me.id) {
@@ -166,6 +185,9 @@ async function sendE2EMessageSerial(
   const recovered = previouslySent.get(clientId)
   if (recovered) {
     return { ...recovered, clientId, roomId: conversationId, userId, from: username, text }
+  }
+  if (await getPrivateMetadata(storage, quarantinedKey(clientId))) {
+    throw new Error('This encrypted send could not be recovered. Please send it again.')
   }
   let pending = await getPrivateMetadata(storage, pendingKey(clientId))
   if (!pending) {

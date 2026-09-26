@@ -37,7 +37,7 @@ export async function linkVerificationCode(
 }
 
 async function installation() {
-  const me = await postFetcher<{ id: string; username: string }>('me', {})
+  const me = await getFetcher<{ id: string; username: string }>('me')
   const storage = await getE2EStore(me.id)
   let installId = await storage.getMetadata(INSTALL_KEY)
   if (!installId) {

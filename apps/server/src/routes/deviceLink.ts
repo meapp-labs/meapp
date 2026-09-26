@@ -28,12 +28,40 @@ type LinkSession = {
   expiresAt: number
 }
 
-const sessions = new Map<string, LinkSession>()
+const sessionSql = `SELECT id, user_id AS userId, owner_install_id AS ownerInstallId,
+  owner_public_key AS ownerPublicKey, new_install_id AS newInstallId,
+  new_public_key AS newPublicKey, platform, encrypted_message AS encryptedMessage,
+  device_id AS deviceId, status, expires_at AS expiresAt FROM device_link_sessions`
+
+function sessionsForUser(userId: string): LinkSession[] {
+  return getDbInstance()
+    .sqlite.query(`${sessionSql} WHERE user_id = ?`)
+    .all(userId) as LinkSession[]
+}
+
+function saveSession(session: LinkSession): void {
+  getDbInstance()
+    .sqlite.query(`UPDATE device_link_sessions SET
+    new_install_id = ?, new_public_key = ?, platform = ?, encrypted_message = ?,
+    status = ?, expires_at = ? WHERE id = ? AND user_id = ?`)
+    .run(
+      session.newInstallId ?? null,
+      session.newPublicKey ?? null,
+      session.platform ?? null,
+      session.encryptedMessage ?? null,
+      session.status,
+      session.expiresAt,
+      session.id,
+      session.userId,
+    )
+}
+
+function deleteSession(sessionId: string): void {
+  getDbInstance().sqlite.query('DELETE FROM device_link_sessions WHERE id = ?').run(sessionId)
+}
 
 export function clearDeviceLinkSessionsForUser(userId: string): void {
-  for (const session of sessions.values()) {
-    if (session.userId === userId) sessions.delete(session.id)
-  }
+  getDbInstance().sqlite.query('DELETE FROM device_link_sessions WHERE user_id = ?').run(userId)
 }
 
 function removePendingDevice(session: LinkSession): void {
@@ -58,18 +86,33 @@ function isPublicKey(value: string): boolean {
   return decoded.length === 32 && decoded.toString('base64') === value
 }
 
-function cleanupExpired(): void {
+export function cleanupExpiredDeviceLinks(): void {
   const now = Date.now()
-  for (const [id, session] of sessions) {
-    if (session.expiresAt > now) continue
-    removePendingDevice(session)
-    sessions.delete(id)
+  const sqlite = getDbInstance().sqlite
+  const expired = sqlite.query(`${sessionSql} WHERE expires_at <= ?`).all(now) as LinkSession[]
+  for (const session of expired) {
+    // A device that already published its identity has completed provisioning.
+    const hasIdentity = sqlite
+      .query('SELECT 1 FROM relay_identities WHERE user_id = ? AND device_id = ?')
+      .get(session.userId, session.deviceId)
+    if (!hasIdentity) removePendingDevice(session)
+    deleteSession(session.id)
   }
+  // Reconcile rows left by a crash after /complete or an old in-memory link.
+  sqlite
+    .query(`DELETE FROM devices WHERE protocol_device_id > 1 AND last_active_at < ?
+      AND NOT EXISTS (
+        SELECT 1 FROM relay_identities ri
+        WHERE ri.user_id = devices.user_id AND ri.device_id = devices.protocol_device_id
+      )`)
+    .run(Math.floor(now / 1000) - 10 * 60)
 }
 
 function getSession(sessionId: string, userId: string): LinkSession {
-  cleanupExpired()
-  const session = sessions.get(sessionId)
+  cleanupExpiredDeviceLinks()
+  const session = getDbInstance()
+    .sqlite.query(`${sessionSql} WHERE id = ? AND user_id = ?`)
+    .get(sessionId, userId) as LinkSession | null
   if (!session || session.userId !== userId) throw createNotFoundError('Device link')
   return session
 }
@@ -152,9 +195,9 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
           .query('DELETE FROM devices WHERE user_id = ? AND protocol_device_id = ?')
           .run(me.id, body.deviceId)
       })()
-      for (const session of sessions.values()) {
+      for (const session of sessionsForUser(me.id)) {
         if (session.userId === me.id && session.deviceId === body.deviceId)
-          sessions.delete(session.id)
+          deleteSession(session.id)
       }
       return { revoked: true }
     },
@@ -164,17 +207,8 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
     '/start',
     ({ body, user }) => {
       const me = requireUser(user)
-      cleanupExpired()
+      cleanupExpiredDeviceLinks()
       const sqlite = getDbInstance().sqlite
-      // A restart can discard a pending in-memory handshake. Reclaim linked
-      // slots that never published an identity after their acknowledgment TTL.
-      sqlite
-        .query(`DELETE FROM devices WHERE user_id = ? AND protocol_device_id > 1
-        AND last_active_at < ? AND NOT EXISTS (
-          SELECT 1 FROM relay_identities ri
-          WHERE ri.user_id = devices.user_id AND ri.device_id = devices.protocol_device_id
-        )`)
-        .run(me.id, Math.floor(Date.now() / 1000) - 10 * 60)
       const owner = sqlite
         .query(
           `SELECT protocol_device_id FROM devices
@@ -186,31 +220,36 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         .get(me.id, body.installId)
       if (!owner || !identity) throw createAuthError('This device has no encryption keys')
       if (!isPublicKey(body.ephemeralPublicKey)) throw createValidationError('Invalid link key')
-      const used = new Set(
-        (
-          sqlite
-            .query('SELECT protocol_device_id AS id FROM devices WHERE user_id = ?')
-            .all(me.id) as Array<{
-            id: number
-          }>
-        ).map((row) => row.id),
-      )
-      for (const session of sessions.values()) {
-        if (session.userId === me.id && session.status !== 'completed') used.add(session.deviceId)
-      }
-      const deviceId = [2, 3, 4, 5].find((id) => !used.has(id))
-      if (!deviceId) throw createDuplicateItemError('This account already has five devices')
-      const id = Bun.randomUUIDv7()
-      sessions.set(id, {
-        id,
-        userId: me.id,
-        ownerInstallId: body.installId,
-        ownerPublicKey: body.ephemeralPublicKey,
-        deviceId,
-        status: 'waiting',
-        expiresAt: Date.now() + SESSION_TTL_MS,
-      })
-      return { sessionId: id }
+      return sqlite.transaction(() => {
+        const used = new Set(
+          (
+            sqlite
+              .query('SELECT protocol_device_id AS id FROM devices WHERE user_id = ?')
+              .all(me.id) as Array<{
+              id: number
+            }>
+          ).map((row) => row.id),
+        )
+        for (const session of sessionsForUser(me.id)) {
+          if (session.userId === me.id && session.status !== 'completed') used.add(session.deviceId)
+        }
+        const deviceId = [2, 3, 4, 5].find((id) => !used.has(id))
+        if (!deviceId) throw createDuplicateItemError('This account already has five devices')
+        const id = Bun.randomUUIDv7()
+        sqlite
+          .query(`INSERT INTO device_link_sessions
+        (id, user_id, owner_install_id, owner_public_key, device_id, status, expires_at)
+        VALUES (?, ?, ?, ?, ?, 'waiting', ?)`)
+          .run(
+            id,
+            me.id,
+            body.installId,
+            body.ephemeralPublicKey,
+            deviceId,
+            Date.now() + SESSION_TTL_MS,
+          )
+        return { sessionId: id }
+      })()
     },
     { body: t.Object({ installId: idField, ephemeralPublicKey: publicKeyField }) },
   )
@@ -232,6 +271,7 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
       session.newPublicKey = body.ephemeralPublicKey
       session.platform = body.platform
       session.status = 'connected'
+      saveSession(session)
       return { connected: true }
     },
     {
@@ -278,6 +318,7 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         throw createValidationError('Device link is not connected')
       session.encryptedMessage = body.encryptedMessage
       session.status = 'ready'
+      saveSession(session)
       return { sent: true }
     },
     {
@@ -297,20 +338,18 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
       if (session.status === 'linked_pending_ack') return { deviceId: session.deviceId }
       if (session.status !== 'ready' || !session.platform)
         throw createValidationError('Device link is not ready')
-      getDbInstance()
-        .sqlite.query(
-          `INSERT INTO devices (user_id, device_id, protocol_device_id, platform, last_active_at, history_complete)
+      const platform = session.platform
+      getDbInstance().sqlite.transaction(() => {
+        getDbInstance()
+          .sqlite.query(
+            `INSERT INTO devices (user_id, device_id, protocol_device_id, platform, last_active_at, history_complete)
            VALUES (?, ?, ?, ?, ?, 0)`,
-        )
-        .run(
-          me.id,
-          body.installId,
-          session.deviceId,
-          session.platform,
-          Math.floor(Date.now() / 1000),
-        )
-      session.status = 'linked_pending_ack'
-      session.expiresAt = Date.now() + SESSION_TTL_MS
+          )
+          .run(me.id, body.installId, session.deviceId, platform, Math.floor(Date.now() / 1000))
+        session.status = 'linked_pending_ack'
+        session.expiresAt = Date.now() + SESSION_TTL_MS
+        saveSession(session)
+      })()
       return { deviceId: session.deviceId }
     },
     { body: t.Object({ sessionId: idField, installId: idField }) },
@@ -325,7 +364,7 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         throw createValidationError('Device link is not awaiting acknowledgment')
       session.status = 'completed'
       session.encryptedMessage = undefined
-      sessions.delete(session.id)
+      deleteSession(session.id)
       return { linked: true }
     },
     { body: t.Object({ sessionId: idField, installId: idField }) },
@@ -390,7 +429,7 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         throw createAuthError('Not part of this device link')
       }
       removePendingDevice(session)
-      sessions.delete(session.id)
+      deleteSession(session.id)
       return { cancelled: true }
     },
     { body: t.Object({ sessionId: idField, installId: idField }) },

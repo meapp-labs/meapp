@@ -11,17 +11,14 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     const ticketRule = getRouteRuleAndLimit('POST', '/ws/ticket')
     expect(ticketRule.max).toBe(20)
 
-    const getMessagesRule = getRouteRuleAndLimit(
-      'GET',
-      '/rooms/123e4567-e89b-12d3-a456-426614174000/messages',
-    )
+    const getMessagesRule = getRouteRuleAndLimit('GET', '/api/get-messages')
     expect(getMessagesRule.max).toBe(100)
 
-    const postMessagesRule = getRouteRuleAndLimit(
-      'POST',
-      '/rooms/123e4567-e89b-12d3-a456-426614174000/messages',
-    )
+    const postMessagesRule = getRouteRuleAndLimit('POST', '/api/send-message')
     expect(postMessagesRule.max).toBe(30)
+
+    const bundleRule = getRouteRuleAndLimit('POST', '/api/e2e/relay/bundle')
+    expect(bundleRule.max).toBe(30)
 
     const defaultRule = getRouteRuleAndLimit('GET', '/other/endpoint')
     expect(defaultRule.max).toBe(100)
@@ -76,15 +73,13 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     expect(blocked.status).toBe(429)
   })
 
-  it('enforces POST /rooms/:roomId/messages limit (30/min per user)', async () => {
-    const app = new Elysia()
-      .use(rateLimitPlugin)
-      .post('/rooms/123e4567-e89b-12d3-a456-426614174000/messages', () => ({ ok: true }))
+  it('enforces POST /api/send-message limit (30/min per user)', async () => {
+    const app = new Elysia().use(rateLimitPlugin).post('/api/send-message', () => ({ ok: true }))
 
     const testUser = `user-post-${Math.random()}`
     for (let i = 0; i < 30; i++) {
       const res = await app.handle(
-        new Request('http://localhost/rooms/123e4567-e89b-12d3-a456-426614174000/messages', {
+        new Request('http://localhost/api/send-message', {
           method: 'POST',
           headers: { 'x-forwarded-for': testUser },
         }),
@@ -93,7 +88,7 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     }
 
     const blocked = await app.handle(
-      new Request('http://localhost/rooms/123e4567-e89b-12d3-a456-426614174000/messages', {
+      new Request('http://localhost/api/send-message', {
         method: 'POST',
         headers: { 'x-forwarded-for': testUser },
       }),

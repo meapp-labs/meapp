@@ -1,4 +1,5 @@
 import { Elysia } from 'elysia'
+import { clientIpOf } from '../lib/clientIp.ts'
 import { ErrorCode } from '../lib/errors.ts'
 import { authPlugin } from './auth.ts'
 import { redis } from './redis.ts'
@@ -94,23 +95,9 @@ export const routePatterns: RouteRule[] = [
   },
   {
     method: 'POST',
-    regex: /^\/api\/e2e\/bundle$/,
-    key: 'POST:/api/e2e/bundle',
-    max: 10,
-    windowMs: 60000, // 10/min per user (Phase 10 §10.9)
-  },
-  {
-    method: 'GET',
-    regex: /^\/api\/e2e\/bundle$/,
-    key: 'GET:/api/e2e/bundle',
+    regex: /^\/api\/e2e\/relay\/bundle$/,
+    key: 'POST:/api/e2e/relay/bundle',
     max: 30,
-    windowMs: 60000, // 30/min per user (Phase 10 §10.9)
-  },
-  {
-    method: 'POST',
-    regex: /^\/api\/e2e\/device$/,
-    key: 'POST:/api/e2e/device',
-    max: 10,
     windowMs: 60000,
   },
   {
@@ -147,20 +134,6 @@ export const routePatterns: RouteRule[] = [
     key: 'POST:/api/e2e/recovery/backup-parts',
     max: 120,
     windowMs: 60000,
-  },
-  {
-    method: 'GET',
-    regex: /^\/rooms\/[^/]+\/messages$/,
-    key: 'GET:/rooms/:roomId/messages',
-    max: 100,
-    windowMs: 60000, // 100/min per user
-  },
-  {
-    method: 'POST',
-    regex: /^\/rooms\/[^/]+\/messages$/,
-    key: 'POST:/rooms/:roomId/messages',
-    max: 30,
-    windowMs: 60000, // 30/min per user
   },
 ]
 
@@ -206,10 +179,7 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
     const path = url.pathname
     const method = request.method
 
-    // requestIP is authoritative; x-forwarded-for is client-forgeable.
-    const socketIp = server?.requestIP?.(request)?.address
-    const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-    const ip = socketIp || forwarded || '127.0.0.1'
+    const ip = clientIpOf(request, server)
 
     // E2E group sends contain one ciphertext per recipient; key publication
     // contains a batch of post-quantum public keys. The socket enforces 700KB.

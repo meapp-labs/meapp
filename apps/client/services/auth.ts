@@ -20,7 +20,7 @@ export function useRegisterUser() {
 export type LoginResult = string | { username: string; token: string }
 
 export function useLoginUser() {
-  return useMutation<LoginResult, ApiError, LoginType>({
+  return useMutation<LoginResult, ApiError, LoginType & { rememberMe: boolean }>({
     mutationFn: (body) => postFetcher(Keys.Mutation.LOGIN, { ...body, platform: Platform.OS }),
   })
 }

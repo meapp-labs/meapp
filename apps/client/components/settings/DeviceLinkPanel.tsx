@@ -1,5 +1,5 @@
 import { Text } from '@/components/common/Text'
-import { postFetcher } from '@/lib/api'
+import { getFetcher } from '@/lib/api'
 import {
   approveDeviceLink,
   connectDeviceLink,
@@ -227,7 +227,7 @@ export function DeviceLinkPanel({
     setRecoverError(false)
     setMessage('Restoring encrypted chats…')
     try {
-      const me = await postFetcher<{ id: string }>('me', {})
+      const me = await getFetcher<{ id: string }>('me')
       await restoreRecoveryBackup(me.id, recoveryKey)
       resetE2EContext()
       await getE2EContext()

@@ -49,9 +49,12 @@ export class RedisPubsub {
 
   async publish(channel: string, message: string): Promise<boolean> {
     try {
+      // Decide local-delivery fallback before publishing. A disconnect after
+      // publish must not make the caller broadcast the same message twice.
       if (this.redis.status === 'ready') {
+        const localDeliveryReady = this.subscriber?.status === 'ready'
         await this.redis.publish(channel, message)
-        return this.subscriber?.status === 'ready'
+        return localDeliveryReady
       }
     } catch {}
     return false
