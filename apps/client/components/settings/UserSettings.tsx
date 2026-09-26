@@ -8,6 +8,7 @@ import { theme } from '@/theme/theme'
 
 import { DeviceLinkPanel } from './DeviceLinkPanel'
 import { Notifications } from './Notifications'
+import { RecoveryKeyPanel } from './RecoveryKeyPanel'
 
 type UserSettingsProps = {
   showSettings: boolean
@@ -22,6 +23,7 @@ const optionsPlaceholder: {
   { name: 'Personal Info', icon: 'person-outline' },
   { name: 'Emails & Password', icon: 'key' },
   { name: 'Linked devices', icon: 'devices', component: () => <DeviceLinkPanel mode="approve" /> },
+  { name: 'Recovery key', icon: 'vpn-key', component: RecoveryKeyPanel },
   {
     name: 'Notifications',
     icon: 'mark-chat-unread',

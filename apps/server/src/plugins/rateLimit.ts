@@ -79,14 +79,15 @@ export const routePatterns: RouteRule[] = [
   },
   {
     method: 'POST',
-    regex: /^\/api\/(add-other|remove-other)$/,
+    regex:
+      /^\/api\/(add-other|remove-other|friend-requests\/(accept|cancel|ignore)|ignored-users\/remove)$/,
     key: 'POST:/api/others',
     max: 30,
     windowMs: 60000,
   },
   {
     method: 'GET',
-    regex: /^\/api\/get-others$/,
+    regex: /^\/api\/(get-others|friend-requests|ignored-users)$/,
     key: 'GET:/api/get-others',
     max: 100,
     windowMs: 60000,
@@ -131,6 +132,20 @@ export const routePatterns: RouteRule[] = [
     regex: /^\/api\/e2e\/link\/history$/,
     key: 'POST:/api/e2e/link/history',
     max: 100,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/e2e\/recovery\/(backup|claim)$/,
+    key: 'POST:/api/e2e/recovery',
+    max: 10,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/e2e\/recovery\/backup\/(chunk|commit)$/,
+    key: 'POST:/api/e2e/recovery/backup-parts',
+    max: 120,
     windowMs: 60000,
   },
   {
@@ -205,7 +220,8 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
         method === 'POST' &&
         (path === '/api/send-message' ||
           path === '/api/e2e/relay/prekeys' ||
-          path === '/api/e2e/link/history')
+          path === '/api/e2e/link/history' ||
+          path === '/api/e2e/recovery/backup/chunk')
       const maxBytes = needsE2EBatch ? 700 * 1024 : 100 * 1024
       if (bytes > maxBytes) {
         set.status = 413

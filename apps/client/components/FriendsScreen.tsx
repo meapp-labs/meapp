@@ -3,8 +3,8 @@ import { ActivityIndicator, FlatList, StyleSheet, View } from 'react-native'
 
 import { ConversationItem } from '@/components/ConversationItem'
 import { Logout } from '@/components/Logout'
-import { AddFriend } from '@/components/chat/AddFriend'
 import { CreateGroup } from '@/components/chat/CreateGroup'
+import { FriendRequests } from '@/components/chat/FriendRequests'
 import { TopMenu } from '@/components/forms/TopMenu'
 import { UserSettings } from '@/components/settings/UserSettings'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
@@ -64,7 +64,7 @@ export function FriendsScreen() {
 
       <View style={styles.buttons}>
         <UserSettings showSettings={showSettings} setShowSettings={setShowSettings} />
-        <AddFriend />
+        <FriendRequests />
         <CreateGroup />
         <Logout />
       </View>

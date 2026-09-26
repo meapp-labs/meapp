@@ -23,7 +23,10 @@ const api = async (
   path: string,
   init: { method?: string; body?: unknown; cookie?: string } = {},
 ): Promise<Response> => {
-  const headers = new Headers({ 'content-type': 'application/json' })
+  const headers = new Headers({
+    'content-type': 'application/json',
+    'x-forwarded-for': `api-test-${runId}`,
+  })
   if (init.cookie) headers.set('cookie', init.cookie)
 
   return app.handle(
@@ -128,7 +131,12 @@ describe('REST API (Drizzle SQLite backend)', () => {
     expect(res.status).toBe(201)
   })
 
-  it('manages contacts', async () => {
+  it('requires acceptance and prevents ignored senders from requesting again', async () => {
+    const bobLogin = await api('/login', {
+      method: 'POST',
+      body: { username: bob, password, platform: 'web' },
+    })
+    const bobCookie = cookieHeaderFrom(bobLogin)
     const self = await api('/add-other', {
       method: 'POST',
       body: { other: alice },
@@ -152,6 +160,18 @@ describe('REST API (Drizzle SQLite backend)', () => {
     expect(added.status).toBe(200)
     expect(await added.text()).toBe(bob)
 
+    const pending = await api('/friend-requests', { cookie: bobCookie })
+    expect(await pending.json()).toEqual({ incoming: [alice], outgoing: [] })
+
+    const beforeAccept = await api('/get-others', { cookie: sessionCookie })
+    expect(await beforeAccept.json()).toEqual([])
+    const prematureDm = await api('/conversations', {
+      method: 'POST',
+      body: { type: 'dm', participants: [bob] },
+      cookie: sessionCookie,
+    })
+    expect(prematureDm.status).toBe(403)
+
     const duplicate = await api('/add-other', {
       method: 'POST',
       body: { other: bob },
@@ -159,9 +179,43 @@ describe('REST API (Drizzle SQLite backend)', () => {
     })
     expect(duplicate.status).toBe(409)
 
+    const cannotCancelReceived = await api('/friend-requests/cancel', {
+      method: 'POST',
+      body: { other: alice },
+      cookie: bobCookie,
+    })
+    expect(cannotCancelReceived.status).toBe(404)
+    const cancelled = await api('/friend-requests/cancel', {
+      method: 'POST',
+      body: { other: bob },
+      cookie: sessionCookie,
+    })
+    expect(cancelled.status).toBe(200)
+    expect(await (await api('/friend-requests', { cookie: bobCookie })).json()).toEqual({
+      incoming: [],
+      outgoing: [],
+    })
+    expect(
+      (
+        await api('/add-other', {
+          method: 'POST',
+          body: { other: bob },
+          cookie: sessionCookie,
+        })
+      ).status,
+    ).toBe(200)
+
+    const accepted = await api('/friend-requests/accept', {
+      method: 'POST',
+      body: { other: alice },
+      cookie: bobCookie,
+    })
+    expect(accepted.status).toBe(200)
     const others = await api('/get-others', { cookie: sessionCookie })
     expect(others.status).toBe(200)
     expect(await others.json()).toEqual([bob])
+    const bobsFriends = await api('/get-others', { cookie: bobCookie })
+    expect(await bobsFriends.json()).toEqual([alice])
 
     const removed = await api('/remove-other', {
       method: 'POST',
@@ -177,6 +231,56 @@ describe('REST API (Drizzle SQLite backend)', () => {
       cookie: sessionCookie,
     })
     expect(removedAgain.status).toBe(404)
+
+    const sentAgain = await api('/add-other', {
+      method: 'POST',
+      body: { other: alice },
+      cookie: bobCookie,
+    })
+    expect(sentAgain.status).toBe(200)
+    const ignored = await api('/friend-requests/ignore', {
+      method: 'POST',
+      body: { other: bob },
+      cookie: sessionCookie,
+    })
+    expect(ignored.status).toBe(200)
+    expect(await (await api('/ignored-users', { cookie: sessionCookie })).json()).toEqual([bob])
+    expect(await (await api('/friend-requests', { cookie: sessionCookie })).json()).toEqual({
+      incoming: [],
+      outgoing: [],
+    })
+    const blocked = await api('/add-other', {
+      method: 'POST',
+      body: { other: alice },
+      cookie: bobCookie,
+    })
+    expect(blocked.status).toBe(403)
+
+    const unignored = await api('/ignored-users/remove', {
+      method: 'POST',
+      body: { other: bob },
+      cookie: sessionCookie,
+    })
+    expect(unignored.status).toBe(200)
+    expect(await (await api('/ignored-users', { cookie: sessionCookie })).json()).toEqual([])
+    expect(
+      (
+        await api('/add-other', {
+          method: 'POST',
+          body: { other: alice },
+          cookie: bobCookie,
+        })
+      ).status,
+    ).toBe(200)
+    expect(
+      (
+        await api('/friend-requests/accept', {
+          method: 'POST',
+          body: { other: bob },
+          cookie: sessionCookie,
+        })
+      ).status,
+    ).toBe(200)
   })
 
   it('creates a DM once and returns the same conversation on repeat', async () => {

@@ -3,7 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { useConversationStore } from '@/lib/stores'
-import type { Conversation, CreateConversationInput } from '@meapp/shared'
+import { decryptE2EMessage, getE2EInstallId } from '@/services/e2e'
+import type { Conversation, CreateConversationInput, MessagesResponse } from '@meapp/shared'
 
 /**
  * Create or get existing conversation
@@ -36,6 +37,35 @@ export function useGetConversations(enabled = true) {
     queryFn: () => getFetcher<Conversation[]>(Keys.Query.GET_CONVERSATIONS),
     enabled,
     staleTime: 30000, // 30 seconds
+    refetchInterval: 15000,
+  })
+}
+
+/** Decrypts the latest message on this device for the conversation list. */
+export function useConversationPreview(conversation: Conversation) {
+  return useQuery<string | null, ApiError>({
+    queryKey: [Keys.Query.CONVERSATION_PREVIEW, conversation.id, conversation.lastMessageId],
+    enabled: Boolean(conversation.lastMessageId && conversation.lastMessageEncrypted),
+    queryFn: async () => {
+      const installId = await getE2EInstallId()
+      const response = await getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, {
+        conversationId: conversation.id,
+        installId,
+        limit: '16',
+      })
+      let preview: string | null = null
+      for (const message of response.messages) {
+        try {
+          const decrypted = await decryptE2EMessage(message)
+          if (message.id === conversation.lastMessageId) preview = decrypted.text ?? null
+        } catch {
+          if (message.id === conversation.lastMessageId) preview = null
+        }
+      }
+      return preview
+    },
+    staleTime: Number.POSITIVE_INFINITY,
+    retry: 1,
   })
 }
 

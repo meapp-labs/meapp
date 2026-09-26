@@ -26,9 +26,9 @@ function getDisplayName(
   currentUsername: string,
 ): string {
   if (!conversation) return ''
-  if (conversation.name) return conversation.name
   const other = conversation.participants.find((p) => p !== currentUsername)
-  return other || 'Chat'
+  if (!conversation.isGroup) return other || 'Chat'
+  return conversation.name || conversation.participants.join(', ') || 'Group'
 }
 
 export function ChatHeader() {

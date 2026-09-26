@@ -9,6 +9,7 @@ export const Keys = {
     IGNORED_USERS: 'ignored-users',
     GET_MESSAGES: 'get-messages',
     GET_CONVERSATIONS: 'conversations',
+    CONVERSATION_PREVIEW: 'conversation-preview',
     ME: 'me',
   },
   Mutation: {
@@ -19,6 +20,7 @@ export const Keys = {
     LOGOUT: 'logout',
     ADD_FRIEND: 'add-other',
     ACCEPT_FRIEND_REQUEST: 'friend-requests/accept',
+    CANCEL_FRIEND_REQUEST: 'friend-requests/cancel',
     IGNORE_FRIEND_REQUEST: 'friend-requests/ignore',
     UNIGNORE_USER: 'ignored-users/remove',
     REMOVE_FRIEND: 'remove-other',

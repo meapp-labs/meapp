@@ -295,3 +295,41 @@ export const contacts = sqliteTable(
 
 export type Contact = typeof contacts.$inferSelect
 export type NewContact = typeof contacts.$inferInsert
+
+export const friendRequests = sqliteTable(
+  'friend_requests',
+  {
+    senderId: text('sender_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    recipientId: text('recipient_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.senderId, t.recipientId] }),
+    index('friend_requests_recipient_idx').on(t.recipientId),
+  ],
+)
+
+export const ignoredUsers = sqliteTable(
+  'ignored_users',
+  {
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    ignoredUserId: text('ignored_user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.ignoredUserId] }),
+    index('ignored_users_ignored_idx').on(t.ignoredUserId),
+  ],
+)

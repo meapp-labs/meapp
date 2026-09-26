@@ -13,6 +13,7 @@ import { type EncryptedSend, type Message, encryptedSendSchema } from '@meapp/sh
 import { deletePrivateMetadata, getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata'
 import { createMeappRelay } from './e2eRelay'
 import { getE2EStore } from './e2eStore'
+import { scheduleRecoveryBackup } from './recovery'
 
 type ProtocolClient = Awaited<ReturnType<typeof createSignalProtocolClient>>
 type Ciphertext = Parameters<ProtocolClient['decryptMessage']>[1]
@@ -114,6 +115,7 @@ async function openContext(): Promise<E2EContext> {
   await flushOutbox(context).catch((error: unknown) => {
     console.warn('[E2E] Encrypted outbox retry deferred:', error)
   })
+  scheduleRecoveryBackup(context)
   return context
 }
 
@@ -218,6 +220,7 @@ async function sendE2EMessageSerial(
   }
   const sent = (await flushOutbox(context)).get(clientId)
   if (!sent) throw new Error('Encrypted message was not confirmed by the server')
+  scheduleRecoveryBackup(context)
   return {
     id: sent.id,
     clientId,
@@ -234,7 +237,7 @@ async function sendE2EMessageSerial(
 
 export async function decryptE2EMessage(message: Message): Promise<Message> {
   if (!message.ciphertext) return message
-  const { client, storage, userId, deviceId } = await getE2EContext()
+  const { client, storage, userId, deviceId, installId } = await getE2EContext()
   const cached = await getPrivateMetadata(storage, cacheKey(message.id))
   if (cached !== null) {
     const { ciphertext: _ciphertext, ...rest } = message
@@ -250,6 +253,7 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
       : null
     if (pendingText !== null) {
       await setPrivateMetadata(storage, cacheKey(message.id), pendingText)
+      scheduleRecoveryBackup({ storage, userId, installId })
       const { ciphertext: _ciphertext, ...rest } = message
       return { ...rest, text: pendingText }
     }
@@ -281,6 +285,7 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
     throw new Error('Encrypted message metadata failed verification')
   }
   await setPrivateMetadata(storage, cacheKey(message.id), decoded.text)
+  scheduleRecoveryBackup({ storage, userId, installId })
   const { ciphertext: _ciphertext, ...rest } = message
   return { ...rest, text: decoded.text }
 }

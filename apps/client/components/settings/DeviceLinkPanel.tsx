@@ -1,4 +1,5 @@
 import { Text } from '@/components/common/Text'
+import { postFetcher } from '@/lib/api'
 import {
   approveDeviceLink,
   connectDeviceLink,
@@ -10,16 +11,24 @@ import {
   revokeLinkedDevice,
   startDeviceLink,
 } from '@/services/deviceLink'
+import { ensureLinkedHistoryReady } from '@/services/deviceLink'
+import { getE2EContext, resetE2EContext } from '@/services/e2e'
+import { recoveryStatus, restoreRecoveryBackup } from '@/services/recovery'
 import { theme } from '@/theme/theme'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useRef, useState } from 'react'
-import { Pressable, StyleSheet, TextInput, View } from 'react-native'
+import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 
 export function DeviceLinkPanel({
   mode,
   onLinked,
-}: { mode: 'approve' | 'recover'; onLinked?: () => void }) {
+  onCancel,
+}: { mode: 'approve' | 'recover'; onLinked?: () => void; onCancel?: () => void }) {
   const [code, setCode] = useState('')
   const [message, setMessage] = useState('')
+  const [recoverError, setRecoverError] = useState(false)
+  const [recoveryKey, setRecoveryKey] = useState('')
+  const [recoveryAvailable, setRecoveryAvailable] = useState<boolean | null>(null)
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<Awaited<ReturnType<typeof startDeviceLink>> | null>(null)
   const [historyTargetId, setHistoryTargetId] = useState<number | null>(null)
@@ -29,12 +38,27 @@ export function DeviceLinkPanel({
   const [confirmRevoke, setConfirmRevoke] = useState<number | null>(null)
   const [verificationCode, setVerificationCode] = useState<string | null>(null)
   const approved = useRef(false)
+  const cancelled = useRef(false)
+
+  useEffect(
+    () => () => {
+      cancelled.current = true
+    },
+    [],
+  )
 
   useEffect(() => {
     if (mode !== 'approve') return
     void listLinkedDevices()
       .then(setLinkedDevices)
       .catch(() => {})
+  }, [mode])
+
+  useEffect(() => {
+    if (mode !== 'recover' || Platform.OS !== 'web') return
+    void recoveryStatus()
+      .then((status) => setRecoveryAvailable(status.available))
+      .catch(() => setRecoveryAvailable(false))
   }, [mode])
 
   useEffect(() => {
@@ -160,10 +184,13 @@ export function DeviceLinkPanel({
   }
 
   const recover = async () => {
+    cancelled.current = false
     setBusy(true)
+    setRecoverError(false)
     try {
       setMessage('Connecting to the approving device…')
       const connected = await connectDeviceLink(code)
+      if (cancelled.current) return
       const comparisonCode = await linkVerificationCode(
         connected.sessionId,
         connected.primaryEphemeralPublicKey,
@@ -172,7 +199,14 @@ export function DeviceLinkPanel({
       setMessage(
         `Waiting for approval. Confirm that ${comparisonCode} appears on the other device.`,
       )
-      const result = await finishDeviceLink(connected, setMessage)
+      const result = await finishDeviceLink(
+        connected,
+        (progress) => {
+          if (!cancelled.current) setMessage(progress)
+        },
+        () => cancelled.current,
+      )
+      if (cancelled.current) return
       setMessage(
         result.unavailable
           ? `Device linked. ${result.unavailable} older messages were unavailable on the approving device.`
@@ -180,10 +214,153 @@ export function DeviceLinkPanel({
       )
       onLinked?.()
     } catch (error) {
-      setMessage(String(error))
+      if (cancelled.current) return
+      setRecoverError(true)
+      setMessage(error instanceof Error ? error.message : 'Could not link this device. Try again.')
     } finally {
       setBusy(false)
     }
+  }
+
+  const recoverFromKey = async () => {
+    setBusy(true)
+    setRecoverError(false)
+    setMessage('Restoring encrypted chats…')
+    try {
+      const me = await postFetcher<{ id: string }>('me', {})
+      await restoreRecoveryBackup(me.id, recoveryKey)
+      resetE2EContext()
+      await getE2EContext()
+      await ensureLinkedHistoryReady()
+      onLinked?.()
+    } catch (error) {
+      setRecoverError(true)
+      setMessage(error instanceof Error ? error.message : 'Could not restore encrypted chats')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (mode === 'recover') {
+    return (
+      <ScrollView
+        style={styles.recoverScreen}
+        contentContainerStyle={styles.recoverContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.recoverCard}>
+          <View style={styles.recoverIcon}>
+            <MaterialIcons name="enhanced-encryption" size={28} color={theme.colors.primary} />
+          </View>
+          <Text style={styles.recoverTitle}>Recover encrypted chats</Text>
+          <Text style={styles.recoverSubtitle}>
+            Link this device to access your conversations securely.
+          </Text>
+
+          <View style={styles.recoverSteps}>
+            <View style={styles.recoverStep}>
+              <Text style={styles.stepNumber}>1</Text>
+              <Text style={styles.stepText}>
+                On your existing device, open Settings → Linked devices.
+              </Text>
+            </View>
+            <View style={styles.recoverStep}>
+              <Text style={styles.stepNumber}>2</Text>
+              <Text style={styles.stepText}>Generate a link code and paste it below.</Text>
+            </View>
+            <View style={styles.recoverStep}>
+              <Text style={styles.stepNumber}>3</Text>
+              <Text style={styles.stepText}>
+                Compare the verification codes, then approve the link.
+              </Text>
+            </View>
+          </View>
+
+          <Text style={styles.inputLabel}>Link code</Text>
+          <TextInput
+            accessibilityLabel="Link code"
+            value={code}
+            onChangeText={(value) => {
+              setCode(value)
+              setMessage('')
+              setRecoverError(false)
+            }}
+            autoCapitalize="none"
+            autoCorrect={false}
+            placeholder="Paste link code"
+            placeholderTextColor={theme.colors.textTertiary}
+            style={styles.recoverInput}
+          />
+          {message ? (
+            <View style={[styles.statusBox, recoverError && styles.statusError]}>
+              <MaterialIcons
+                name={recoverError ? 'error-outline' : 'info-outline'}
+                size={19}
+                color={recoverError ? theme.colors.error : theme.colors.primary}
+              />
+              <Text style={styles.statusText}>{message}</Text>
+            </View>
+          ) : null}
+          <Pressable
+            accessibilityRole="button"
+            style={[styles.recoverButton, (busy || !code.trim()) && styles.disabledButton]}
+            disabled={busy || !code.trim()}
+            onPress={() => void recover()}
+          >
+            <Text style={styles.recoverButtonText}>{busy ? 'Connecting…' : 'Connect device'}</Text>
+          </Pressable>
+          {Platform.OS === 'web' && (
+            <View style={styles.recoveryOption}>
+              <Text style={styles.inputLabel}>No linked device available?</Text>
+              <Text style={styles.stepText}>
+                Use a recovery key saved before the original browser was closed.
+              </Text>
+              {recoveryAvailable === false ? (
+                <Text style={styles.stepText}>
+                  No recovery backup exists for this account yet. An old device is required to
+                  create one.
+                </Text>
+              ) : (
+                <>
+                  <TextInput
+                    accessibilityLabel="Recovery key"
+                    value={recoveryKey}
+                    onChangeText={setRecoveryKey}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    placeholder="Paste recovery key"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    style={styles.recoverInput}
+                    secureTextEntry
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy || !recoveryKey.trim()}
+                    style={[
+                      styles.secondaryButton,
+                      (busy || !recoveryKey.trim()) && styles.disabledButton,
+                    ]}
+                    onPress={() => void recoverFromKey()}
+                  >
+                    <Text style={styles.secondaryButtonText}>Recover with key</Text>
+                  </Pressable>
+                </>
+              )}
+            </View>
+          )}
+          <Pressable
+            accessibilityRole="button"
+            style={styles.cancelButton}
+            onPress={() => {
+              cancelled.current = true
+              onCancel?.()
+            }}
+          >
+            <Text style={styles.cancelText}>Cancel and return to login</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    )
   }
 
   return (
@@ -292,6 +469,100 @@ export function DeviceLinkPanel({
 }
 
 const styles = StyleSheet.create({
+  recoverScreen: { flex: 1, width: '100%' },
+  recoverContent: {
+    flexGrow: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+  },
+  recoverCard: {
+    width: '100%',
+    maxWidth: 480,
+    padding: theme.spacing.xl,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    backgroundColor: theme.colors.surface,
+    gap: theme.spacing.md,
+  },
+  recoverIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recoverTitle: { ...theme.typography.h1, fontWeight: '700' },
+  recoverSubtitle: { color: theme.colors.textSecondary, lineHeight: 22 },
+  recoverSteps: {
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    paddingVertical: theme.spacing.md,
+    gap: theme.spacing.md,
+  },
+  recoverStep: { flexDirection: 'row', alignItems: 'flex-start', gap: theme.spacing.sm },
+  stepNumber: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    overflow: 'hidden',
+    textAlign: 'center',
+    lineHeight: 22,
+    backgroundColor: theme.colors.card,
+    color: theme.colors.primary,
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  stepText: { flex: 1, color: theme.colors.textSecondary, lineHeight: 22, fontSize: 14 },
+  inputLabel: { color: theme.colors.text, fontWeight: '600', marginBottom: -8 },
+  recoverInput: {
+    minHeight: 52,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
+    color: theme.colors.text,
+    paddingHorizontal: theme.spacing.md,
+  },
+  statusBox: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: theme.spacing.sm,
+    borderRadius: 10,
+    padding: theme.spacing.md,
+    backgroundColor: theme.colors.card,
+  },
+  statusError: { borderWidth: 1, borderColor: theme.colors.error },
+  statusText: { flex: 1, color: theme.colors.textSecondary, lineHeight: 20, fontSize: 14 },
+  recoverButton: {
+    minHeight: 50,
+    borderRadius: 10,
+    backgroundColor: theme.colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  recoverButtonText: { color: '#111', fontWeight: '700' },
+  recoveryOption: {
+    borderTopWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    paddingTop: theme.spacing.md,
+    gap: theme.spacing.sm,
+  },
+  secondaryButton: {
+    minHeight: 48,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  secondaryButtonText: { color: theme.colors.text, fontWeight: '600' },
+  disabledButton: { opacity: 0.5 },
+  cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  cancelText: { color: theme.colors.textSecondary, fontWeight: '600' },
   container: { padding: 20, gap: 16, maxWidth: 560 },
   title: { ...theme.typography.h2 },
   button: { backgroundColor: theme.colors.surface, padding: 12, borderRadius: 8 },

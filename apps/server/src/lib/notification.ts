@@ -11,6 +11,7 @@ export type ExpoPushNotificationOptions = {
   messageIndex: number
   timestamp: string
   channelId?: string
+  kind?: 'friend_request'
 }
 
 export const sendPushNotification = async (options: ExpoPushNotificationOptions): Promise<void> => {
@@ -21,6 +22,7 @@ export const sendPushNotification = async (options: ExpoPushNotificationOptions)
     messageIndex,
     timestamp,
     channelId = NOTIFICATION_CHANNELS.MESSAGES,
+    kind,
   } = options
 
   const payload = JSON.stringify({
@@ -28,6 +30,7 @@ export const sendPushNotification = async (options: ExpoPushNotificationOptions)
     title: senderUsername,
     body: messageText,
     data: {
+      kind,
       from: senderUsername,
       text: messageText,
       index: messageIndex,

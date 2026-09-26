@@ -30,6 +30,16 @@ CREATE TABLE `devices` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `devices_user_protocol_device_unique` ON `devices` (`user_id`,`protocol_device_id`);--> statement-breakpoint
+CREATE TABLE `friend_requests` (
+	`sender_id` text NOT NULL,
+	`recipient_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	PRIMARY KEY(`sender_id`, `recipient_id`),
+	FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`recipient_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `friend_requests_recipient_idx` ON `friend_requests` (`recipient_id`);--> statement-breakpoint
 CREATE TABLE `identity_keys` (
 	`user_id` text NOT NULL,
 	`device_id` text NOT NULL,
@@ -41,6 +51,16 @@ CREATE TABLE `identity_keys` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_identity_user` ON `identity_keys` (`user_id`);--> statement-breakpoint
+CREATE TABLE `ignored_users` (
+	`user_id` text NOT NULL,
+	`ignored_user_id` text NOT NULL,
+	`created_at` integer NOT NULL,
+	PRIMARY KEY(`user_id`, `ignored_user_id`),
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`ignored_user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `ignored_users_ignored_idx` ON `ignored_users` (`ignored_user_id`);--> statement-breakpoint
 CREATE TABLE `message_envelopes` (
 	`message_id` text NOT NULL,
 	`target_user_id` text NOT NULL,

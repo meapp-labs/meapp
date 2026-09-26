@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { useConversationPreview } from '@/services/conversations'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import type { Conversation } from '@meapp/shared'
@@ -17,10 +18,17 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { username } = useAuthStore()
 
-  const displayName =
-    conversation.name ||
-    conversation.participants.filter((p) => p !== username && p !== '').join(', ') ||
-    'Unknown'
+  const others = conversation.participants.filter(
+    (participant) => participant && participant !== username,
+  )
+  const displayName = conversation.isGroup
+    ? conversation.name || others.join(', ') || 'Group'
+    : others[0] || 'Unknown'
+  const preview = useConversationPreview(conversation)
+  const lastMessagePreview = conversation.lastMessageEncrypted
+    ? (preview.data ??
+      (preview.isPending ? 'Loading message…' : 'Message unavailable on this device'))
+    : conversation.lastMessagePreview
   const isSelected = selectedConversationId === conversation.id
 
   const handleSelect = () => {
@@ -45,9 +53,9 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
         />
         <View style={styles.content}>
           <Text>{displayName}</Text>
-          {conversation.lastMessagePreview && (
+          {lastMessagePreview && (
             <Text style={theme.typography.caption} numberOfLines={1}>
-              {conversation.lastMessagePreview}
+              {lastMessagePreview}
             </Text>
           )}
         </View>

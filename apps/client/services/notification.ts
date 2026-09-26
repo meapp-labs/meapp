@@ -34,6 +34,17 @@ export function handleIncomingNotification(
 ) {
   const { title, body, data } = notification.request.content
 
+  if (data?.kind === 'friend_request') {
+    void queryClient.invalidateQueries({ queryKey: [Keys.Query.FRIEND_REQUESTS] })
+    Toast.show({
+      type: 'info',
+      text1: title || 'Friend request',
+      text2: body || '',
+      position: 'top',
+    })
+    return
+  }
+
   if (title && data) {
     const messageData = data as {
       id?: string

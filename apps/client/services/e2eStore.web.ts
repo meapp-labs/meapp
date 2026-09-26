@@ -40,3 +40,9 @@ export const getE2EStore = (accountId: string): Promise<SignalProtocolLocalStore
   }
   return store
 }
+
+export async function resetE2EStore(accountId: string): Promise<void> {
+  const existing = stores.get(accountId)
+  stores.delete(accountId)
+  if (existing) ((await existing) as IndexedDbSignalProtocolStore).close()
+}

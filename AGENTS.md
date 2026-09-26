@@ -50,6 +50,8 @@ bun --filter @meapp/server migrate  # drizzle migrations
 Ask before: changing `schema.ts`, `compose.*`, `Caddyfile`, `deploy/`, adding dependencies.
 Never: edit `packages/db/drizzle/*` (generated), `bun.lock`, bind `0.0.0.0` (loopback only),
 hardcode `EXPO_PUBLIC_API_URL`, insert messages outside `insertMessageWithSequence()`.
+For schema changes, rebuild the database and its initial schema snapshot; do not add incremental
+migrations unless the user explicitly requests them.
 
 ## Where to look
 

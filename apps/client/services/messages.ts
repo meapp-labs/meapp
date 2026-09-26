@@ -91,9 +91,9 @@ function updateConversationListCache(
       if (c.id === conversationId) {
         return {
           ...c,
-          lastMessagePreview: lastMessage.ciphertext
-            ? 'Encrypted message'
-            : (lastMessage.text ?? ''),
+          lastMessageEncrypted: Boolean(lastMessage.ciphertext),
+          lastMessageId: lastMessage.id,
+          lastMessagePreview: lastMessage.ciphertext ? undefined : (lastMessage.text ?? ''),
           lastMessageAt: lastMessage.timestamp,
         }
       }

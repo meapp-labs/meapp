@@ -3,10 +3,13 @@ import { router } from 'expo-router'
 import { Platform } from 'react-native'
 
 import { type ApiError, postFetcher } from '@/lib/api'
+import { AuthStorage } from '@/lib/authStorage'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
+import { useAuthStore, useConversationStore } from '@/lib/stores'
 import type { LoginType, RegisterType } from '@meapp/shared'
 import { resetE2EContext } from './e2e'
+import { ConversationStorage, RememberMeStorage } from './storage'
 
 export function useRegisterUser() {
   return useMutation<string, ApiError, RegisterType>({
@@ -22,14 +25,20 @@ export function useLoginUser() {
   })
 }
 
-export function useLogoutUser({ onSuccess }: { onSuccess: () => void }) {
+export function useLogoutUser() {
   return useMutation<string, ApiError>({
     mutationFn: () => postFetcher<string, void>(Keys.Mutation.LOGOUT),
-    onSuccess: () => {
+    onSettled: async () => {
+      await Promise.all([
+        AuthStorage.clear(),
+        RememberMeStorage.clear(),
+        ConversationStorage.clear(),
+      ])
       resetE2EContext()
       queryClient.clear()
+      useConversationStore.getState().setSelectedConversationId(null)
+      useAuthStore.getState().setUsername('')
       router.replace('/login')
-      onSuccess()
     },
   })
 }

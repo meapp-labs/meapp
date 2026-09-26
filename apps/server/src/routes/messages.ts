@@ -31,6 +31,7 @@ import {
   ErrorCode,
   createAuthError,
   createDuplicateItemError,
+  createForbiddenError,
   createNotFoundError,
   createUserNotFoundError,
   createValidationError,
@@ -142,12 +143,26 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           } satisfies Conversation
         }
 
+        const acceptedFriendship = getDbInstance()
+          .sqlite.query('SELECT 1 FROM contacts WHERE user_id = ? AND contact_user_id = ?')
+          .get(u1.id, u2.id)
+        if (!acceptedFriendship) {
+          throw createForbiddenError('Accept a friend request before starting a direct chat.')
+        }
+
         // Transaction: lookup + insert atomic, so two concurrent DM requests
         // cannot both miss and create duplicate rooms.
         const roomId = Bun.randomUUIDv7()
         const dmName = name ?? `${first} & ${second}`
 
         getDbInstance().sqlite.transaction(() => {
+          if (
+            !getDbInstance()
+              .sqlite.query('SELECT 1 FROM contacts WHERE user_id = ? AND contact_user_id = ?')
+              .get(u1.id, u2.id)
+          ) {
+            throw createForbiddenError('Accept a friend request before starting a direct chat.')
+          }
           const rerun = getDbInstance()
             .sqlite.query(
               `SELECT r.id FROM rooms r
@@ -271,7 +286,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     const placeholders = roomIds.map(() => '?').join(',')
     const lastMessages = getDbInstance()
       .sqlite.query(
-        `SELECT m.room_id as roomId, m.text, m.is_encrypted as isEncrypted, m.created_at as createdAt, u.username
+        `SELECT m.id, m.room_id as roomId, m.text, m.is_encrypted as isEncrypted, m.created_at as createdAt, u.username
          FROM messages m
          INNER JOIN users u ON m.user_id = u.id
          WHERE (m.room_id, m.sequence) IN (
@@ -283,6 +298,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       )
       .all(...roomIds) as Array<{
       roomId: string
+      id: string
       text: string | null
       isEncrypted: number
       createdAt: number
@@ -308,8 +324,10 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         createdAt: chatTimestampIso(room.createdAt),
         ...(lastMsg
           ? {
-              // Encrypted messages are never previewed in plaintext.
-              lastMessagePreview: lastMsg.isEncrypted ? 'Encrypted message' : (lastMsg.text ?? ''),
+              // The client decrypts encrypted previews on the recipient device.
+              lastMessageEncrypted: Boolean(lastMsg.isEncrypted),
+              lastMessageId: lastMsg.id,
+              ...(lastMsg.isEncrypted ? {} : { lastMessagePreview: lastMsg.text ?? '' }),
               lastMessageAt: chatTimestampIso(lastMsg.createdAt),
               lastMessageFrom: lastMsg.username ?? undefined,
             }

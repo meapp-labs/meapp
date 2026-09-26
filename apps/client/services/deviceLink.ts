@@ -143,6 +143,7 @@ export async function connectDeviceLink(code: string) {
 export async function finishDeviceLink(
   connected: Awaited<ReturnType<typeof connectDeviceLink>>,
   onProgress?: (message: string) => void,
+  isCancelled?: () => boolean,
 ): Promise<{ deviceId: number; unavailable: number }> {
   const {
     sessionId,
@@ -154,12 +155,14 @@ export async function finishDeviceLink(
     deviceMetadata,
   } = connected
   for (let attempt = 0; attempt < 300; attempt++) {
+    if (isCancelled?.()) throw new Error('Device link cancelled')
     const status = await relay.getProvisioningMessage(sessionId)
     if (status.status === 'ready') break
     if (status.expiresAt !== null && status.expiresAt < Date.now())
       throw new Error('Device link expired. Start a new link on the approving device.')
     await new Promise((resolve) => setTimeout(resolve, 1000))
   }
+  if (isCancelled?.()) throw new Error('Device link cancelled')
   const result = await receiveProvisioningMessage(
     relay,
     sessionId,

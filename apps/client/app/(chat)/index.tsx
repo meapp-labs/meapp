@@ -16,8 +16,10 @@ import { MessageList } from '@/components/chat/MessageList'
 import { Text } from '@/components/common/Text'
 import { DeviceLinkPanel } from '@/components/settings/DeviceLinkPanel'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
+import { isApiHttpError } from '@/lib/api'
 import { useConversationStore } from '@/lib/stores'
 import { DocumentTitle } from '@/misc/DocumentTitle'
+import { useLogoutUser } from '@/services/auth'
 import { useGetConversations } from '@/services/conversations'
 import { ensureLinkedHistoryReady } from '@/services/deviceLink'
 import { getE2EContext } from '@/services/e2e'
@@ -34,6 +36,7 @@ export default function ChatApp() {
   const [e2eReady, setE2EReady] = useState(false)
   const [setupError, setSetupError] = useState<string | null>(null)
   const [setupProgress, setSetupProgress] = useState('Preparing encrypted chats…')
+  const logout = useLogoutUser()
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { data: conversations } = useGetConversations()
   const visibleConversationId = conversations?.some(
@@ -65,10 +68,16 @@ export default function ChatApp() {
       .then(() => ensureLinkedHistoryReady(setSetupProgress))
       .then(() => setE2EReady(true))
       .catch((error: unknown) => {
-        console.error('[E2E] Device key setup failed:', error)
-        if (String(error).includes('Approve this browser from an already linked device'))
+        if (
+          isApiHttpError(error) &&
+          error.status === 409 &&
+          error.response?.data?.message === 'Approve this browser from an already linked device'
+        ) {
           setNeedsLink(true)
-        else setSetupError(String(error))
+          return
+        }
+        console.error('[E2E] Device key setup failed:', error)
+        setSetupError(error instanceof Error ? error.message : 'Could not prepare encrypted chats')
       })
   }, [])
 
@@ -90,6 +99,7 @@ export default function ChatApp() {
       {needsLink ? (
         <DeviceLinkPanel
           mode="recover"
+          onCancel={() => logout.mutate()}
           onLinked={() => {
             setNeedsLink(false)
             setE2EReady(true)

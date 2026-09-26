@@ -30,6 +30,12 @@ type LinkSession = {
 
 const sessions = new Map<string, LinkSession>()
 
+export function clearDeviceLinkSessionsForUser(userId: string): void {
+  for (const session of sessions.values()) {
+    if (session.userId === userId) sessions.delete(session.id)
+  }
+}
+
 function removePendingDevice(session: LinkSession): void {
   if (session.status !== 'linked_pending_ack' || !session.newInstallId) return
   const sqlite = getDbInstance().sqlite

@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "11e5e2d0-7f96-4724-b5e6-480dcda11c51",
+  "id": "442794c4-2368-473b-ac91-4492f56610a1",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "contacts": {
@@ -230,6 +230,80 @@
       "uniqueConstraints": {},
       "checkConstraints": {}
     },
+    "friend_requests": {
+      "name": "friend_requests",
+      "columns": {
+        "sender_id": {
+          "name": "sender_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "recipient_id": {
+          "name": "recipient_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "friend_requests_recipient_idx": {
+          "name": "friend_requests_recipient_idx",
+          "columns": [
+            "recipient_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "friend_requests_sender_id_users_id_fk": {
+          "name": "friend_requests_sender_id_users_id_fk",
+          "tableFrom": "friend_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "sender_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "friend_requests_recipient_id_users_id_fk": {
+          "name": "friend_requests_recipient_id_users_id_fk",
+          "tableFrom": "friend_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "recipient_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "friend_requests_sender_id_recipient_id_pk": {
+          "columns": [
+            "sender_id",
+            "recipient_id"
+          ],
+          "name": "friend_requests_sender_id_recipient_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
     "identity_keys": {
       "name": "identity_keys",
       "columns": {
@@ -300,6 +374,80 @@
             "device_id"
           ],
           "name": "identity_keys_user_id_device_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "ignored_users": {
+      "name": "ignored_users",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ignored_user_id": {
+          "name": "ignored_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "ignored_users_ignored_idx": {
+          "name": "ignored_users_ignored_idx",
+          "columns": [
+            "ignored_user_id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "ignored_users_user_id_users_id_fk": {
+          "name": "ignored_users_user_id_users_id_fk",
+          "tableFrom": "ignored_users",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "ignored_users_ignored_user_id_users_id_fk": {
+          "name": "ignored_users_ignored_user_id_users_id_fk",
+          "tableFrom": "ignored_users",
+          "tableTo": "users",
+          "columnsFrom": [
+            "ignored_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ignored_users_user_id_ignored_user_id_pk": {
+          "columns": [
+            "user_id",
+            "ignored_user_id"
+          ],
+          "name": "ignored_users_user_id_ignored_user_id_pk"
         }
       },
       "uniqueConstraints": {},

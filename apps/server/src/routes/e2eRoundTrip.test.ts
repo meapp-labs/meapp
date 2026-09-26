@@ -19,7 +19,7 @@ const aliceName = `crypto_alice_${suffix}`
 const bobName = `crypto_bob_${suffix}`
 const charlieName = `crypto_charlie_${suffix}`
 const password = 'secret123'
-const testIp = '198.51.100.7'
+const testIp = `e2e-test-${suffix}`
 const previousFlag = process.env.E2E_ENABLED
 
 beforeAll(() => {
@@ -50,7 +50,9 @@ async function api<T>(path: string, cookie: string, body?: unknown): Promise<T> 
     }),
   )
   if (!response.ok) throw new Error(`${path}: ${response.status} ${await response.text()}`)
-  return (await response.json()) as T
+  return response.headers.get('content-type')?.includes('application/json')
+    ? ((await response.json()) as T)
+    : ((await response.text()) as T)
 }
 
 async function account(username: string) {
@@ -185,6 +187,8 @@ function relayFor(current: Account): Relay {
 it('encrypts DMs and groups for every recipient, and stores no plaintext', async () => {
   const alice = await account(aliceName)
   const bob = await account(bobName)
+  await api('add-other', alice.cookie, { other: bobName })
+  await api('friend-requests/accept', bob.cookie, { other: aliceName })
   const room = await api<{ id: string }>('conversations', alice.cookie, {
     type: 'dm',
     participants: [bobName],
@@ -247,6 +251,18 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
     installId: alice.installId,
     envelopes: [{ targetUserId: bob.id, targetDeviceId: 1, ciphertext }],
   })
+  const conversationList = await api<
+    Array<{
+      id: string
+      lastMessageId?: string
+      lastMessageEncrypted?: boolean
+      lastMessagePreview?: string
+    }>
+  >('conversations', bob.cookie)
+  const listedRoom = conversationList.find((item) => item.id === room.id)
+  expect(listedRoom?.lastMessageId).toBe(sent.id)
+  expect(listedRoom?.lastMessageEncrypted).toBe(true)
+  expect(listedRoom?.lastMessagePreview).toBeUndefined()
   const history = await api<{ messages: Array<{ id: string; ciphertext: string }> }>(
     `get-messages?conversationId=${room.id}&installId=${bob.installId}`,
     bob.cookie,
