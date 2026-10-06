@@ -49,6 +49,7 @@ function insertIntoCache(old: MessagesCache, message: Message): MessagesCache {
     ...old,
     pages: [
       {
+        ...old.pages[0],
         messages: [...old.pages[0].messages, message].sort(
           (a, b) =>
             Number(a.sequence ?? a.index ?? Number.MAX_SAFE_INTEGER) -
@@ -278,6 +279,7 @@ export function useGetMessages({
           setReadyRoom(conversationId)
           // Reconnects can miss broadcasts; the first auth enables the GET.
           if (hadData) void queryClient.invalidateQueries({ queryKey: key })
+          void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
           return
         }
         if (msg.type !== 'message' || !msg.payload) return

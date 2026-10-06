@@ -31,6 +31,7 @@ import {
   setupNotificationListeners,
 } from '@/services/notification'
 import { useFriendRequests } from '@/services/others'
+import { flushReceiptQueue } from '@/services/receipts'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
@@ -114,6 +115,12 @@ export default function ChatApp() {
   }, [prepareE2E])
 
   useEffect(() => {
+    if (!e2eReady) return
+    const timer = setInterval(() => void flushReceiptQueue().catch(() => undefined), 5000)
+    return () => clearInterval(timer)
+  }, [e2eReady])
+
+  useEffect(() => {
     const cleanup = setupNotificationListeners((notification) =>
       handleIncomingNotification(notification, selectedConversationId ?? undefined),
     )
@@ -122,7 +129,9 @@ export default function ChatApp() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <DocumentTitle title="Chat" />
+      <DocumentTitle
+        title={`${conversations?.reduce((total, conversation) => total + (conversation.unreadCount ?? 0), 0) || ''} Chat`.trim()}
+      />
       {needsLink ? (
         <DeviceLinkPanel
           mode="recover"

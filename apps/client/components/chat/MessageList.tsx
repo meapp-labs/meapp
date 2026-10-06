@@ -4,8 +4,10 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View }
 import { Loader } from '@/components/Loader'
 import { MessageBubble } from '@/components/chat/MessageBubble'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
+import { useMessageAcknowledgements } from '@/hooks/useMessageAcknowledgements'
 import { useAuthStore } from '@/lib/stores'
 import { useGetMessages } from '@/services/messages'
+import { type UnreadBoundary, updateUnreadBoundary } from '@/services/unreadBoundary'
 import { theme } from '@/theme/theme'
 import type { Message } from '@meapp/shared'
 
@@ -39,6 +41,37 @@ export function MessageList({ conversationId }: ChatProps) {
       .sort((a, b) => Number(a.sequence ?? a.index ?? 0) - Number(b.sequence ?? b.index ?? 0))
       .reverse()
   }, [data])
+  const onViewableItemsChanged = useMessageAcknowledgements(conversationId, messages)
+  const session = React.useRef<{ key: string; boundary: UnreadBoundary | null }>({
+    key: '',
+    boundary: null,
+  })
+  const key = `${conversationId}:${username}`
+  if (session.current.key !== key) session.current = { key, boundary: null }
+  if (isSuccess)
+    session.current.boundary = updateUnreadBoundary(
+      session.current.boundary,
+      messages,
+      username,
+      data.pages[0]?.firstUnreadSequence ?? null,
+    )
+  const unreadSequence = session.current.boundary?.sequence ?? null
+  // Fetch enough history to include the private reading landmark.
+  React.useEffect(() => {
+    const oldest = messages.filter((m) => m.sequence !== undefined).at(-1)?.sequence
+    if (
+      unreadSequence !== null &&
+      oldest !== undefined &&
+      oldest > unreadSequence &&
+      hasNextPage &&
+      !isFetchingNextPage
+    )
+      void fetchNextPage()
+  }, [messages, unreadSequence, hasNextPage, isFetchingNextPage, fetchNextPage])
+  const viewabilityConfig = React.useRef({
+    itemVisiblePercentThreshold: 60,
+    minimumViewTime: 600,
+  }).current
 
   const handleLoadMore = React.useCallback(() => {
     if (hasNextPage && !isFetchingNextPage) {
@@ -65,16 +98,28 @@ export function MessageList({ conversationId }: ChatProps) {
     <FlatList<Message>
       inverted
       data={messages}
+      extraData={unreadSequence}
+      onViewableItemsChanged={onViewableItemsChanged}
+      viewabilityConfig={viewabilityConfig}
       renderItem={({ item, index }) => (
-        <MessageBubble.Wrapper
-          message={item}
-          prevTimestamp={
-            messages[index + 1]?.timestamp ||
-            (messages[index + 1]?.createdAt ? String(messages[index + 1]?.createdAt) : undefined)
-          }
-          currentUsername={username}
-          bubbleMaxWidth={isDesktop ? width * 0.35 : null}
-        />
+        <View>
+          {item.sequence === unreadSequence && (
+            <View style={styles.unreadDivider}>
+              <View style={styles.unreadLine} />
+              <Text style={styles.unreadLabel}>New messages</Text>
+              <View style={styles.unreadLine} />
+            </View>
+          )}
+          <MessageBubble.Wrapper
+            message={item}
+            prevTimestamp={
+              messages[index + 1]?.timestamp ||
+              (messages[index + 1]?.createdAt ? String(messages[index + 1]?.createdAt) : undefined)
+            }
+            currentUsername={username}
+            bubbleMaxWidth={isDesktop ? width * 0.35 : null}
+          />
+        </View>
       )}
       keyExtractor={(item, index) =>
         item.id ??
@@ -100,6 +145,15 @@ export function MessageList({ conversationId }: ChatProps) {
 }
 
 const styles = StyleSheet.create({
+  unreadDivider: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginHorizontal: 16,
+    marginVertical: 12,
+  },
+  unreadLine: { flex: 1, height: 1, backgroundColor: '#E5B94F' },
+  unreadLabel: { fontSize: 12, fontWeight: '700', color: '#E5B94F' },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',

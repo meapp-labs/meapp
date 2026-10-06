@@ -14,6 +14,7 @@ import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
+import { receiptRoutes } from './routes/receipts.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
 import { chatWs, startPubsub } from './ws/chat.ts'
@@ -136,6 +137,7 @@ export const app = new Elysia({
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
+  .use(receiptRoutes)
   .use(mediaRoutes)
   .use(e2eRelayRoutes)
   .use(deviceLinkRoutes)

@@ -105,6 +105,18 @@ CREATE TABLE `message_envelopes` (
 );
 --> statement-breakpoint
 CREATE INDEX `message_envelopes_target_idx` ON `message_envelopes` (`target_user_id`,`target_device_id`);--> statement-breakpoint
+CREATE TABLE `message_receipts` (
+	`message_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`delivered_at` integer NOT NULL,
+	`read_at` integer,
+	`shared_read_at` integer,
+	PRIMARY KEY(`message_id`, `user_id`),
+	FOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `message_receipts_user_idx` ON `message_receipts` (`user_id`);--> statement-breakpoint
 CREATE TABLE `messages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
@@ -140,6 +152,15 @@ CREATE TABLE `room_members` (
 --> statement-breakpoint
 CREATE INDEX `room_members_room_idx` ON `room_members` (`room_id`);--> statement-breakpoint
 CREATE INDEX `room_members_user_idx` ON `room_members` (`user_id`);--> statement-breakpoint
+CREATE TABLE `receipt_preferences` (
+	`room_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`share_read_receipts` integer DEFAULT false NOT NULL,
+	PRIMARY KEY(`room_id`, `user_id`),
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
 CREATE TABLE `relay_identities` (
 	`user_id` text NOT NULL,
 	`device_id` integer DEFAULT 1 NOT NULL,

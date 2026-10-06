@@ -59,11 +59,23 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
             </Text>
           )}
         </View>
-        <Text style={styles.timestamp}>
-          {conversation.lastIncomingMessageAt
-            ? new Date(conversation.lastIncomingMessageAt).toLocaleDateString()
-            : ''}
-        </Text>
+        <View style={styles.metadata}>
+          <Text style={styles.timestamp}>
+            {conversation.lastIncomingMessageAt
+              ? new Date(conversation.lastIncomingMessageAt).toLocaleDateString()
+              : ''}
+          </Text>
+          {!!conversation.unreadCount && (
+            <View style={styles.unreadBadge}>
+              <Text
+                style={styles.unreadCount}
+                accessibilityLabel={`${conversation.unreadCount} unread messages`}
+              >
+                {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
     </Pressable>
   )
@@ -99,6 +111,27 @@ const styles = StyleSheet.create({
   },
   timestamp: {
     ...theme.typography.caption,
-    marginRight: theme.spacing.xs,
+    color: theme.colors.textSecondary,
+  },
+  metadata: {
+    alignItems: 'flex-end',
+    flexShrink: 0,
+    gap: theme.spacing.xs,
+    marginLeft: theme.spacing.xs,
+  },
+  unreadBadge: {
+    backgroundColor: theme.colors.primary,
+    minWidth: 24,
+    minHeight: 24,
+    borderRadius: 12,
+    paddingHorizontal: 7,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  unreadCount: {
+    color: theme.colors.background,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: '700',
   },
 })

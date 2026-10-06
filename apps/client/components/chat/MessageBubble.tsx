@@ -124,7 +124,14 @@ export const MessageBubble = {
           { alignSelf: 'flex-end' },
         ]}
       >
-        <Text style={styles.time}>{time}</Text>
+        <View style={styles.messageMetadata}>
+          <Text style={styles.time}>{time}</Text>
+          {message.sequence === undefined && (
+            <Text style={styles.status} accessibilityLabel="Message is sending">
+              Sending…
+            </Text>
+          )}
+        </View>
         <View style={styles.messageTextWrapper}>
           <View style={[styles.sentMessageContainer, isLinkOnly(message) && styles.linkContainer]}>
             {message.media?.map((raw) => (
@@ -201,6 +208,15 @@ const styles = StyleSheet.create({
     ...theme.typography.caption,
     alignSelf: 'center',
     color: 'gray',
+  },
+  messageMetadata: {
+    alignItems: 'center',
+    gap: 2,
+  },
+  status: {
+    fontSize: 10,
+    lineHeight: 14,
+    color: theme.colors.textSecondary,
   },
   sentMessageContainer: {
     backgroundColor: theme.colors.surface,

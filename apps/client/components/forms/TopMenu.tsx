@@ -2,18 +2,25 @@ import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { StyleSheet, TextInput, View } from 'react-native'
 
 import { UserAvatar } from '@/components/UserAvatar'
+import { Text } from '@/components/common/Text'
 import { theme } from '@/theme/theme'
 
 type TopMenuProps = {
   searchQuery: string
   onSearchChange: (query: string) => void
+  unreadCount: number
 }
 
-export function TopMenu({ searchQuery, onSearchChange }: TopMenuProps) {
+export function TopMenu({ searchQuery, onSearchChange, unreadCount }: TopMenuProps) {
   return (
     <View style={styles.container}>
       <View style={styles.innerContainer}>
         <UserAvatar />
+        {unreadCount > 0 && (
+          <Text accessibilityLabel={`${unreadCount} unread messages in all conversations`}>
+            {unreadCount > 99 ? '99+ unread' : `${unreadCount} unread`}
+          </Text>
+        )}
         <View style={styles.inputContainer}>
           <TextInput
             value={searchQuery}

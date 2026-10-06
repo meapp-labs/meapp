@@ -40,6 +40,7 @@ import {
   handleAsyncOperation,
 } from '../lib/errors.ts'
 import { sendPushNotification } from '../lib/notification.ts'
+import { conversationReadSummary } from '../lib/receipts.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { broadcastToRoom } from '../ws/chat.ts'
@@ -300,6 +301,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
     const lastIncomingByRoom = new Map(lastIncomingMessages.map((m) => [m.roomId, m]))
     const conversations: Conversation[] = []
 
+    const readSummaries = conversationReadSummary(roomIds, me.id)
     for (const room of rooms) {
       const roomParticipants = allMembers
         .filter((m) => m.roomId === room.id)
@@ -311,6 +313,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       conversations.push({
         id: room.id,
+        ...readSummaries.get(room.id),
         participants: roomParticipants,
         isGroup: roomParticipants.length > 2,
         name: room.name,
@@ -654,8 +657,19 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       const pageRows = rows.slice(0, limit)
       // History pages fetch the latest window, then return it in ascending order.
       const orderedRows = afterIndex === undefined ? pageRows.reverse() : pageRows
+      const ownReads = new Set(
+        (
+          getDbInstance()
+            .sqlite.query(`SELECT mr.message_id AS id
+        FROM message_receipts mr JOIN messages m ON m.id=mr.message_id
+        WHERE mr.user_id=? AND mr.read_at IS NOT NULL AND m.room_id=?
+        AND m.id IN (${orderedRows.map(() => '?').join(',') || 'NULL'})`)
+            .all(me.id, conversationId, ...orderedRows.map((row) => row.id)) as { id: string }[]
+        ).map((row) => row.id),
+      )
       const messages = orderedRows.map((r) => ({
         id: r.id,
+        acknowledgedRead: ownReads.has(r.id),
         clientId: r.clientId,
         ...(r.attachmentIds !== '[]'
           ? { attachmentIds: JSON.parse(r.attachmentIds) as string[] }
@@ -687,7 +701,14 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         .where(eq(schema.messages.roomId, conversationId))
         .get()
 
-      return { messages, hasMore, totalCount: totalCountRow?.total ?? 0 }
+      return {
+        messages,
+        hasMore,
+        totalCount: totalCountRow?.total ?? 0,
+        firstUnreadSequence:
+          conversationReadSummary([conversationId], me.id).get(conversationId)
+            ?.firstUnreadSequence ?? null,
+      }
     },
     { query: getMessagesQuerySchema },
   )

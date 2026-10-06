@@ -17,6 +17,7 @@ export const messageSchema = z
     roomId: z.string().optional(),
     userId: z.string().optional(),
     sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
+    acknowledgedRead: z.boolean().optional(),
     text: z.string().min(1).max(MESSAGE_MAX_LENGTH).optional(),
     ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX).optional(),
     ciphertextType: z.number().int().optional(),
@@ -152,6 +153,7 @@ export type SendMessageInput = z.infer<typeof sendMessageSchema>
 export type SendMessageRequest = SendMessageInput
 
 export const messagesResponseSchema = z.object({
+  firstUnreadSequence: z.number().int().nonnegative().nullable().optional(),
   messages: z.array(messageSchema),
   nextAfter: z.number().int().nonnegative().optional(),
   hasMore: z.boolean().optional(),

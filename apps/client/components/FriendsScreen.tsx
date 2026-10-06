@@ -56,7 +56,14 @@ export function FriendsScreen() {
       ) : (
         <>
           <View style={styles.topMenu}>
-            <TopMenu searchQuery={searchQuery} onSearchChange={setSearchQuery} />
+            <TopMenu
+              searchQuery={searchQuery}
+              onSearchChange={setSearchQuery}
+              unreadCount={conversations.reduce(
+                (total, conversation) => total + (conversation.unreadCount ?? 0),
+                0,
+              )}
+            />
             <Pressable
               accessibilityLabel="Create group"
               style={styles.groupTrigger}

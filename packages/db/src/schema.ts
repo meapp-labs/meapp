@@ -119,6 +119,42 @@ export const messages = sqliteTable(
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
 
+// Exact acknowledgements avoid treating sequence gaps or unavailable history as read.
+// A user receipt aggregates successful processing by any of their linked devices.
+export const messageReceipts = sqliteTable(
+  'message_receipts',
+  {
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    deliveredAt: integer('delivered_at').notNull(),
+    readAt: integer('read_at'),
+    // Set only by reads made while sharing is enabled; enabling is not retroactive.
+    sharedReadAt: integer('shared_read_at'),
+  },
+  (t) => [
+    primaryKey({ columns: [t.messageId, t.userId] }),
+    index('message_receipts_user_idx').on(t.userId),
+  ],
+)
+
+export const receiptPreferences = sqliteTable(
+  'receipt_preferences',
+  {
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    shareReadReceipts: integer('share_read_receipts', { mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })],
+)
+
 // Object keys are random capabilities. A deleting row is a durable GC claim:
 // message insertion can only link committed rows inside its SQLite transaction.
 export const attachments = sqliteTable(

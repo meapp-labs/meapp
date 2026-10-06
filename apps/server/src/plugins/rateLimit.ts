@@ -29,6 +29,13 @@ export type RouteRule = {
 export const routePatterns: RouteRule[] = [
   {
     method: 'POST',
+    regex: /^\/api\/read$/,
+    key: 'POST:/api/read',
+    max: 180,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
     regex: /^\/api\/media\/(intent|[a-f0-9-]+\/commit)$/,
     key: 'POST:/api/media',
     max: 20,
