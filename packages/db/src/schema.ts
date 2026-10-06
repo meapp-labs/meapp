@@ -328,6 +328,8 @@ export const contacts = sqliteTable(
     contactUserId: text('contact_user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
+    aliasCiphertext: text('alias_ciphertext'),
+    aliasRevision: integer('alias_revision').notNull().default(0),
     createdAt: integer('created_at', { mode: 'timestamp' })
       .notNull()
       .$defaultFn(() => new Date()),
@@ -341,6 +343,16 @@ export const contacts = sqliteTable(
 
 export type Contact = typeof contacts.$inferSelect
 export type NewContact = typeof contacts.$inferInsert
+
+// Dedicated public avatar blobs; unreferenced/pending rows are swept after an hour.
+export const profileAvatars = sqliteTable('profile_avatars', {
+  id: text('id').primaryKey(),
+  userId: text('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  url: text('url').notNull().unique(),
+  createdAt: integer('created_at').notNull(),
+})
 
 export const friendRequests = sqliteTable(
   'friend_requests',

@@ -2,9 +2,11 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useState } from 'react'
 import { Pressable, StyleSheet, View } from 'react-native'
 
+import { UserAvatar } from '@/components/UserAvatar'
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useConversationPreview } from '@/services/conversations'
+import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import type { Conversation } from '@meapp/shared'
@@ -21,9 +23,10 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   const others = conversation.participants.filter(
     (participant) => participant && participant !== username,
   )
+  const contact = useContactPresentation(conversation.isGroup ? '' : (others[0] ?? ''))
   const displayName = conversation.isGroup
     ? conversation.name || others.join(', ') || 'Group'
-    : others[0] || 'Unknown'
+    : contact.name || 'Unknown'
   const preview = useConversationPreview(conversation)
   const incomingMessagePreview = conversation.lastIncomingMessageEncrypted
     ? (preview.data ??
@@ -46,13 +49,16 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
       style={[styles.item, hovered && styles.itemHovered, isSelected && styles.itemSelected]}
     >
       <View style={styles.container}>
-        <MaterialIcons
-          name={conversation.isGroup ? 'groups' : 'face'}
-          size={38}
-          color={theme.colors.text}
-        />
+        {conversation.isGroup ? (
+          <MaterialIcons name="groups" size={38} color={theme.colors.text} />
+        ) : (
+          <UserAvatar uri={contact.profile?.avatarUrl} size={38} label={displayName} />
+        )}
         <View style={styles.content}>
           <Text>{displayName}</Text>
+          {!conversation.isGroup && (
+            <Text style={theme.typography.caption}>@{contact.profile?.username ?? others[0]}</Text>
+          )}
           {incomingMessagePreview && (
             <Text style={theme.typography.caption} numberOfLines={1}>
               {incomingMessagePreview}

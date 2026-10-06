@@ -1,11 +1,12 @@
-import { MaterialIcons } from '@expo/vector-icons'
 import { Image } from 'expo-image'
 import { memo, useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
+import { UserAvatar } from '@/components/UserAvatar'
 import { Text } from '@/components/common/Text'
 import { loadMedia } from '@/services/media'
 import { parseMessageLinks, standaloneMessageLink } from '@/services/messageLinks'
+import { useContactPresentation, useOwnProfile } from '@/services/profiles'
 import { theme } from '@/theme/theme'
 import type { MediaDescriptor, Message } from '@meapp/shared'
 import { FileAttachment } from './FileAttachment'
@@ -94,10 +95,14 @@ function MediaPreview({ raw }: { raw: MediaDescriptor }) {
 
 export const MessageBubble = {
   Received: memo(function ReceivedMessage({ message, time, maxWidth }: BubbleLayoutProps) {
+    const contact = useContactPresentation(message.userId ?? message.from ?? '', !!message.userId)
     return (
       <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
-        <MaterialIcons name="face" color={theme.colors.text} size={34} />
+        <UserAvatar uri={contact.profile?.avatarUrl} size={34} label={contact.name} />
         <View style={styles.messageTextWrapper}>
+          <Text style={theme.typography.caption}>
+            {contact.name} · @{contact.profile?.username ?? message.from}
+          </Text>
           <View
             style={[styles.receivedMessageContainer, isLinkOnly(message) && styles.linkContainer]}
           >
@@ -158,6 +163,7 @@ export const MessageBubble = {
     currentUsername: string
     bubbleMaxWidth: number | null
   }) {
+    const own = useOwnProfile()
     const rawTimestamp =
       message.timestamp || (message.createdAt ? String(message.createdAt) : undefined)
     const date = rawTimestamp ? new Date(rawTimestamp) : new Date()
@@ -176,7 +182,11 @@ export const MessageBubble = {
 
     return (
       <>
-        {sender === currentUsername ? (
+        {(
+          message.userId && own.data
+            ? message.userId === own.data.id
+            : sender === currentUsername
+        ) ? (
           <MessageBubble.Sent message={message} time={time} maxWidth={bubbleMaxWidth} />
         ) : (
           <MessageBubble.Received message={message} time={time} maxWidth={bubbleMaxWidth} />

@@ -47,8 +47,12 @@ bun --filter @meapp/server migrate  # drizzle migrations
 
 ## Boundaries
 
-Ask before: changing `schema.ts`, `compose.*`, `Caddyfile`, `deploy/`, adding dependencies.
-Never: edit `packages/db/drizzle/*` (generated), `bun.lock`, bind `0.0.0.0` (loopback only),
+Ask before: changing `compose.*`, `Caddyfile`, `deploy/`, adding dependencies.
+Allowed without asking: edit `schema.ts`, regenerate the initial schema snapshot, and
+clear/rebuild this checkout's local development database for schema changes. Never clear
+another checkout's database or a production database. Update `bun.lock` when dependencies
+change; dependency additions still require approval.
+Never: edit `packages/db/drizzle/*` (generated), bind `0.0.0.0` (loopback only),
 hardcode `EXPO_PUBLIC_API_URL`, insert messages outside `insertMessageWithSequence()`.
 For every schema change, clear the local development database and rebuild it from
 the updated initial schema snapshot. Do not add incremental migrations unless

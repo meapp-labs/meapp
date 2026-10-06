@@ -14,6 +14,7 @@ import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
 import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
+import { profileRoutes, sweepProfileAvatars } from './routes/profiles.ts'
 import { receiptRoutes } from './routes/receipts.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
@@ -135,6 +136,7 @@ export const app = new Elysia({
     return undefined
   })
   .use(authRoutes)
+  .use(profileRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
   .use(receiptRoutes)
@@ -164,6 +166,8 @@ if (import.meta.main) {
   runMigrations()
   cleanupExpiredDeviceLinks()
   void sweepMedia()
+  void sweepProfileAvatars()
+  setInterval(() => void sweepProfileAvatars(), 15 * 60 * 1000).unref?.()
   setInterval(() => void sweepMedia(), 15 * 60 * 1000).unref?.()
   app.listen(
     {

@@ -70,6 +70,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
             .values({
               id: userId,
               username,
+              displayName: username,
               passwordHash,
               platform: platform ?? 'web',
             }),

@@ -36,6 +36,27 @@ export const routePatterns: RouteRule[] = [
   },
   {
     method: 'POST',
+    regex: /^\/api\/profile(?:\/avatar(?:\/remove)?)?$/,
+    key: 'POST:/api/profile',
+    max: 10,
+    windowMs: 60000,
+  },
+  {
+    method: 'GET',
+    regex: /^\/api\/profiles(?:\/[a-f0-9-]+)?$/,
+    key: 'GET:/api/profiles',
+    max: 100,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
+    regex: /^\/api\/contact-aliases\/[a-f0-9-]+$/,
+    key: 'POST:/api/contact-aliases',
+    max: 30,
+    windowMs: 60000,
+  },
+  {
+    method: 'POST',
     regex: /^\/api\/media\/(intent|[a-f0-9-]+\/commit)$/,
     key: 'POST:/api/media',
     max: 20,

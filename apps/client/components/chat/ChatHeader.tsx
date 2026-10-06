@@ -2,6 +2,8 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useState } from 'react'
 import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native'
 
+import { ContactAliasEditor } from '@/components/ContactAliasEditor'
+import { UserAvatar } from '@/components/UserAvatar'
 import { DeleteFriend } from '@/components/chat/DeleteFriend'
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
@@ -11,6 +13,7 @@ import {
   confirmConversationSafetyNumber,
   getConversationSafetyNumber,
 } from '@/services/e2e'
+import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 
@@ -36,6 +39,7 @@ export function ChatHeader() {
   const selectedConversation = useSelectedConversation()
   const { username } = useAuthStore()
   const [showMenu, setShowMenu] = useState(false)
+  const [showAlias, setShowAlias] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showSafetyModal, setShowSafetyModal] = useState(false)
   const [safetyNumber, setSafetyNumber] = useState<SafetyNumber | null>(null)
@@ -52,10 +56,11 @@ export function ChatHeader() {
     void ConversationStorage.clear()
   }
 
-  const displayName = getDisplayName(selectedConversation, username)
   const isGroup = selectedConversation?.isGroup ?? false
   // For DM, finding the other participant name for the delete modal
   const otherParticipant = selectedConversation?.participants.find((p) => p !== username) || ''
+  const contact = useContactPresentation(isGroup ? '' : otherParticipant)
+  const displayName = isGroup ? getDisplayName(selectedConversation, username) : contact.name
 
   const openSafetyNumber = () => {
     if (!selectedConversation?.id) return
@@ -77,8 +82,15 @@ export function ChatHeader() {
           <MaterialIcons name="arrow-back" size={34} color={theme.colors.text} />
         </TouchableOpacity>
         <TouchableOpacity style={styles.contactInfo}>
-          <MaterialIcons name={isGroup ? 'groups' : 'face'} size={34} color={theme.colors.text} />
-          <Text style={styles.contactName}>{displayName}</Text>
+          {isGroup ? (
+            <MaterialIcons name="groups" size={34} color={theme.colors.text} />
+          ) : (
+            <UserAvatar uri={contact.profile?.avatarUrl} size={34} label={displayName} />
+          )}
+          <View>
+            <Text style={styles.contactName}>{displayName}</Text>
+            {!isGroup && <Text>@{otherParticipant}</Text>}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -95,6 +107,20 @@ export function ChatHeader() {
         >
           <Pressable style={styles.menuOverlay} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
+              {!isGroup && contact.profile && contact.alias && !contact.aliasError && (
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowMenu(false)
+                    setShowAlias(true)
+                  }}
+                >
+                  <Text>Edit private alias</Text>
+                </TouchableOpacity>
+              )}
+              {contact.aliasError && (
+                <Text>Private aliases unavailable. Link this device or retry.</Text>
+              )}
               {!isGroup && (
                 <TouchableOpacity style={styles.menuItem} onPress={openSafetyNumber}>
                   <MaterialIcons name="verified-user" size={20} color={theme.colors.text} />
@@ -175,6 +201,16 @@ export function ChatHeader() {
             if (removed) handleDelete()
             setShowDeleteModal(false)
           }}
+        />
+      )}
+      {showAlias && contact.profile && contact.alias && (
+        <ContactAliasEditor
+          key={contact.profile.id}
+          contactId={contact.profile.id}
+          revision={contact.alias.revision}
+          initialAlias={contact.alias.alias}
+          username={contact.profile.username}
+          onClose={() => setShowAlias(false)}
         />
       )}
     </View>
