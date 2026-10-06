@@ -5,6 +5,7 @@ import { Keys } from '@/lib/keys'
 import { useConversationStore } from '@/lib/stores'
 import { decryptE2EMessage, getE2EInstallId } from '@/services/e2e'
 import type { Conversation, CreateConversationInput, MessagesResponse } from '@meapp/shared'
+import { messagePreview } from './messagePreview'
 
 /**
  * Create or get existing conversation
@@ -49,6 +50,7 @@ export function useConversationPreview(conversation: Conversation) {
       Keys.Query.CONVERSATION_PREVIEW,
       conversation.id,
       conversation.lastIncomingMessageId,
+      'content-v3',
     ],
     enabled: Boolean(
       conversation.lastIncomingMessageId &&
@@ -67,7 +69,8 @@ export function useConversationPreview(conversation: Conversation) {
       for (const message of response.messages) {
         try {
           const decrypted = await decryptE2EMessage(message)
-          if (message.id === conversation.lastIncomingMessageId) preview = decrypted.text ?? null
+          if (message.id === conversation.lastIncomingMessageId)
+            preview = messagePreview(decrypted, 'received')
         } catch {
           if (message.id === conversation.lastIncomingMessageId) preview = null
         }

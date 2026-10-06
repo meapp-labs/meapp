@@ -6,10 +6,19 @@ import {
 import type { SignalProtocolRelayServer } from '@open-e2ee/signal-protocol-sdk/remote/relay'
 import { Platform } from 'react-native'
 
-import { getFetcher, postFetcher } from '@/lib/api'
+import { getFetcher, isApiHttpError, postFetcher } from '@/lib/api'
 import { uuid } from '@/lib/uuid'
-import { type EncryptedSend, type Message, encryptedSendSchema } from '@meapp/shared'
+import {
+  type EncryptedSend,
+  type MediaDescriptor,
+  type Message,
+  decryptedContentSchema,
+  encryptedSendSchema,
+  mediaDescriptorSchema,
+  verifyMediaIds,
+} from '@meapp/shared'
 
+import { decodeContent, encodeContent } from './e2eContent'
 import { deletePrivateMetadata, getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata'
 import { createMeappRelay } from './e2eRelay'
 import { getE2EStore } from './e2eStore'
@@ -32,11 +41,20 @@ type E2EContext = {
 const ACCOUNT_KEY = 'meapp:e2e:account'
 const INSTALL_KEY = 'meapp:e2e:install'
 const DEVICE_KEY = 'meapp:e2e:device-id'
-const cacheKey = (messageId: string) => `meapp:e2e:message:${messageId}`
+const cacheKey = (messageId: string) => `meapp:e2e:message-content:v1:${messageId}`
+const legacyCacheKey = (messageId: string) => `meapp:e2e:message:${messageId}`
 const pendingKey = (clientId: string) => `meapp:e2e:pending:${clientId}`
-const pendingTextKey = (clientId: string) => `meapp:e2e:pending-text:${clientId}`
+const pendingTextKey = (clientId: string) => `meapp:e2e:pending-content:v1:${clientId}`
+const legacyPendingTextKey = (clientId: string) => `meapp:e2e:pending-text:${clientId}`
 const quarantinedKey = (clientId: string) => `meapp:e2e:quarantined:${clientId}`
+const receiptKey = (clientId: string) => `meapp:e2e:receipt:${clientId}`
 const OUTBOX_KEY = 'meapp:e2e:outbox'
+async function pendingContent(storage: SignalProtocolLocalStore, clientId: string) {
+  const current = await getPrivateMetadata(storage, pendingTextKey(clientId))
+  if (current !== null) return current
+  const legacy = await getPrivateMetadata(storage, legacyPendingTextKey(clientId))
+  return legacy === null ? null : encodeContent(legacy)
+}
 
 let contextPromise: Promise<E2EContext> | null = null
 let sendQueue = Promise.resolve()
@@ -60,7 +78,7 @@ async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
   let remaining = ids as string[]
   for (const clientId of ids as string[]) {
     const pending = await getPrivateMetadata(storage, pendingKey(clientId))
-    const text = await getPrivateMetadata(storage, pendingTextKey(clientId))
+    const text = await pendingContent(storage, clientId)
     let payload: EncryptedSend | null = null
     try {
       if (!pending || text === null) throw new Error('Encrypted outbox entry is incomplete')
@@ -75,16 +93,35 @@ async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
       await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify(remaining))
       await deletePrivateMetadata(storage, pendingKey(clientId))
       await deletePrivateMetadata(storage, pendingTextKey(clientId))
+      await deletePrivateMetadata(storage, legacyPendingTextKey(clientId))
       console.warn('[E2E] Quarantined invalid outbox entry:', clientId, error)
       continue
     }
-    const response = await postFetcher<Message>('send-message', payload)
+    let response: Message
+    try {
+      response = await postFetcher<Message>('send-message', payload)
+    } catch (error) {
+      if (isApiHttpError(error) && error.status === 410 && payload.attachmentIds?.length) {
+        remaining = remaining.filter((id) => id !== clientId)
+        await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify(remaining))
+        await deletePrivateMetadata(storage, pendingKey(clientId))
+        await deletePrivateMetadata(storage, pendingTextKey(clientId))
+        await deletePrivateMetadata(storage, legacyPendingTextKey(clientId))
+      }
+      throw error
+    }
     await setPrivateMetadata(storage, cacheKey(response.id), text)
+    await setPrivateMetadata(
+      storage,
+      receiptKey(clientId),
+      JSON.stringify({ response, content: text, conversationId: payload.conversationId }),
+    )
     sent.set(clientId, response)
     remaining = remaining.filter((id) => id !== clientId)
     await setPrivateMetadata(storage, OUTBOX_KEY, JSON.stringify(remaining))
     await deletePrivateMetadata(storage, pendingKey(clientId))
     await deletePrivateMetadata(storage, pendingTextKey(clientId))
+    await deletePrivateMetadata(storage, legacyPendingTextKey(clientId))
   }
   return sent
 }
@@ -158,6 +195,7 @@ export async function sendE2EMessage(
   conversationId: string,
   text: string,
   clientId: string,
+  media: MediaDescriptor[] = [],
 ): Promise<Message> {
   const previous = sendQueue
   let release: () => void = () => {}
@@ -166,7 +204,7 @@ export async function sendE2EMessage(
   })
   await previous
   try {
-    return await sendE2EMessageSerial(conversationId, text, clientId)
+    return await sendE2EMessageSerial(conversationId, text, clientId, media)
   } finally {
     release()
   }
@@ -176,15 +214,52 @@ async function sendE2EMessageSerial(
   conversationId: string,
   text: string,
   clientId: string,
+  media: MediaDescriptor[],
 ): Promise<Message> {
-  if (!text.trim() || text.length > 2000)
-    throw new Error('Message must contain 1 to 2000 characters')
+  if ((!text.trim() && media.length === 0) || text.length > 2000 || media.length > 4)
+    throw new Error('Message must contain text or up to four media attachments')
+  for (const descriptor of media) mediaDescriptorSchema.parse(descriptor)
+  const storedContent = encodeContent(text, media)
   const context = await getE2EContext()
   const { client, installId, storage, relay, userId, username } = context
+  const receipt = await getPrivateMetadata(storage, receiptKey(clientId))
+  if (receipt) {
+    const saved = JSON.parse(receipt) as {
+      response: Message
+      content: string
+      conversationId: string
+    }
+    if (saved.content !== storedContent || saved.conversationId !== conversationId)
+      throw new Error('Confirmed message content or conversation has changed')
+    return {
+      ...saved.response,
+      clientId,
+      roomId: conversationId,
+      userId,
+      from: username,
+      ...(text ? { text } : {}),
+      ...(media.length ? { media } : {}),
+      type: media.length ? 'media' : 'text',
+    }
+  }
   const previouslySent = await flushOutbox(context)
   const recovered = previouslySent.get(clientId)
   if (recovered) {
-    return { ...recovered, clientId, roomId: conversationId, userId, from: username, text }
+    const savedReceipt = await getPrivateMetadata(storage, receiptKey(clientId))
+    const saved = savedReceipt
+      ? (JSON.parse(savedReceipt) as { content: string; conversationId: string })
+      : null
+    if (!saved || saved.content !== storedContent || saved.conversationId !== conversationId)
+      throw new Error('Recovered message content or conversation has changed')
+    return {
+      ...recovered,
+      clientId,
+      roomId: conversationId,
+      userId,
+      from: username,
+      ...(text ? { text } : {}),
+      ...(media.length ? { media, attachmentIds: media.map((item) => item.id) } : {}),
+    }
   }
   if (await getPrivateMetadata(storage, quarantinedKey(clientId))) {
     throw new Error('This encrypted send could not be recovered. Please send it again.')
@@ -195,7 +270,13 @@ async function sendE2EMessageSerial(
       'e2e/relay/recipients',
       { conversationId, installId },
     )
-    const content = JSON.stringify({ conversationId, clientId, senderId: userId, text })
+    const content = JSON.stringify({
+      conversationId,
+      clientId,
+      senderId: userId,
+      ...(text ? { text } : {}),
+      ...(media.length ? { media } : {}),
+    })
     const envelopes: EncryptedSend['envelopes'] = []
     for (const recipient of recipients) {
       const address = ProtocolAddress.create(recipient.userId, recipient.deviceId)
@@ -216,11 +297,12 @@ async function sendE2EMessageSerial(
       conversationId,
       clientId,
       installId,
+      ...(media.length ? { attachmentIds: media.map((item) => item.id) } : {}),
       envelopes,
     } satisfies EncryptedSend)
     // Save the exact ciphertext before sending so a retry never advances the
     // ratchet twice or submits a new body under the same idempotency key.
-    await setPrivateMetadata(storage, pendingTextKey(clientId), text)
+    await setPrivateMetadata(storage, pendingTextKey(clientId), storedContent)
     await setPrivateMetadata(storage, pendingKey(clientId), pending)
     const rawOutbox = await getPrivateMetadata(storage, OUTBOX_KEY)
     const outbox: string[] = rawOutbox ? JSON.parse(rawOutbox) : []
@@ -233,8 +315,9 @@ async function sendE2EMessageSerial(
   if (payload.conversationId !== conversationId || payload.clientId !== clientId) {
     throw new Error('Pending encrypted message does not match this send')
   }
-  const pendingText = await getPrivateMetadata(storage, pendingTextKey(clientId))
-  if (pendingText !== text) throw new Error('Pending encrypted message text has changed')
+  const pendingText = await pendingContent(storage, clientId)
+  if (pendingText !== storedContent)
+    throw new Error('Pending encrypted message content has changed')
   const rawOutbox = await getPrivateMetadata(storage, OUTBOX_KEY)
   const outbox: string[] = rawOutbox ? JSON.parse(rawOutbox) : []
   if (!outbox.includes(clientId)) {
@@ -251,8 +334,9 @@ async function sendE2EMessageSerial(
     sequence: sent.sequence,
     index: sent.index,
     from: username,
-    text,
-    type: 'text',
+    ...(text ? { text } : {}),
+    ...(media.length ? { media, attachmentIds: media.map((item) => item.id) } : {}),
+    type: media.length ? 'media' : 'text',
     timestamp: sent.timestamp,
   }
 }
@@ -260,24 +344,30 @@ async function sendE2EMessageSerial(
 export async function decryptE2EMessage(message: Message): Promise<Message> {
   if (!message.ciphertext) return message
   const { client, storage, userId, deviceId, installId } = await getE2EContext()
-  const cached = await getPrivateMetadata(storage, cacheKey(message.id))
+  let cached = await getPrivateMetadata(storage, cacheKey(message.id))
+  if (cached === null) {
+    const legacy = await getPrivateMetadata(storage, legacyCacheKey(message.id))
+    if (legacy !== null) cached = encodeContent(legacy)
+  }
   if (cached !== null) {
     const { ciphertext: _ciphertext, ...rest } = message
-    return { ...rest, text: cached }
+    const content = decodeContent(cached)
+    verifyMediaIds(message.attachmentIds, content.media)
+    return { ...rest, ...content }
   }
   if (
     message.userId === userId &&
     message.fromProtocolDeviceId === deviceId &&
     !message.envelopeSourceDeviceId
   ) {
-    const pendingText = message.clientId
-      ? await getPrivateMetadata(storage, pendingTextKey(message.clientId))
-      : null
+    const pendingText = message.clientId ? await pendingContent(storage, message.clientId) : null
     if (pendingText !== null) {
       await setPrivateMetadata(storage, cacheKey(message.id), pendingText)
       scheduleRecoveryBackup({ storage, userId, installId })
       const { ciphertext: _ciphertext, ...rest } = message
-      return { ...rest, text: pendingText }
+      const content = decodeContent(pendingText)
+      verifyMediaIds(message.attachmentIds, content.media)
+      return { ...rest, ...content }
     }
     return { ...message, type: 'undecryptable' }
   }
@@ -299,17 +389,22 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
     decoded.clientId !== message.clientId ||
     !('senderId' in decoded) ||
     decoded.senderId !== message.userId ||
-    !('text' in decoded) ||
-    typeof decoded.text !== 'string' ||
-    decoded.text.length < 1 ||
-    decoded.text.length > 2000
+    !decryptedContentSchema.safeParse(decoded).success
   ) {
     throw new Error('Encrypted message metadata failed verification')
   }
-  await setPrivateMetadata(storage, cacheKey(message.id), decoded.text)
+  const contents = decryptedContentSchema.parse(decoded)
+  const media =
+    contents.media === undefined ? [] : mediaDescriptorSchema.array().max(4).parse(contents.media)
+  verifyMediaIds(message.attachmentIds, media)
+  await setPrivateMetadata(storage, cacheKey(message.id), encodeContent(contents.text ?? '', media))
   scheduleRecoveryBackup({ storage, userId, installId })
   const { ciphertext: _ciphertext, ...rest } = message
-  return { ...rest, text: decoded.text }
+  return {
+    ...rest,
+    ...(contents.text ? { text: contents.text } : {}),
+    ...(media.length ? { media, type: 'media' } : {}),
+  }
 }
 
 export async function getConversationSafetyNumber(conversationId: string): Promise<SafetyNumber> {

@@ -12,6 +12,7 @@ import Toast from 'react-native-toast-message'
 
 import { FriendsScreen } from '@/components/FriendsScreen'
 import { ChatHeader } from '@/components/chat/ChatHeader'
+import { MediaDropZone } from '@/components/chat/MediaDropZone'
 import { MessageInput } from '@/components/chat/MessageInput'
 import { MessageList } from '@/components/chat/MessageList'
 import { Text } from '@/components/common/Text'
@@ -151,9 +152,11 @@ export default function ChatApp() {
             keyboardVerticalOffset={5}
             style={styles.chatScreen}
           >
-            <ChatHeader />
-            <MessageList conversationId={visibleConversationId} />
-            <MessageInput conversationId={visibleConversationId} />
+            <MediaDropZone key={visibleConversationId} conversationId={visibleConversationId}>
+              <ChatHeader />
+              <MessageList conversationId={visibleConversationId} />
+              <MessageInput conversationId={visibleConversationId} />
+            </MediaDropZone>
           </KeyboardAvoidingView>
         )
       ) : (
@@ -165,9 +168,11 @@ export default function ChatApp() {
               keyboardVerticalOffset={5}
               style={styles.chatScreen}
             >
-              <ChatHeader />
-              <MessageList conversationId={visibleConversationId} />
-              <MessageInput conversationId={visibleConversationId} />
+              <MediaDropZone key={visibleConversationId} conversationId={visibleConversationId}>
+                <ChatHeader />
+                <MessageList conversationId={visibleConversationId} />
+                <MessageInput conversationId={visibleConversationId} />
+              </MediaDropZone>
             </KeyboardAvoidingView>
           ) : (
             <Text>{'Select a conversation'}</Text>

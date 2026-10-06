@@ -11,6 +11,8 @@ import { queryClient } from '@/lib/queryInit'
 import { logStartupInfo } from '@/lib/startupInfo'
 import { useAuthStore } from '@/lib/stores'
 import { toastConfig } from '@/misc/toastConfig'
+import { resumeMediaUploads } from '@/services/media'
+import { clearMediaCache } from '@/services/mediaCache'
 import { RememberMeStorage } from '@/services/storage'
 
 // Log startup information when the app loads
@@ -28,6 +30,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         // End a previous cookie or native session before showing the login screen.
         await postFetcher('logout').catch(() => undefined)
         await AuthStorage.clear()
+        await clearMediaCache()
         setUsername('')
         setIsCheckingAuth(false)
         return
@@ -40,6 +43,7 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
         // Session invalid or expired - clear remember me flag and token
         await RememberMeStorage.clear()
         await AuthStorage.clear()
+        await clearMediaCache()
         setUsername('')
       } finally {
         setIsCheckingAuth(false)
@@ -59,6 +63,26 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 export default function RootLayout() {
   const username = useAuthStore((state) => state.username)
   const isAuthenticated = !!username
+  useEffect(() => {
+    if (!username) return
+    let stopped = false
+    const resume = () => {
+      if (stopped) return
+      void resumeMediaUploads()
+        .then((sent) => {
+          if (sent.length && !stopped) void queryClient.invalidateQueries()
+        })
+        .catch((error: unknown) => {
+          console.warn('[Media] Upload retry deferred:', error)
+        })
+    }
+    resume()
+    const timer = setInterval(resume, 60_000)
+    return () => {
+      stopped = true
+      clearInterval(timer)
+    }
+  }, [username])
 
   return (
     <QueryClientProvider client={queryClient}>

@@ -2,7 +2,7 @@ import { z } from 'zod'
 
 export const isProduction = process.env.NODE_ENV === 'production'
 
-const serverEnvSchema = z
+export const serverEnvSchema = z
   .object({
     NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
     PORT: z.coerce.number().default(3000),
@@ -24,8 +24,76 @@ const serverEnvSchema = z
       .string()
       .default('true')
       .transform((v) => v === 'true' || v === '1'),
+    R2_ACCOUNT_ID: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v === '' || /^[a-f0-9]{32}$/.test(v),
+        'R2 account ID must be 32 hex characters',
+      )
+      .optional()
+      .transform((v) => v || undefined),
+    R2_ACCESS_KEY_ID: z
+      .string()
+      .optional()
+      .transform((v) => v || undefined),
+    R2_SECRET_ACCESS_KEY: z
+      .string()
+      .optional()
+      .transform((v) => v || undefined),
+    R2_BUCKET: z
+      .string()
+      .trim()
+      .refine(
+        (v) => v === '' || /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(v),
+        'Invalid R2 bucket name',
+      )
+      .optional()
+      .transform((v) => v || undefined),
+    R2_PUBLIC_URL: z
+      .union([z.literal(''), z.string().url()])
+      .optional()
+      .transform((v) => v || undefined),
+    MEDIA_USER_QUOTA_BYTES: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(2 * 1024 * 1024 * 1024),
   })
   .superRefine((data, ctx) => {
+    const r2 = [
+      data.R2_ACCOUNT_ID,
+      data.R2_ACCESS_KEY_ID,
+      data.R2_SECRET_ACCESS_KEY,
+      data.R2_BUCKET,
+      data.R2_PUBLIC_URL,
+    ]
+    if (r2.some(Boolean) && !r2.every(Boolean)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'All R2 settings are required when media is enabled',
+        path: ['R2_ACCOUNT_ID'],
+      })
+    }
+    if (data.R2_PUBLIC_URL) {
+      const url = URL.canParse(data.R2_PUBLIC_URL) ? new URL(data.R2_PUBLIC_URL) : null
+      if (
+        !url ||
+        url.protocol !== 'https:' ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        url.pathname !== '/'
+      ) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['R2_PUBLIC_URL'],
+          message:
+            'R2_PUBLIC_URL must be an HTTPS origin without credentials, a path, query, or fragment',
+        })
+      }
+    }
     if (data.NODE_ENV === 'production') {
       if (!data.E2E_ENABLED) {
         ctx.addIssue({

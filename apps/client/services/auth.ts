@@ -9,6 +9,7 @@ import { queryClient } from '@/lib/queryInit'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import type { LoginType, RegisterType } from '@meapp/shared'
 import { resetE2EContext } from './e2e'
+import { clearMediaCache } from './mediaCache'
 import { ConversationStorage, RememberMeStorage } from './storage'
 
 export function useRegisterUser() {
@@ -33,6 +34,7 @@ export function useLogoutUser() {
         AuthStorage.clear(),
         RememberMeStorage.clear(),
         ConversationStorage.clear(),
+        clearMediaCache(),
       ])
       resetE2EContext()
       queryClient.clear()

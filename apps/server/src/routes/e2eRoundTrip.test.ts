@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, expect, it } from 'bun:test'
 import { eq, getDbInstance, runMigrations, schema } from '@meapp/db'
+import { mediaDescriptorSchema } from '@meapp/shared'
 import { ProtocolAddress, createSignalProtocolClient } from '@open-e2ee/signal-protocol-sdk'
 import {
   connectToProvisioningSession,
@@ -34,6 +35,7 @@ afterAll(async () => {
     .sqlite.query('SELECT id FROM users WHERE username = ?')
     .get(aliceName) as { id: string } | null
   if (aliceId) {
+    getDbInstance().sqlite.query('DELETE FROM attachments WHERE sender_id=?').run(aliceId.id)
     getDbInstance().sqlite.query('DELETE FROM rooms WHERE created_by = ?').run(aliceId.id)
   }
   await getDbInstance().db.delete(schema.users).where(eq(schema.users.username, aliceName))
@@ -237,11 +239,46 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
   await aliceClient.establishSession(recipient, bundle)
   const clientId = Bun.randomUUIDv7()
   const secretText = `private-${Bun.randomUUIDv7()}`
+  const attachment = mediaDescriptorSchema.parse({
+    v: 1,
+    id: Bun.randomUUIDv7(),
+    kind: 'image',
+    base: `cap/${'a'.repeat(32)}`,
+    key: btoa('k'.repeat(32)),
+    width: 100,
+    height: 100,
+    variants: [
+      {
+        name: 'orig',
+        path: 'orig.enc',
+        iv: btoa('i'.repeat(12)),
+        size: 100,
+        digest: btoa('d'.repeat(64)),
+        mime: 'image/webp',
+      },
+    ],
+  })
+  getDbInstance()
+    .sqlite.query(`INSERT INTO attachments
+    (id,client_id,room_id,sender_id,storage_key,state,variants_json,cipher_total,created_at,committed_at,last_upload_expiry)
+    VALUES (?,?,?,?,?,'committed',?,100,?,?,?)`)
+    .run(
+      attachment.id,
+      Bun.randomUUIDv7(),
+      room.id,
+      alice.id,
+      attachment.base,
+      JSON.stringify([{ name: 'orig', size: 100 }]),
+      Math.floor(Date.now() / 1000),
+      Math.floor(Date.now() / 1000),
+      Math.floor(Date.now() / 1000) + 600,
+    )
   const content = JSON.stringify({
     conversationId: room.id,
     clientId,
     senderId: alice.id,
     text: secretText,
+    media: [attachment],
   })
   const ciphertext = await aliceClient.encryptMessage(recipient, content)
   expect(ciphertext).not.toContain(secretText)
@@ -249,6 +286,7 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
     conversationId: room.id,
     clientId,
     installId: alice.installId,
+    attachmentIds: [attachment.id],
     envelopes: [{ targetUserId: bob.id, targetDeviceId: 1, ciphertext }],
   })
   const conversationList = await api<
@@ -277,6 +315,12 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
   expect(received?.ciphertext).toBe(ciphertext)
   const cleartext = await bobClient.decryptMessage(ProtocolAddress.create(alice.id, 1), ciphertext)
   expect(JSON.parse(cleartext).text).toBe(secretText)
+  expect(JSON.parse(cleartext).media).toEqual([attachment])
+  expect(
+    getDbInstance()
+      .sqlite.query('SELECT state,linked_to FROM attachments WHERE id=?')
+      .get(attachment.id),
+  ).toEqual({ state: 'linked', linked_to: clientId })
 
   const replyText = `reply-${crypto.randomUUID()}`
   const replyCiphertext = await bobClient.encryptMessage(

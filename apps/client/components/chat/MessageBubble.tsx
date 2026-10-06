@@ -1,10 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons'
-import { memo } from 'react'
+import { Image } from 'expo-image'
+import { memo, useEffect, useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
+import { loadMedia } from '@/services/media'
 import { theme } from '@/theme/theme'
-import type { Message } from '@meapp/shared'
+import type { MediaDescriptor, Message } from '@meapp/shared'
+import { FileAttachment } from './FileAttachment'
 
 export type BaseMessage = Message
 
@@ -26,15 +29,75 @@ type BubbleLayoutProps = {
   maxWidth: number | null
 }
 
+function ImagePreview({ raw: descriptor }: { raw: MediaDescriptor }) {
+  const [uri, setUri] = useState<string | null>(null)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    let live = true
+    setUri(null)
+    setFailed(false)
+    let originalLoaded = false
+    if (descriptor.variants.some((variant) => variant.name === 'thumb')) {
+      void loadMedia(descriptor, 'thumb')
+        .then((value) => {
+          if (live && !originalLoaded) setUri(value)
+        })
+        .catch(() => undefined)
+    }
+    void loadMedia(descriptor)
+      .then((value) => {
+        originalLoaded = true
+        if (live) setUri(value)
+      })
+      .catch(() => {
+        if (live) setFailed(true)
+      })
+    return () => {
+      live = false
+    }
+  }, [descriptor])
+  if (failed && !uri) return <Text style={styles.mediaStatus}>Image unavailable</Text>
+  return (
+    <Image
+      source={uri ? { uri } : null}
+      style={[
+        uri ? styles.mediaImage : styles.mediaPlaceholder,
+        { aspectRatio: (descriptor.width ?? 1) / (descriptor.height ?? 1) },
+      ]}
+      contentFit="contain"
+      placeholder={descriptor.blurhash ? { blurhash: descriptor.blurhash } : null}
+      recyclingKey={descriptor.id}
+      transition={150}
+      cachePolicy="none"
+      accessibilityLabel="Shared image"
+    />
+  )
+}
+
+function MediaPreview({ raw }: { raw: MediaDescriptor }) {
+  return raw.kind === 'image' || raw.kind === 'gif' ? (
+    <ImagePreview raw={raw} />
+  ) : (
+    <FileAttachment descriptor={raw} />
+  )
+}
+
 export const MessageBubble = {
   Received: memo(function ReceivedMessage({ message, time, maxWidth }: BubbleLayoutProps) {
     return (
       <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
         <View style={styles.messageTextWrapper}>
-          <Text selectable style={styles.receivedMessageContainer}>
-            {message.text ?? 'Encrypted message unavailable on this device'}
-          </Text>
+          <View style={styles.receivedMessageContainer}>
+            {message.media?.map((raw) => (
+              <MediaPreview key={raw.id} raw={raw} />
+            ))}
+            {message.text ? (
+              <Text selectable>{message.text}</Text>
+            ) : !message.media?.length ? (
+              <Text>Encrypted message unavailable on this device</Text>
+            ) : null}
+          </View>
         </View>
         <Text style={styles.time}>{time}</Text>
       </View>
@@ -51,9 +114,16 @@ export const MessageBubble = {
       >
         <Text style={styles.time}>{time}</Text>
         <View style={styles.messageTextWrapper}>
-          <Text selectable style={styles.sentMessageContainer}>
-            {message.text ?? 'Encrypted message unavailable on this device'}
-          </Text>
+          <View style={styles.sentMessageContainer}>
+            {message.media?.map((raw) => (
+              <MediaPreview key={raw.id} raw={raw} />
+            ))}
+            {message.text ? (
+              <Text selectable>{message.text}</Text>
+            ) : !message.media?.length ? (
+              <Text>Encrypted message unavailable on this device</Text>
+            ) : null}
+          </View>
         </View>
       </View>
     )
@@ -132,4 +202,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: theme.spacing.md,
   },
+  mediaImage: { width: 240, maxHeight: 320, borderRadius: 12 },
+  mediaPlaceholder: { width: 240, maxHeight: 320, backgroundColor: '#555', borderRadius: 12 },
+  mediaStatus: { color: theme.colors.text },
 })

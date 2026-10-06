@@ -90,7 +90,13 @@ async function snapshot(context: Context, proof: string): Promise<Snapshot> {
       const [keys, values] = await Promise.all([store.getAllKeys(), store.getAll()])
       return [
         name,
-        keys.map((key, index) => ({ key: key as string | number, value: encode(values[index]) })),
+        // Upload bytes are device-local retry data, not message/key recovery data.
+        // Including up to 40 MB here would exceed the recovery API's body cap.
+        keys.flatMap((key, index) =>
+          name === 'metadata' && key === 'meapp:media:uploads:v1'
+            ? []
+            : [{ key: key as string | number, value: encode(values[index]) }],
+        ),
       ] as const
     }),
   )

@@ -29,6 +29,7 @@ import { canAccessRoom } from '../lib/authz.ts'
 import { isE2EEnabled } from '../lib/config.ts'
 import { chatTimestampIso } from '../lib/dbTime.ts'
 import {
+  ApiError,
   ErrorCode,
   createAuthError,
   createDuplicateItemError,
@@ -424,6 +425,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       }
 
       const msgClientId = body.clientId ?? Bun.randomUUIDv7()
+      const attachmentIds = isEnvelopeSend ? (body.attachmentIds ?? []) : []
 
       let result: SequenceResult
       try {
@@ -433,6 +435,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             roomId: conversationId,
             userId: me.id,
             clientId: msgClientId,
+            attachmentIds,
             ...(isEnvelopeSend
               ? {
                   ciphertext: envelopeDigest,
@@ -444,6 +447,34 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           },
           isEnvelopeSend
             ? (messageId) => {
+                for (const attachmentId of attachmentIds) {
+                  const linked = getDbInstance()
+                    .sqlite.query(
+                      `UPDATE attachments SET state='linked', linked_at=?, linked_to=?
+                     WHERE id=? AND sender_id=? AND room_id=? AND state='committed'`,
+                    )
+                    .run(
+                      Math.floor(Date.now() / 1000),
+                      msgClientId,
+                      attachmentId,
+                      me.id,
+                      conversationId,
+                    )
+                  if (linked.changes !== 1) {
+                    const row = getDbInstance()
+                      .sqlite.query(
+                        'SELECT state FROM attachments WHERE id=? AND sender_id=? AND room_id=?',
+                      )
+                      .get(attachmentId, me.id, conversationId) as { state: string } | null
+                    if (row?.state === 'expired' || row?.state === 'deleting')
+                      throw new ApiError(
+                        ErrorCode.ITEM_NOT_FOUND,
+                        'Attachment expired; upload again',
+                        410,
+                      )
+                    throw createDuplicateItemError('Attachment is unavailable or already used')
+                  }
+                }
                 const insertEnvelope = getDbInstance().sqlite.query(
                   'INSERT INTO message_envelopes (message_id, target_user_id, target_device_id, ciphertext) VALUES (?, ?, ?, ?)',
                 )
@@ -499,6 +530,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             payload: {
               id: result.id,
               clientId: msgClientId,
+              ...(attachmentIds.length ? { attachmentIds } : {}),
               roomId: conversationId,
               userId: me.id,
               from: me.username,
@@ -519,6 +551,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       return {
         id: result.id,
+        ...(attachmentIds.length ? { attachmentIds } : {}),
         sequence: result.sequence,
         index: result.sequence,
         from: me.username,
@@ -585,6 +618,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         .db.select({
           id: schema.messages.id,
           clientId: schema.messages.clientId,
+          attachmentIds: schema.messages.attachmentIds,
           roomId: schema.messages.roomId,
           userId: schema.messages.userId,
           sequence: schema.messages.sequence,
@@ -623,6 +657,9 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       const messages = orderedRows.map((r) => ({
         id: r.id,
         clientId: r.clientId,
+        ...(r.attachmentIds !== '[]'
+          ? { attachmentIds: JSON.parse(r.attachmentIds) as string[] }
+          : {}),
         roomId: r.roomId,
         userId: r.userId,
         index: r.sequence,

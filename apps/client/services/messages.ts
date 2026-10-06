@@ -14,6 +14,7 @@ import { useAuthStore } from '@/lib/stores'
 import { uuid } from '@/lib/uuid'
 import { decryptE2EMessage, getE2EInstallId, sendE2EMessage } from '@/services/e2e'
 import type { Conversation, Message, MessagesResponse } from '@meapp/shared'
+import { messagePreview } from './messagePreview'
 
 // Re-export: notification.ts consumes MessagesResponse from this module.
 export type { MessagesResponse } from '@meapp/shared'
@@ -100,7 +101,12 @@ function updateConversationListCache(
           ...c,
           lastMessageEncrypted: Boolean(lastMessage.ciphertext),
           lastMessageId: lastMessage.id,
-          lastMessagePreview: lastMessage.ciphertext ? undefined : (lastMessage.text ?? ''),
+          lastMessagePreview: lastMessage.ciphertext
+            ? undefined
+            : (messagePreview(
+                lastMessage,
+                lastMessage.from === currentUsername ? 'sent' : 'received',
+              ) ?? ''),
           lastMessageAt: lastMessage.timestamp,
           lastMessageFrom: lastMessage.from,
         }
@@ -110,7 +116,9 @@ function updateConversationListCache(
           lastIncomingMessageId: lastMessage.id,
           lastIncomingMessageSequence: lastMessage.sequence,
           lastIncomingMessageEncrypted: Boolean(lastMessage.ciphertext),
-          lastIncomingMessagePreview: lastMessage.ciphertext ? undefined : (lastMessage.text ?? ''),
+          lastIncomingMessagePreview: lastMessage.ciphertext
+            ? undefined
+            : (messagePreview(lastMessage, 'received') ?? ''),
           lastIncomingMessageAt: lastMessage.timestamp,
         }
       }

@@ -89,6 +89,7 @@ export const messages = sqliteTable(
   {
     id: text('id').primaryKey(),
     clientId: text('client_id').notNull(),
+    attachmentIds: text('attachment_ids').notNull().default('[]'),
     roomId: text('room_id')
       .notNull()
       .references(() => rooms.id, { onDelete: 'cascade' }),
@@ -117,6 +118,39 @@ export const messages = sqliteTable(
 
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
+
+// Object keys are random capabilities. A deleting row is a durable GC claim:
+// message insertion can only link committed rows inside its SQLite transaction.
+export const attachments = sqliteTable(
+  'attachments',
+  {
+    id: text('id').primaryKey(),
+    clientId: text('client_id').notNull(),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id),
+    senderId: text('sender_id')
+      .notNull()
+      .references(() => users.id),
+    storageKey: text('storage_key').notNull().unique(),
+    state: text('state', { enum: ['pending', 'committed', 'linked', 'deleting', 'expired'] })
+      .notNull()
+      .default('pending'),
+    variantsJson: text('variants_json').notNull(),
+    cipherTotal: integer('cipher_total').notNull(),
+    createdAt: integer('created_at').notNull(),
+    committedAt: integer('committed_at'),
+    linkedAt: integer('linked_at'),
+    linkedTo: text('linked_to'),
+    lastUploadExpiry: integer('last_upload_expiry').notNull(),
+  },
+  (t) => [
+    unique('attachments_sender_client_unique').on(t.senderId, t.clientId),
+    index('attachments_sender_state_idx').on(t.senderId, t.state),
+    index('attachments_state_created_idx').on(t.state, t.createdAt),
+    index('attachments_linked_to_idx').on(t.linkedTo),
+  ],
+)
 
 // ─────────────────────────────────────────────────────────────
 // devices - one install ID and one protocol device ID per linked device.

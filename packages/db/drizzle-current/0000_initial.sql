@@ -1,3 +1,26 @@
+CREATE TABLE `attachments` (
+	`id` text PRIMARY KEY NOT NULL,
+	`client_id` text NOT NULL,
+	`room_id` text NOT NULL,
+	`sender_id` text NOT NULL,
+	`storage_key` text NOT NULL,
+	`state` text DEFAULT 'pending' NOT NULL,
+	`variants_json` text NOT NULL,
+	`cipher_total` integer NOT NULL,
+	`created_at` integer NOT NULL,
+	`committed_at` integer,
+	`linked_at` integer,
+	`linked_to` text,
+	`last_upload_expiry` integer NOT NULL,
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE no action,
+	FOREIGN KEY (`sender_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
+);
+--> statement-breakpoint
+CREATE UNIQUE INDEX `attachments_storage_key_unique` ON `attachments` (`storage_key`);--> statement-breakpoint
+CREATE INDEX `attachments_sender_state_idx` ON `attachments` (`sender_id`,`state`);--> statement-breakpoint
+CREATE INDEX `attachments_state_created_idx` ON `attachments` (`state`,`created_at`);--> statement-breakpoint
+CREATE INDEX `attachments_linked_to_idx` ON `attachments` (`linked_to`);--> statement-breakpoint
+CREATE UNIQUE INDEX `attachments_sender_client_unique` ON `attachments` (`sender_id`,`client_id`);--> statement-breakpoint
 CREATE TABLE `contacts` (
 	`user_id` text NOT NULL,
 	`contact_user_id` text NOT NULL,
@@ -85,6 +108,7 @@ CREATE INDEX `message_envelopes_target_idx` ON `message_envelopes` (`target_user
 CREATE TABLE `messages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
+	`attachment_ids` text DEFAULT '[]' NOT NULL,
 	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,
 	`device_id` text,

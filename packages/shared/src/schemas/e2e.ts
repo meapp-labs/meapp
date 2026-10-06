@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { attachmentIdsSchema } from './media.ts'
 
 /** The server stores and relays these opaque SDK ciphertexts per recipient. */
 export const E2E_CIPHERTEXT_MAX = 12 * 1024
@@ -8,6 +9,7 @@ export const encryptedSendSchema = z.object({
   conversationId: z.string().uuid(),
   clientId: z.string().uuid(),
   installId: z.string().uuid(),
+  attachmentIds: attachmentIdsSchema.optional(),
   envelopes: z
     .array(
       z.object({

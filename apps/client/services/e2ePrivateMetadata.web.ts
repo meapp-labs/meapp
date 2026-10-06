@@ -3,13 +3,17 @@ import type { SignalProtocolLocalStore } from '@open-e2ee/signal-protocol-sdk'
 const KEY_NAME = 'meapp:e2e:private-metadata-key'
 
 function toBase64(bytes: Uint8Array): string {
-  let binary = ''
-  for (const byte of bytes) binary += String.fromCharCode(byte)
-  return btoa(binary)
+  const chunks: string[] = []
+  for (let offset = 0; offset < bytes.length; offset += 32768)
+    chunks.push(String.fromCharCode(...bytes.subarray(offset, offset + 32768)))
+  return btoa(chunks.join(''))
 }
 
 function fromBase64(value: string): Uint8Array {
-  return Uint8Array.from(atob(value), (character) => character.charCodeAt(0))
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index)
+  return bytes
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {

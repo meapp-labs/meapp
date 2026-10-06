@@ -1,2 +1,17 @@
 **/node_modules
 **/.git
+**/.env
+**/.env.*
+!**/.env.example
+**/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+**/.expo
+**/dist
+**/dist-android
+**/build
+**/coverage
+**/android
+**/ios
+**/google-services.json

@@ -16,3 +16,10 @@ test('private metadata is encrypted and rejects modification', async () => {
   await storage.setMetadata('message', `${saved.slice(0, -2)}AA`)
   expect(getPrivateMetadata(storage, 'message')).rejects.toThrow()
 })
+
+test('large frozen upload metadata is encrypted across base64 chunk boundaries', async () => {
+  const storage = inMemoryStore()
+  const value = 'large upload payload'.repeat(650000)
+  await setPrivateMetadata(storage, 'large-job', value)
+  expect(await getPrivateMetadata(storage, 'large-job')).toBe(value)
+})

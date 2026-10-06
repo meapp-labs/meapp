@@ -10,6 +10,7 @@
     "./types": "./src/types/index.ts"
   },
   "scripts": {
+    "test": "bun test",
     "typecheck": "tsc --noEmit",
     "lint": "bunx @biomejs/biome check .",
     "lint:fix": "bunx @biomejs/biome check --write .",

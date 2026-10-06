@@ -12,6 +12,7 @@ import { authRoutes } from './routes/auth.ts'
 import { cleanupExpiredDeviceLinks, deviceLinkRoutes } from './routes/deviceLink.ts'
 import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
+import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
@@ -135,6 +136,7 @@ export const app = new Elysia({
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
+  .use(mediaRoutes)
   .use(e2eRelayRoutes)
   .use(deviceLinkRoutes)
   .use(recoveryRoutes)
@@ -159,6 +161,8 @@ if (import.meta.main) {
   // A new installation must have its schema before any HTTP or WS handler runs.
   runMigrations()
   cleanupExpiredDeviceLinks()
+  void sweepMedia()
+  setInterval(() => void sweepMedia(), 15 * 60 * 1000).unref?.()
   app.listen(
     {
       port: env.PORT,

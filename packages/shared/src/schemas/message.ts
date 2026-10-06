@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { E2E_CIPHERTEXT_MAX, encryptedSendSchema } from './e2e.ts'
+import { attachmentIdsSchema, mediaDescriptorSchema } from './media.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Message Schemas (V7 FINAL - Sequence cursor + WS Ticket auth)
@@ -11,6 +12,8 @@ export const messageSchema = z
   .object({
     id: z.string(),
     clientId: z.string().optional(),
+    attachmentIds: attachmentIdsSchema.optional(),
+    media: z.array(mediaDescriptorSchema).min(1).max(4).optional(),
     roomId: z.string().optional(),
     userId: z.string().optional(),
     sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
@@ -28,9 +31,14 @@ export const messageSchema = z
     type: z.string().optional().default('text'),
     timestamp: z.string().optional(),
   })
-  .refine((message) => (message.text === undefined) !== (message.ciphertext === undefined), {
-    message: 'A message must contain either text or ciphertext',
-  })
+  .refine(
+    (message) =>
+      (message.ciphertext !== undefined) !==
+      (message.text !== undefined || Boolean(message.media?.length)),
+    {
+      message: 'A message must contain ciphertext or decrypted content',
+    },
+  )
 
 export type Message = z.infer<typeof messageSchema>
 

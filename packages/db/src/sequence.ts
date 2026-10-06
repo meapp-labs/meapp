@@ -13,6 +13,7 @@ export type MessageInsert = {
   roomId: string
   userId: string
   clientId: string
+  attachmentIds?: string[]
   /** Plaintext for unencrypted messages; omit for E2E messages. */
   text?: string
   /** base64 Signal protocol body (E2E DMs). */
@@ -37,12 +38,13 @@ export const insertMessageWithSequence = async (
   const readExisting = (): SequenceResult | null => {
     const existing = sqlite
       .query(
-        'SELECT id, room_id as roomId, sequence, text, ciphertext, ciphertext_type as ciphertextType, device_id as deviceId, sender_protocol_device_id as senderProtocolDeviceId, created_at as createdAt FROM messages WHERE user_id = ? AND client_id = ?',
+        'SELECT id, room_id as roomId, sequence, attachment_ids as attachmentIds, text, ciphertext, ciphertext_type as ciphertextType, device_id as deviceId, sender_protocol_device_id as senderProtocolDeviceId, created_at as createdAt FROM messages WHERE user_id = ? AND client_id = ?',
       )
       .get(opts.userId, opts.clientId) as {
       id: string
       roomId: string
       sequence: number
+      attachmentIds: string
       text: string | null
       ciphertext: string | null
       ciphertextType: number | null
@@ -53,6 +55,7 @@ export const insertMessageWithSequence = async (
     if (!existing) return null
     if (
       existing.roomId !== opts.roomId ||
+      existing.attachmentIds !== JSON.stringify(opts.attachmentIds ?? []) ||
       existing.text !== storedText ||
       existing.ciphertext !== (opts.ciphertext ?? null) ||
       existing.ciphertextType !== (opts.ciphertextType ?? null) ||
@@ -87,13 +90,14 @@ export const insertMessageWithSequence = async (
         const createdAt = Math.floor(Date.now() / 1000)
         sqlite
           .query(
-            'INSERT INTO messages (id, client_id, room_id, user_id, device_id, sender_protocol_device_id, sequence, text, ciphertext, ciphertext_type, is_encrypted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO messages (id, client_id, room_id, user_id, attachment_ids, device_id, sender_protocol_device_id, sequence, text, ciphertext, ciphertext_type, is_encrypted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
           .run(
             id,
             opts.clientId,
             opts.roomId,
             opts.userId,
+            JSON.stringify(opts.attachmentIds ?? []),
             opts.deviceId ?? null,
             opts.senderProtocolDeviceId ?? 1,
             nextSeq,
