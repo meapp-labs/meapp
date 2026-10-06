@@ -144,3 +144,18 @@ export async function postFetcher<TResponse, TRequest = unknown>(
 ): Promise<TResponse> {
   return request<TResponse>('POST', buildUrl(url), body, init)
 }
+
+export async function patchFetcher<TResponse, TRequest = unknown>(
+  url: string,
+  body?: TRequest,
+  init?: RequestInit,
+): Promise<TResponse> {
+  return request<TResponse>('PATCH', buildUrl(url), body, init)
+}
+
+export async function deleteFetcher<TResponse>(
+  url: string,
+  init?: RequestInit,
+): Promise<TResponse> {
+  return request<TResponse>('DELETE', buildUrl(url), undefined, init)
+}

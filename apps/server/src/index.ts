@@ -12,6 +12,7 @@ import { authRoutes } from './routes/auth.ts'
 import { cleanupExpiredDeviceLinks, deviceLinkRoutes } from './routes/deviceLink.ts'
 import { e2eRelayRoutes } from './routes/e2eRelay.ts'
 import { friendRoutes } from './routes/friends.ts'
+import { groupRoutes } from './routes/groups.ts'
 import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
@@ -42,7 +43,7 @@ export const app = new Elysia({
     cors({
       origin: corsOrigin,
       credentials: true,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       maxAge: 600,
     }),
   )
@@ -136,6 +137,7 @@ export const app = new Elysia({
   .use(authRoutes)
   .use(friendRoutes)
   .use(messageRoutes)
+  .use(groupRoutes)
   .use(mediaRoutes)
   .use(e2eRelayRoutes)
   .use(deviceLinkRoutes)

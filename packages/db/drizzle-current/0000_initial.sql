@@ -35,6 +35,7 @@ CREATE INDEX `contacts_contact_user_idx` ON `contacts` (`contact_user_id`);--> s
 CREATE TABLE `rooms` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
+	`type` text DEFAULT 'dm' NOT NULL,
 	`created_by` text NOT NULL,
 	`created_at` integer NOT NULL,
 	FOREIGN KEY (`created_by`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE no action
@@ -175,6 +176,21 @@ CREATE TABLE `revoked_tokens` (
 );
 --> statement-breakpoint
 CREATE INDEX `revoked_tokens_expiry_idx` ON `revoked_tokens` (`expires_at`);--> statement-breakpoint
+CREATE TABLE `room_invites` (
+	`token_hash` text PRIMARY KEY NOT NULL,
+	`room_id` text NOT NULL,
+	`inviter_id` text NOT NULL,
+	`role` text DEFAULT 'member' NOT NULL,
+	`max_uses` integer DEFAULT 1 NOT NULL,
+	`uses_count` integer DEFAULT 0 NOT NULL,
+	`expires_at` integer NOT NULL,
+	`created_at` integer NOT NULL,
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`inviter_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `room_invites_room_idx` ON `room_invites` (`room_id`);--> statement-breakpoint
+CREATE INDEX `room_invites_inviter_idx` ON `room_invites` (`inviter_id`);--> statement-breakpoint
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text,

@@ -22,6 +22,12 @@ export type MessageInsert = {
   ciphertextType?: number
   deviceId?: string
   senderProtocolDeviceId?: number
+  /**
+   * Optional atomic mutation executed within the SAME transaction as the
+   * message sequence insertion. If the sequence insert collides and retries,
+   * the transaction (including this mutation) is rolled back and re-executed.
+   */
+  mutation?: (sqlite: Database, meta: { messageId: string; sequence: number }) => void
 }
 
 /**
@@ -108,6 +114,7 @@ export const insertMessageWithSequence = async (
             createdAt,
           )
 
+        opts.mutation?.(sqlite, { messageId: id, sequence: nextSeq })
         afterInsert?.(id)
 
         sqlite.exec('COMMIT')

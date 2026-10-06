@@ -3,6 +3,8 @@ import { useState } from 'react'
 import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native'
 
 import { DeleteFriend } from '@/components/chat/DeleteFriend'
+import { GroupManageModal } from '@/components/chat/GroupManageModal'
+import { LeaveGroupModal } from '@/components/chat/LeaveGroupModal'
 import { Text } from '@/components/common/Text'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useSelectedConversation } from '@/services/conversations'
@@ -37,6 +39,8 @@ export function ChatHeader() {
   const { username } = useAuthStore()
   const [showMenu, setShowMenu] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
+  const [showLeaveModal, setShowLeaveModal] = useState(false)
+  const [showGroupManageModal, setShowGroupManageModal] = useState(false)
   const [showSafetyModal, setShowSafetyModal] = useState(false)
   const [safetyNumber, setSafetyNumber] = useState<SafetyNumber | null>(null)
   const [safetyError, setSafetyError] = useState('')
@@ -76,7 +80,12 @@ export function ChatHeader() {
         <TouchableOpacity onPress={handlePress}>
           <MaterialIcons name="arrow-back" size={34} color={theme.colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={styles.contactInfo}>
+        <TouchableOpacity
+          style={styles.contactInfo}
+          onPress={() => {
+            if (isGroup) setShowGroupManageModal(true)
+          }}
+        >
           <MaterialIcons name={isGroup ? 'groups' : 'face'} size={34} color={theme.colors.text} />
           <Text style={styles.contactName}>{displayName}</Text>
         </TouchableOpacity>
@@ -95,24 +104,47 @@ export function ChatHeader() {
         >
           <Pressable style={styles.menuOverlay} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
-              {!isGroup && (
-                <TouchableOpacity style={styles.menuItem} onPress={openSafetyNumber}>
-                  <MaterialIcons name="verified-user" size={20} color={theme.colors.text} />
-                  <Text>Verify encryption</Text>
-                </TouchableOpacity>
+              {isGroup ? (
+                <>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false)
+                      setShowGroupManageModal(true)
+                    }}
+                  >
+                    <MaterialIcons name="settings" size={20} color={theme.colors.text} />
+                    <Text>Group Settings</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false)
+                      setShowLeaveModal(true)
+                    }}
+                  >
+                    <MaterialIcons name="exit-to-app" size={20} color={theme.colors.error} />
+                    <Text style={{ color: theme.colors.error }}>Leave Group</Text>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <>
+                  <TouchableOpacity style={styles.menuItem} onPress={openSafetyNumber}>
+                    <MaterialIcons name="verified-user" size={20} color={theme.colors.text} />
+                    <Text>Verify encryption</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    onPress={() => {
+                      setShowMenu(false)
+                      setShowDeleteModal(true)
+                    }}
+                  >
+                    <MaterialIcons name="person-remove" size={20} color={theme.colors.error} />
+                    <Text style={{ color: theme.colors.error }}>Remove Friend</Text>
+                  </TouchableOpacity>
+                </>
               )}
-              <TouchableOpacity
-                style={styles.menuItem}
-                onPress={() => {
-                  setShowMenu(false)
-                  setShowDeleteModal(true)
-                }}
-              >
-                <MaterialIcons name="person-remove" size={20} color={theme.colors.error} />
-                <Text style={{ color: theme.colors.error }}>
-                  {isGroup ? 'Leave Group' : 'Remove Friend'}
-                </Text>
-              </TouchableOpacity>
             </View>
           </Pressable>
         </Modal>
@@ -168,13 +200,32 @@ export function ChatHeader() {
         </Modal>
       </View>
 
-      {showDeleteModal && (
+      {!isGroup && showDeleteModal && (
         <DeleteFriend
           friend={otherParticipant}
           onChange={(_pressed: string | null, removed: string | null) => {
             if (removed) handleDelete()
             setShowDeleteModal(false)
           }}
+        />
+      )}
+
+      {isGroup && selectedConversation?.id && showLeaveModal && (
+        <LeaveGroupModal
+          visible={showLeaveModal}
+          onClose={() => setShowLeaveModal(false)}
+          roomId={selectedConversation.id}
+          currentUsername={username}
+        />
+      )}
+
+      {isGroup && selectedConversation?.id && showGroupManageModal && (
+        <GroupManageModal
+          visible={showGroupManageModal}
+          onClose={() => setShowGroupManageModal(false)}
+          roomId={selectedConversation.id}
+          groupName={selectedConversation.name || displayName}
+          currentUsername={username}
         />
       )}
     </View>
