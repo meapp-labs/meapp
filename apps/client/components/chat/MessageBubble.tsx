@@ -5,9 +5,11 @@ import { StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
 import { loadMedia } from '@/services/media'
+import { parseMessageLinks, standaloneMessageLink } from '@/services/messageLinks'
 import { theme } from '@/theme/theme'
 import type { MediaDescriptor, Message } from '@meapp/shared'
 import { FileAttachment } from './FileAttachment'
+import { MessageText } from './MessageText'
 
 export type BaseMessage = Message
 
@@ -27,6 +29,14 @@ type BubbleLayoutProps = {
   time: string
   /** Passed down from the list so each bubble doesn't call useWindowDimensions. */
   maxWidth: number | null
+}
+
+function isLinkOnly(message: Message) {
+  return (
+    !message.media?.length &&
+    !!message.text &&
+    !!standaloneMessageLink(parseMessageLinks(message.text))
+  )
 }
 
 function ImagePreview({ raw: descriptor }: { raw: MediaDescriptor }) {
@@ -88,12 +98,14 @@ export const MessageBubble = {
       <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
         <MaterialIcons name="face" color={theme.colors.text} size={34} />
         <View style={styles.messageTextWrapper}>
-          <View style={styles.receivedMessageContainer}>
+          <View
+            style={[styles.receivedMessageContainer, isLinkOnly(message) && styles.linkContainer]}
+          >
             {message.media?.map((raw) => (
               <MediaPreview key={raw.id} raw={raw} />
             ))}
             {message.text ? (
-              <Text selectable>{message.text}</Text>
+              <MessageText text={message.text} />
             ) : !message.media?.length ? (
               <Text>Encrypted message unavailable on this device</Text>
             ) : null}
@@ -114,12 +126,12 @@ export const MessageBubble = {
       >
         <Text style={styles.time}>{time}</Text>
         <View style={styles.messageTextWrapper}>
-          <View style={styles.sentMessageContainer}>
+          <View style={[styles.sentMessageContainer, isLinkOnly(message) && styles.linkContainer]}>
             {message.media?.map((raw) => (
               <MediaPreview key={raw.id} raw={raw} />
             ))}
             {message.text ? (
-              <Text selectable>{message.text}</Text>
+              <MessageText text={message.text} />
             ) : !message.media?.length ? (
               <Text>Encrypted message unavailable on this device</Text>
             ) : null}
@@ -203,6 +215,7 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
   },
   mediaImage: { width: 240, maxHeight: 320, borderRadius: 12 },
+  linkContainer: { padding: theme.spacing.sm, borderRadius: 12 },
   mediaPlaceholder: { width: 240, maxHeight: 320, backgroundColor: '#555', borderRadius: 12 },
   mediaStatus: { color: theme.colors.text },
 })
