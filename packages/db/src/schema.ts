@@ -31,6 +31,9 @@ export type NewUser = typeof users.$inferInsert
 export const rooms = sqliteTable('rooms', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
+  type: text('type', { enum: ['dm', 'group'] })
+    .notNull()
+    .default('dm'),
   createdBy: text('created_by')
     .notNull()
     .references(() => users.id),
@@ -79,6 +82,37 @@ export type NewRoomMember = typeof roomMembers.$inferInsert
 export const participants = roomMembers
 export type Participant = RoomMember
 export type NewParticipant = NewRoomMember
+
+// ─────────────────────────────────────────────────────────────
+// room_invites (expiring, hashed tokens with atomic usage count)
+// ─────────────────────────────────────────────────────────────
+
+export const roomInvites = sqliteTable(
+  'room_invites',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    inviterId: text('inviter_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    role: text('role').notNull().default('member'),
+    maxUses: integer('max_uses').notNull().default(1),
+    usesCount: integer('uses_count').notNull().default(0),
+    expiresAt: integer('expires_at', { mode: 'timestamp' }).notNull(),
+    createdAt: integer('created_at', { mode: 'timestamp' })
+      .notNull()
+      .$defaultFn(() => new Date()),
+  },
+  (t) => [
+    index('room_invites_room_idx').on(t.roomId),
+    index('room_invites_inviter_idx').on(t.inviterId),
+  ],
+)
+
+export type RoomInvite = typeof roomInvites.$inferSelect
+export type NewRoomInvite = typeof roomInvites.$inferInsert
 
 // ─────────────────────────────────────────────────────────────
 // messages (V10 EXPAND - E2E columns nullable, plaintext text kept for N)

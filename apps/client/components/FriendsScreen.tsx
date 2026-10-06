@@ -6,6 +6,7 @@ import { ConversationItem } from '@/components/ConversationItem'
 import { Logout } from '@/components/Logout'
 import { CreateGroup } from '@/components/chat/CreateGroup'
 import { FriendRequests } from '@/components/chat/FriendRequests'
+import { JoinGroupModal } from '@/components/chat/JoinGroupModal'
 import { TopMenu } from '@/components/forms/TopMenu'
 import { UserSettings } from '@/components/settings/UserSettings'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
@@ -21,6 +22,7 @@ export function FriendsScreen() {
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const [showSettings, setShowSettings] = useState<boolean>(false)
   const [creatingGroup, setCreatingGroup] = useState(false)
+  const [joiningGroup, setJoiningGroup] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { data: conversations = [], isPending } = useGetConversations()
 
@@ -71,6 +73,13 @@ export function FriendsScreen() {
             >
               <MaterialIcons name="group-add" size={24} color={theme.colors.text} />
             </Pressable>
+            <Pressable
+              accessibilityLabel="Join group with invite"
+              style={styles.groupTrigger}
+              onPress={() => setJoiningGroup(true)}
+            >
+              <MaterialIcons name="login" size={24} color={theme.colors.text} />
+            </Pressable>
           </View>
           {isPending ? (
             <ActivityIndicator />
@@ -90,6 +99,7 @@ export function FriendsScreen() {
           </View>
         </>
       )}
+      {joiningGroup && <JoinGroupModal onClose={() => setJoiningGroup(false)} />}
     </View>
   )
 }

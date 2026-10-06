@@ -99,7 +99,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             `SELECT r.id, r.name, r.created_at as createdAt
              FROM rooms r
              JOIN room_members rm ON rm.room_id = r.id
-             WHERE rm.user_id IN (?, ?)
+             WHERE r.type = 'dm' AND rm.user_id IN (?, ?)
              GROUP BY r.id
              HAVING COUNT(DISTINCT rm.user_id) = 2 AND COUNT(*) = 2
              LIMIT 1`,
@@ -109,6 +109,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         if (existingRows) {
           return {
             id: existingRows.id,
+            type: 'dm',
             participants: [first, second],
             isGroup: false,
             name: existingRows.name,
@@ -140,7 +141,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             .sqlite.query(
               `SELECT r.id FROM rooms r
                JOIN room_members rm ON rm.room_id = r.id
-               WHERE rm.user_id IN (?, ?)
+               WHERE r.type = 'dm' AND rm.user_id IN (?, ?)
                GROUP BY r.id
                HAVING COUNT(DISTINCT rm.user_id) = 2 AND COUNT(*) = 2
                LIMIT 1`,
@@ -154,9 +155,9 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
           getDbInstance()
             .sqlite.query(
-              'INSERT INTO rooms (id, name, created_by, created_at) VALUES (?, ?, ?, ?)',
+              'INSERT INTO rooms (id, name, type, created_by, created_at) VALUES (?, ?, ?, ?, ?)',
             )
-            .run(roomId, dmName, me.id, Math.floor(Date.now() / 1000))
+            .run(roomId, dmName, 'dm', me.id, Math.floor(Date.now() / 1000))
           const insertMember = getDbInstance().sqlite.query(
             'INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)',
           )
@@ -172,6 +173,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             .get()
           return {
             id: existingDmId,
+            type: 'dm',
             participants: [first, second],
             isGroup: false,
             name: existingRoom?.name ?? dmName,
@@ -184,6 +186,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         set.status = 201
         return {
           id: roomId,
+          type: 'dm',
           participants: [first, second],
           isGroup: false,
           name: dmName,
@@ -198,6 +201,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       await getDbInstance().db.insert(schema.rooms).values({
         id: roomId,
         name: groupName,
+        type: 'group',
         createdBy: me.id,
       })
 
@@ -214,6 +218,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       set.status = 201
       return {
         id: roomId,
+        type: 'group',
         participants: allParticipantUsernames,
         isGroup: true,
         name: groupName,
@@ -314,8 +319,9 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       conversations.push({
         id: room.id,
         ...readSummaries.get(room.id),
+        type: (room.type as 'dm' | 'group') ?? (roomParticipants.length > 2 ? 'group' : 'dm'),
         participants: roomParticipants,
-        isGroup: roomParticipants.length > 2,
+        isGroup: room.type ? room.type === 'group' : roomParticipants.length > 2,
         name: room.name,
         createdAt: chatTimestampIso(room.createdAt),
         ...(lastMsg

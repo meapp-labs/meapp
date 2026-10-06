@@ -8,6 +8,7 @@ import { usernameSchema } from './auth.ts'
 
 export const conversationSchema = z.object({
   id: z.string().uuid(),
+  type: z.enum(['dm', 'group']).optional(),
   participants: z.array(z.string()),
   isGroup: z.boolean(),
   name: z.string().max(100).optional(),

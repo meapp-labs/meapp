@@ -18,6 +18,48 @@ import { RedisPubsub, roomChannel, roomTypingChannel } from './redisPubsub.ts'
 const connectionManager = new WsConnectionManager(redis)
 const wsStates = new WeakMap<object, WsSessionState>()
 
+type ActiveSocketEntry = {
+  ws: {
+    raw: object
+    data: { query: { roomId: string } }
+    unsubscribe: (topic: string) => void
+    send: (data: string) => void
+    close: (code?: number, reason?: string) => void
+  }
+  state: WsSessionState
+}
+const activeSockets = new Set<ActiveSocketEntry>()
+
+export const revokeUserRoomAccess = async (userId: string, roomId: string): Promise<void> => {
+  for (const entry of Array.from(activeSockets)) {
+    if (!entry.state.closed && entry.state.authenticatedUserId === userId) {
+      if (entry.state.subscribedRooms.has(roomId)) {
+        entry.state.subscribedRooms.delete(roomId)
+        entry.ws.unsubscribe(`room:${roomId}`)
+        entry.ws.send(
+          JSON.stringify({
+            type: 'unsubscribed',
+            payload: { roomId, reason: 'MEMBERSHIP_REVOKED' },
+          }),
+        )
+      }
+      if (entry.ws.data.query?.roomId === roomId) {
+        entry.ws.close(4403, 'Room membership revoked')
+      }
+      await connectionManager.unsubscribeRoom(userId, roomId)
+    }
+  }
+}
+
+export const broadcastRevokeUserRoomAccess = async (
+  userId: string,
+  roomId: string,
+): Promise<void> => {
+  await revokeUserRoomAccess(userId, roomId)
+  const message = JSON.stringify({ type: 'revoke_access', payload: { userId, roomId } })
+  await pubsub.publish(`meapp:room-revoke:${roomId}`, message)
+}
+
 const pubsub = new RedisPubsub(redis)
 let getLocalServer:
   | (() => { publish: (topic: string, data: string) => void } | undefined)
@@ -28,6 +70,18 @@ export const startPubsub = (
 ) => {
   getLocalServer = getServer
   return pubsub.start((channel, message) => {
+    if (channel.startsWith('meapp:room-revoke:')) {
+      try {
+        const parsed = JSON.parse(message) as {
+          type?: string
+          payload?: { userId: string; roomId: string }
+        }
+        if (parsed?.type === 'revoke_access' && parsed.payload) {
+          void revokeUserRoomAccess(parsed.payload.userId, parsed.payload.roomId)
+        }
+      } catch {}
+      return
+    }
     const localTopic = channel.startsWith('meapp:room-typing:')
       ? `room:${channel.slice('meapp:room-typing:'.length)}`
       : `room:${channel.slice('meapp:room:'.length)}`
@@ -82,6 +136,7 @@ export const chatWs = new Elysia()
         subscribedRooms: new Set<string>(),
       }
       wsStates.set(ws.raw, state)
+      activeSockets.add({ ws, state })
 
       // Web and native clients both authenticate with a single-use ticket.
       const allowedUnauth = await connectionManager.canAcceptUnauth(ip)
@@ -244,6 +299,18 @@ export const chatWs = new Elysia()
           }
           state.subscribedRooms.add(roomId)
 
+          // Membership may have changed while awaiting Redis subscription limits.
+          if (
+            !getDbInstance()
+              .sqlite.query('SELECT 1 FROM room_members WHERE user_id=? AND room_id=?')
+              .get(userId, roomId)
+          ) {
+            state.subscribedRooms.delete(roomId)
+            await connectionManager.unsubscribeRoom(userId, roomId)
+            ws.close(4403, 'Room membership revoked')
+            return
+          }
+
           ws.subscribe(`room:${roomId}`)
           if (state.unauthCounted) {
             state.unauthCounted = false
@@ -310,7 +377,22 @@ export const chatWs = new Elysia()
           return
         }
 
-        state?.subscribedRooms.add(targetRoom)
+        if (
+          state.closed ||
+          !getDbInstance()
+            .sqlite.query('SELECT 1 FROM room_members WHERE user_id=? AND room_id=?')
+            .get(userId, targetRoom)
+        ) {
+          await connectionManager.unsubscribeRoom(userId, targetRoom)
+          ws.send(
+            JSON.stringify({
+              type: 'error',
+              payload: { code: 'FORBIDDEN', message: 'Room membership revoked' },
+            }),
+          )
+          return
+        }
+        state.subscribedRooms.add(targetRoom)
         ws.subscribe(`room:${targetRoom}`)
         ws.send(
           JSON.stringify({
@@ -519,5 +601,11 @@ export const chatWs = new Elysia()
       }
 
       wsStates.delete(ws.raw)
+      for (const entry of activeSockets) {
+        if (entry.ws.raw === ws.raw) {
+          activeSockets.delete(entry)
+          break
+        }
+      }
     },
   })

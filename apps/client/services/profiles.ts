@@ -170,6 +170,7 @@ export function useEditProfile() {
       client.setQueryData(['profiles', account, 'username', profile.username], profile)
       client.setQueryData(['profiles', account, 'id', profile.id], profile)
       void client.invalidateQueries({ queryKey: ['profiles'] })
+      void client.invalidateQueries({ queryKey: ['rooms'] })
     },
   })
 }

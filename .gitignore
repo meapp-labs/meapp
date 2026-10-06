@@ -1,6 +1,9 @@
 # Dependencies
 **/node_modules
 
+# Local Git worktrees
+/.worktrees/
+
 # VSCode
 .vscode/*
 !.vscode/settings.json
