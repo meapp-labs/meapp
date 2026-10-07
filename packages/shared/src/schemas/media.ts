@@ -28,6 +28,12 @@ export const mediaIntentSchema = z
   })
   .strict()
 export const mediaCommitSchema = z.object({ clientId: z.string().uuid() }).strict()
+export const mediaStatusSchema = z.object({
+  available: z.boolean(),
+  state: z.enum(['pending', 'committed', 'linked', 'deleting', 'expired']),
+  publicUrl: z.string().url().optional(),
+})
+export type MediaStatus = z.infer<typeof mediaStatusSchema>
 export const attachmentIdsSchema = z
   .array(z.string().uuid())
   .min(1)

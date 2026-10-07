@@ -28,6 +28,7 @@ import { Elysia } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { chatTimestampIso } from '../lib/dbTime.ts'
+import { devSeedContent } from '../lib/devSeed.ts'
 import {
   ApiError,
   ErrorCode,
@@ -815,7 +816,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               envelopeSourceUserId: r.envelopeSourceUserId ?? undefined,
               envelopeSourceDeviceId: r.envelopeSourceDeviceId ?? undefined,
             }
-          : { text: r.text ?? '' }),
+          : (devSeedContent(r.clientId, r.text) ?? { text: r.text ?? '' })),
         type: 'text',
         timestamp: chatTimestampIso(r.createdAt),
       })

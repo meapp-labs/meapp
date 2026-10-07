@@ -1,9 +1,15 @@
 import { randomBytes } from 'node:crypto'
 import { getDbInstance } from '@meapp/db'
-import { mediaCommitSchema, mediaIntentSchema, mediaVariantSchema } from '@meapp/shared'
+import {
+  mediaCommitSchema,
+  mediaIntentSchema,
+  mediaStatusSchema,
+  mediaVariantSchema,
+} from '@meapp/shared'
 import { Elysia } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
+import { devSeedMediaOrigin } from '../lib/devSeed.ts'
 import { ApiError, ErrorCode, createAuthError, createValidationError } from '../lib/errors.ts'
 import {
   deleteObject,
@@ -203,7 +209,8 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
     { body: mediaCommitSchema },
   )
   .get('/:id/status', async ({ params, user, set }) => {
-    requireMedia()
+    const fixtureOrigin = devSeedMediaOrigin(params.id)
+    if (!fixtureOrigin) requireMedia()
     const me = requireUser(user)
     const row = getDbInstance()
       .sqlite.query('SELECT * FROM attachments WHERE id=?')
@@ -217,7 +224,11 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
       (row.state === 'linked' &&
         env.MEDIA_LINKED_TTL_SECONDS > 0 &&
         (row.linked_at === null || row.linked_at + env.MEDIA_LINKED_TTL_SECONDS <= nowSeconds()))
-    return { available: row.state === 'linked' && !expired, state: expired ? 'expired' : row.state }
+    return mediaStatusSchema.parse({
+      available: row.state === 'linked' && !expired,
+      state: expired ? 'expired' : row.state,
+      ...(fixtureOrigin ? { publicUrl: fixtureOrigin } : {}),
+    })
   })
   .delete('/:id', async ({ params, user }) => {
     const me = requireUser(user)

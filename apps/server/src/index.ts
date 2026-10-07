@@ -4,6 +4,7 @@ import { checkpoint, getDbInstance, runMigrations } from '@meapp/db'
 import { Elysia } from 'elysia'
 
 import { env, isProduction } from './lib/config.ts'
+import { devSeedRoutes } from './lib/devSeed.ts'
 import { ApiError, ErrorCode, toErrorResponse } from './lib/errors.ts'
 import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
@@ -138,6 +139,7 @@ export const app = new Elysia({
     return undefined
   })
   .use(authRoutes)
+  .use(devSeedRoutes)
   .use(profileRoutes)
   .use(friendRoutes)
   .use(messageRoutes)

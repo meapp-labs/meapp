@@ -1,6 +1,6 @@
 import { deleteFetcher, getFetcher, isApiHttpError, postFetcher } from '@/lib/api'
 import { uuid } from '@/lib/uuid'
-import type { MediaDescriptor, Message } from '@meapp/shared'
+import type { MediaDescriptor, MediaStatus, Message } from '@meapp/shared'
 import {
   MEDIA_MAX_BYTES,
   MEDIA_TRANSFER_TIMEOUT_MS,
@@ -741,7 +741,7 @@ async function loadMediaOnce(
   options?.signal?.throwIfAborted()
   const epoch = mediaCacheEpoch()
   const parsed = mediaDescriptorSchema.parse(descriptor)
-  const status = await getFetcher<{ available: boolean }>(
+  const status = await getFetcher<MediaStatus>(
     `media/${parsed.id}/status`,
     undefined,
     options?.signal ? { signal: options.signal } : undefined,
@@ -753,7 +753,7 @@ async function loadMediaOnce(
   const name = attachmentCacheName(parsed.id, variant.mime, parsed.fileName, preferred === 'thumb')
   const cached = await getCachedMedia(name)
   if (cached) return cached
-  const origin = await publicOrigin()
+  const origin = status.publicUrl ?? (await publicOrigin())
   const url = `${origin.replace(/\/$/, '')}/${parsed.base}/${variant.path}`
   const signal = options?.signal
     ? AbortSignal.any([options.signal, AbortSignal.timeout(MEDIA_TRANSFER_TIMEOUT_MS)])

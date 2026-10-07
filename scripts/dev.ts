@@ -55,11 +55,13 @@ function portAvailable(port: number): Promise<boolean> {
 
 let server: ReturnType<typeof Bun.spawn> | undefined
 let client: ReturnType<typeof Bun.spawn> | undefined
+let seed: ReturnType<typeof Bun.spawn> | undefined
 
 function stopChildren() {
   for (const child of podmanChildren) child.kill()
   server?.kill()
   client?.kill()
+  seed?.kill()
 }
 
 try {
@@ -69,6 +71,14 @@ try {
   }
   process.on('SIGINT', stop)
   process.on('SIGTERM', stop)
+  seed = Bun.spawn(['bun', 'src/lib/devSeed.ts'], {
+    cwd: resolve(root, 'apps/server'),
+    stdin: 'inherit',
+    stdout: 'inherit',
+    stderr: 'inherit',
+  })
+  if ((await seed.exited) !== 0) throw new Error('Development seed failed. See the error above.')
+  seed = undefined
   await ensureDevRedis({ run: podman })
 
   if (await isRunning('http://127.0.0.1:3000/health', '"status":"ok"')) {

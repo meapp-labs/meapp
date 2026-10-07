@@ -50,6 +50,13 @@ data volume. Compose containers are not changed. Startup waits up to 30 seconds 
 the API health endpoint before opening Expo; API errors still fail startup visibly.
 Interactive API docs are served at `/swagger` when the server is running.
 
+`bun run dev` also seeds `emil1`, `emil2`, and `emil3` with password `qwe`, mutual
+friendships, three direct chats, two groups, sample messages, avatars, and image
+attachments. Repeated starts reuse the fixtures and preserve chat history and
+profile edits. The three test account passwords are set to `qwe`; other accounts
+are untouched. The development API serves fixture images locally without extra
+setup or cloud uploads. Seeding refuses non-development environments.
+
 ## Development
 
 ```sh
