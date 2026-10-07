@@ -1,10 +1,12 @@
+import { useQueryClient } from '@tanstack/react-query'
 import { Image } from 'expo-image'
 import { memo, useEffect, useState } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { Alert, Platform, Pressable, StyleSheet, View } from 'react-native'
+import Toast from 'react-native-toast-message'
 
 import { UserAvatar } from '@/components/UserAvatar'
 import { Text } from '@/components/common/Text'
-import { loadMedia } from '@/services/media'
+import { deleteMedia, loadMedia } from '@/services/media'
 import { parseMessageLinks, standaloneMessageLink } from '@/services/messageLinks'
 import { useContactPresentation, useOwnProfile } from '@/services/profiles'
 import { theme } from '@/theme/theme'
@@ -45,17 +47,18 @@ function ImagePreview({ raw: descriptor }: { raw: MediaDescriptor }) {
   const [failed, setFailed] = useState(false)
   useEffect(() => {
     let live = true
+    const controller = new AbortController()
     setUri(null)
     setFailed(false)
     let originalLoaded = false
     if (descriptor.variants.some((variant) => variant.name === 'thumb')) {
-      void loadMedia(descriptor, 'thumb')
+      void loadMedia(descriptor, 'thumb', { signal: controller.signal })
         .then((value) => {
           if (live && !originalLoaded) setUri(value)
         })
         .catch(() => undefined)
     }
-    void loadMedia(descriptor)
+    void loadMedia(descriptor, 'orig', { signal: controller.signal })
       .then((value) => {
         originalLoaded = true
         if (live) setUri(value)
@@ -65,6 +68,7 @@ function ImagePreview({ raw: descriptor }: { raw: MediaDescriptor }) {
       })
     return () => {
       live = false
+      controller.abort()
     }
   }, [descriptor])
   if (failed && !uri) return <Text style={styles.mediaStatus}>Image unavailable</Text>
@@ -93,6 +97,55 @@ function MediaPreview({ raw }: { raw: MediaDescriptor }) {
   )
 }
 
+function MessageMedia({ message, own = false }: { message: Message; own?: boolean }) {
+  const queryClient = useQueryClient()
+  const [busy, setBusy] = useState(false)
+  const remove = (id: string) => {
+    const perform = async () => {
+      setBusy(true)
+      try {
+        await deleteMedia(id)
+        await queryClient.invalidateQueries()
+      } catch (error) {
+        Toast.show({
+          type: 'error',
+          text1: 'Could not delete attachment',
+          text2: error instanceof Error ? error.message : 'Try again',
+        })
+      } finally {
+        setBusy(false)
+      }
+    }
+    const explanation =
+      'Remove this attachment from the chat and schedule storage deletion? Previously saved copies, keys and CDN caches may remain.'
+    if (Platform.OS === 'web') {
+      if (window.confirm(explanation)) void perform()
+    } else
+      Alert.alert('Delete attachment?', explanation, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: () => void perform() },
+      ])
+  }
+  return (
+    <>
+      {message.media?.map((raw) =>
+        message.unavailableAttachmentIds?.includes(raw.id) ? (
+          <Text key={raw.id}>Attachment deleted or expired</Text>
+        ) : (
+          <View key={raw.id} style={{ gap: 6 }}>
+            <MediaPreview raw={raw} />
+            {own && (
+              <Pressable disabled={busy} accessibilityRole="button" onPress={() => remove(raw.id)}>
+                <Text style={{ fontSize: 12 }}>Delete attachment</Text>
+              </Pressable>
+            )}
+          </View>
+        ),
+      )}
+    </>
+  )
+}
+
 export const MessageBubble = {
   Received: memo(function ReceivedMessage({ message, time, maxWidth }: BubbleLayoutProps) {
     const contact = useContactPresentation(message.userId ?? message.from ?? '', !!message.userId)
@@ -106,9 +159,7 @@ export const MessageBubble = {
           <View
             style={[styles.receivedMessageContainer, isLinkOnly(message) && styles.linkContainer]}
           >
-            {message.media?.map((raw) => (
-              <MediaPreview key={raw.id} raw={raw} />
-            ))}
+            <MessageMedia message={message} />
             {message.text ? (
               <MessageText text={message.text} />
             ) : !message.media?.length ? (
@@ -139,9 +190,7 @@ export const MessageBubble = {
         </View>
         <View style={styles.messageTextWrapper}>
           <View style={[styles.sentMessageContainer, isLinkOnly(message) && styles.linkContainer]}>
-            {message.media?.map((raw) => (
-              <MediaPreview key={raw.id} raw={raw} />
-            ))}
+            <MessageMedia message={message} own />
             {message.text ? (
               <MessageText text={message.text} />
             ) : !message.media?.length ? (

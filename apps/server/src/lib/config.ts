@@ -59,8 +59,44 @@ export const serverEnvSchema = z
       .int()
       .positive()
       .default(2 * 1024 * 1024 * 1024),
+    MEDIA_LINKED_TTL_SECONDS: z.coerce.number().int().nonnegative().default(0),
+    MEDIA_STORAGE: z.enum(['r2', 'local']).default('r2'),
+    MEDIA_LOCAL_DIRECTORY: z.string().optional(),
+    MEDIA_LOCAL_PUBLIC_URL: z.string().url().optional(),
+    MEDIA_LOCAL_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   })
   .superRefine((data, ctx) => {
+    if (data.MEDIA_STORAGE === 'local') {
+      if (!data.MEDIA_LOCAL_DIRECTORY || !/^(?:[A-Za-z]:[\\/]|\/)/.test(data.MEDIA_LOCAL_DIRECTORY))
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MEDIA_LOCAL_DIRECTORY'],
+          message: 'Local media requires an absolute directory path',
+        })
+      const url =
+        data.MEDIA_LOCAL_PUBLIC_URL && URL.canParse(data.MEDIA_LOCAL_PUBLIC_URL)
+          ? new URL(data.MEDIA_LOCAL_PUBLIC_URL)
+          : null
+      if (
+        !url ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash ||
+        url.pathname !== '/' ||
+        (url.protocol !== 'https:' &&
+          !(
+            data.NODE_ENV !== 'production' &&
+            url.protocol === 'http:' &&
+            ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)
+          ))
+      )
+        ctx.addIssue({
+          code: 'custom',
+          path: ['MEDIA_LOCAL_PUBLIC_URL'],
+          message: 'Local media requires an HTTPS origin (loopback HTTP allowed in development)',
+        })
+    }
     const r2 = [
       data.R2_ACCOUNT_ID,
       data.R2_ACCESS_KEY_ID,

@@ -26,7 +26,7 @@ import {
 import { Elysia } from 'elysia'
 
 import { canAccessRoom } from '../lib/authz.ts'
-import { isE2EEnabled } from '../lib/config.ts'
+import { env, isE2EEnabled } from '../lib/config.ts'
 import { chatTimestampIso } from '../lib/dbTime.ts'
 import {
   ApiError,
@@ -673,6 +673,23 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             .all(me.id, conversationId, ...orderedRows.map((row) => row.id)) as { id: string }[]
         ).map((row) => row.id),
       )
+      const pageAttachmentIds = orderedRows.flatMap(
+        (row) => JSON.parse(row.attachmentIds) as string[],
+      )
+      const availableAttachments = new Set(
+        pageAttachmentIds.length
+          ? (
+              getDbInstance()
+                .sqlite.query(`SELECT id FROM attachments WHERE id IN (${pageAttachmentIds.map(() => '?').join(',')})
+          AND state='linked' AND (?=0 OR linked_at>?)`)
+                .all(
+                  ...pageAttachmentIds,
+                  env.MEDIA_LINKED_TTL_SECONDS,
+                  Math.floor(Date.now() / 1000) - env.MEDIA_LINKED_TTL_SECONDS,
+                ) as { id: string }[]
+            ).map((row) => row.id)
+          : [],
+      )
       const messages = orderedRows.map((r) => ({
         id: r.id,
         acknowledgedRead: ownReads.has(r.id),
@@ -680,6 +697,11 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         ...(r.attachmentIds !== '[]'
           ? { attachmentIds: JSON.parse(r.attachmentIds) as string[] }
           : {}),
+        ...(() => {
+          const ids = JSON.parse(r.attachmentIds) as string[]
+          const unavailable = ids.filter((id) => !availableAttachments.has(id))
+          return unavailable.length ? { unavailableAttachmentIds: unavailable } : {}
+        })(),
         roomId: r.roomId,
         userId: r.userId,
         index: r.sequence,

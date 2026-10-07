@@ -3,6 +3,9 @@ import { z } from 'zod'
 export const MEDIA_MAX_BYTES = 100 * 1024 * 1024
 export const MEDIA_TRANSFER_TIMEOUT_MS = 10 * 60 * 1000
 export const MEDIA_MAX_ATTACHMENTS = 4
+export const VOICE_MAX_DURATION_MS = 5 * 60 * 1000
+export const VOICE_MAX_BYTES = 10 * 1024 * 1024
+export const MEDIA_CACHE_TTL_MS = 60 * 60 * 1000
 const size = z.number().int().min(29).max(MEDIA_MAX_BYTES)
 const uniqueVariants = (variants: { name: string; size: number }[]) =>
   variants.some((variant) => variant.name === 'orig') &&

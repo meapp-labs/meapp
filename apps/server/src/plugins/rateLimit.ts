@@ -6,6 +6,7 @@ import { redis } from './redis.ts'
 
 type Bucket = { count: number; reset: number }
 const inMemoryBuckets = new Map<string, Bucket>()
+let rateLimitPrefix = 'ratelimit'
 
 /** Atomic fixed-window counter: INCR + EXPIRE in one roundtrip. */
 const RATE_LIMIT_LUA = `
@@ -202,9 +203,10 @@ const cleanupInterval = setInterval(
 
 cleanupInterval.unref?.()
 
-/** Test-only: clears the in-memory fallback buckets (Redis-backed limits expire on their own). */
+/** Test-only: clear fallback buckets and isolate Redis counters with a fresh namespace. */
 export const resetInMemoryRateLimits = (): void => {
   inMemoryBuckets.clear()
+  rateLimitPrefix = `meapp:test:${crypto.randomUUID()}:ratelimit`
 }
 
 export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
@@ -236,7 +238,7 @@ export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
 
     const matched = getRouteRuleAndLimit(method, path)
     const identifier = matched.perIp ? ip : user?.id || ip
-    const key = `ratelimit:${identifier}:${matched.key}`
+    const key = `${rateLimitPrefix}:${identifier}:${matched.key}`
     const windowSec = Math.ceil(matched.windowMs / 1000)
 
     if (redis.status === 'ready') {

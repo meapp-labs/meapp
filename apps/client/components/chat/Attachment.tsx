@@ -8,12 +8,13 @@ type AttachmentOption = {
   label: string
   icon: ComponentProps<typeof MaterialIcons>['name']
   color: string
-  action?: 'gallery' | 'document'
+  action?: 'gallery' | 'document' | 'camera' | 'voice'
 }
 
 const options: AttachmentOption[] = [
   { label: 'Gallery', icon: 'photo-library', color: '#60A5FA', action: 'gallery' },
-  { label: 'Camera', icon: 'photo-camera', color: '#F472B6' },
+  { label: 'Camera', icon: 'photo-camera', color: '#F472B6', action: 'camera' },
+  { label: 'Voice', icon: 'mic', color: '#34D399', action: 'voice' },
   { label: 'Location', icon: 'location-on', color: '#34D399' },
   { label: 'Contact', icon: 'person', color: '#38BDF8' },
   { label: 'Document', icon: 'description', color: '#A78BFA', action: 'document' },
@@ -25,8 +26,16 @@ const options: AttachmentOption[] = [
 export function Attachment({
   onPress,
   onImagePress,
+  onCameraPress,
+  onVoicePress,
   disabled,
-}: { onPress: () => void; onImagePress: () => void; disabled: boolean }) {
+}: {
+  onPress: () => void
+  onImagePress: () => void
+  onCameraPress: () => void
+  onVoicePress: () => void
+  disabled: boolean
+}) {
   const [open, setOpen] = useState(false)
   const insets = useSafeAreaInsets()
   const close = () => setOpen(false)
@@ -83,6 +92,8 @@ export function Attachment({
                     close()
                     if (option.action === 'gallery') onImagePress()
                     else if (option.action === 'document') onPress()
+                    else if (option.action === 'camera') onCameraPress()
+                    else if (option.action === 'voice') onVoicePress()
                   }}
                   style={({ pressed }) => [styles.option, pressed && styles.pressed]}
                 >
@@ -96,7 +107,9 @@ export function Attachment({
                 </Pressable>
               ))}
             </View>
-            <Text style={styles.footer}>Gallery for photos & GIFs · Document for any file</Text>
+            <Text style={styles.footer}>
+              Gallery for photos, GIFs & video · Document for any file
+            </Text>
           </View>
         </View>
       </Modal>

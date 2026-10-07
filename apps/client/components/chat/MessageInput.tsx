@@ -7,14 +7,17 @@ import Toast from 'react-native-toast-message'
 import { Attachment } from '@/components/chat/Attachment'
 import { Keys } from '@/lib/keys'
 import { uuid } from '@/lib/uuid'
-import { pickAndSendFiles, pickAndSendMedia } from '@/services/media'
+import { captureAndSendMedia, pickAndSendFiles, pickAndSendMedia } from '@/services/media'
 import { useSendMessage } from '@/services/messages'
 import { theme } from '@/theme/theme'
 import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
+import { MediaTransferPanel } from './MediaTransferPanel'
+import { VoiceRecorder } from './VoiceRecorder'
 
 export function MessageInput({ conversationId }: { conversationId: string }) {
   const [inputData, setInputData] = useState('')
   const [mediaPending, setMediaPending] = useState(false)
+  const [recording, setRecording] = useState(false)
   const queryClient = useQueryClient()
   const inputRef = useRef<TextInput>(null)
   const lastSubmitted = useRef<string | null>(null)
@@ -69,35 +72,53 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={styles.attachment}>
-        <Attachment
-          onPress={() => void handleMedia(pickAndSendFiles)}
-          onImagePress={() => void handleMedia()}
-          disabled={mediaPending || isPending}
+    <View>
+      <MediaTransferPanel conversationId={conversationId} />
+      {recording && (
+        <VoiceRecorder
+          conversationId={conversationId}
+          onClose={() => setRecording(false)}
+          onSent={() => {
+            void queryClient.invalidateQueries()
+          }}
         />
+      )}
+      <View style={styles.container}>
+        <View style={styles.attachment}>
+          <Attachment
+            onPress={() => void handleMedia(pickAndSendFiles)}
+            onImagePress={() => void handleMedia()}
+            onCameraPress={() => void handleMedia(captureAndSendMedia)}
+            onVoicePress={() => setRecording(true)}
+            disabled={mediaPending || isPending}
+          />
+        </View>
+        <TextInput
+          ref={inputRef}
+          style={styles.inputField}
+          value={inputData}
+          editable={!isPending}
+          placeholder="Type a message..."
+          placeholderTextColor="#9BA1A6"
+          onChangeText={(value) => {
+            lastSubmitted.current = null
+            setInputData(value)
+          }}
+          onSubmitEditing={() => void handleSend()}
+          blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
+          submitBehavior="submit"
+          multiline
+          numberOfLines={1}
+          maxLength={MESSAGE_MAX_LENGTH}
+        />
+        <TouchableOpacity
+          style={styles.send}
+          disabled={isPending}
+          onPress={() => void handleSend()}
+        >
+          <MaterialIcons name="send" size={24} color={theme.colors.text} />
+        </TouchableOpacity>
       </View>
-      <TextInput
-        ref={inputRef}
-        style={styles.inputField}
-        value={inputData}
-        editable={!isPending}
-        placeholder="Type a message..."
-        placeholderTextColor="#9BA1A6"
-        onChangeText={(value) => {
-          lastSubmitted.current = null
-          setInputData(value)
-        }}
-        onSubmitEditing={() => void handleSend()}
-        blurOnSubmit={false} //this is deprecated but the newer submitBehavior doesn't work on pc🤷‍♂️
-        submitBehavior="submit"
-        multiline
-        numberOfLines={1}
-        maxLength={MESSAGE_MAX_LENGTH}
-      />
-      <TouchableOpacity style={styles.send} disabled={isPending} onPress={() => void handleSend()}>
-        <MaterialIcons name="send" size={24} color={theme.colors.text} />
-      </TouchableOpacity>
     </View>
   )
 }

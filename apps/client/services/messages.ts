@@ -14,6 +14,7 @@ import { useAuthStore } from '@/lib/stores'
 import { uuid } from '@/lib/uuid'
 import { decryptE2EMessage, getE2EInstallId, sendE2EMessage } from '@/services/e2e'
 import type { Conversation, Message, MessagesResponse } from '@meapp/shared'
+import { removeCachedAttachment } from './mediaCache'
 import { messagePreview } from './messagePreview'
 
 // Re-export: notification.ts consumes MessagesResponse from this module.
@@ -273,6 +274,14 @@ export function useGetMessages({
       },
       onMessage: (data) => {
         const msg = data as { type?: string; payload?: Record<string, unknown> }
+        if (msg.type === 'media-deleted' && msg.payload?.roomId === conversationId) {
+          if (typeof msg.payload.attachmentId === 'string')
+            void removeCachedAttachment(msg.payload.attachmentId)
+          void queryClient.invalidateQueries({
+            queryKey: [Keys.Query.GET_MESSAGES, conversationId],
+          })
+          return
+        }
         if (msg.type === 'authenticated') {
           const key = [Keys.Query.GET_MESSAGES, conversationId]
           const hadData = queryClient.getQueryData(key) !== undefined

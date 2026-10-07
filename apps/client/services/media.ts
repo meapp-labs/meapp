@@ -1,7 +1,13 @@
-import { getFetcher, isApiHttpError, postFetcher } from '@/lib/api'
+import { deleteFetcher, getFetcher, isApiHttpError, postFetcher } from '@/lib/api'
 import { uuid } from '@/lib/uuid'
 import type { MediaDescriptor, Message } from '@meapp/shared'
-import { MEDIA_MAX_BYTES, MEDIA_TRANSFER_TIMEOUT_MS, mediaDescriptorSchema } from '@meapp/shared'
+import {
+  MEDIA_MAX_BYTES,
+  MEDIA_TRANSFER_TIMEOUT_MS,
+  VOICE_MAX_BYTES,
+  VOICE_MAX_DURATION_MS,
+  mediaDescriptorSchema,
+} from '@meapp/shared'
 import {
   AESEncryptionKey,
   AESSealedData,
@@ -11,7 +17,7 @@ import {
   digest,
 } from 'expo-crypto'
 import * as DocumentPicker from 'expo-document-picker'
-import { File } from 'expo-file-system'
+import { File, Paths } from 'expo-file-system'
 import { Image } from 'expo-image'
 import * as ImageManipulator from 'expo-image-manipulator'
 import * as ImagePicker from 'expo-image-picker'
@@ -24,14 +30,24 @@ import {
 } from './droppedMedia'
 import { getE2EContext, sendE2EMessage } from './e2e'
 import { deletePrivateMetadata, getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata'
-import { cacheMedia, getCachedMedia, mediaCacheEpoch } from './mediaCache'
+import { cacheMedia, getCachedMedia, mediaCacheEpoch, removeCachedAttachment } from './mediaCache'
 import { readMediaResponse } from './mediaResponse'
+import {
+  beginMediaTransfer,
+  removeMediaTransfer,
+  updateMediaTransfer,
+  uploadMediaBytes,
+} from './mediaTransfers'
+import {
+  deleteFrozenCiphertext,
+  getFrozenCiphertext,
+  putFrozenCiphertext,
+} from './mediaUploadStore'
 
 type PreparedVariant = {
   name: 'orig' | 'thumb'
   path: 'orig.enc' | 'thumb.enc'
   bytes: Uint8Array
-  plain: Uint8Array
   iv: string
   digest: string
   mime: string
@@ -53,6 +69,25 @@ async function readUri(uri: string, asset?: ImagePicker.ImagePickerAsset) {
   return file.bytes()
 }
 
+function removeTemporaryMedia(uri: string) {
+  if (Platform.OS === 'web') {
+    if (uri.startsWith('blob:')) URL.revokeObjectURL(uri)
+    return
+  }
+  // Only toolkit-generated copies under this app's cache are eligible.
+  if (!uri.startsWith(`${Paths.cache.uri.replace(/\/$/, '')}/`)) return
+  const file = new File(uri)
+  if (file.exists) file.delete()
+}
+
+async function readPreparedUri(uri: string) {
+  try {
+    return await readUri(uri)
+  } finally {
+    removeTemporaryMedia(uri)
+  }
+}
+
 async function prepareVariant(
   name: 'orig' | 'thumb',
   plain: Uint8Array,
@@ -64,7 +99,6 @@ async function prepareVariant(
   return {
     name,
     path: `${name}.enc`,
-    plain,
     bytes: await sealed.combined(),
     iv: await sealed.iv('base64'),
     digest: bytesToBase64(hash),
@@ -118,8 +152,12 @@ async function prepareAttachment(asset: ImagePicker.ImagePickerAsset) {
     if (Platform.OS !== 'web')
       blurhash =
         (await Image.generateBlurhashAsync(thumb.uri, [4, 3]).catch(() => null)) ?? undefined
-    variants.push(await prepareVariant('orig', await readUri(resized.uri), 'image/webp', key))
-    variants.push(await prepareVariant('thumb', await readUri(thumb.uri), 'image/webp', key))
+    variants.push(
+      await prepareVariant('orig', await readPreparedUri(resized.uri), 'image/webp', key),
+    )
+    variants.push(
+      await prepareVariant('thumb', await readPreparedUri(thumb.uri), 'image/webp', key),
+    )
   }
   const total = variants.reduce((sum, variant) => sum + variant.bytes.length, 0)
   if (total > MEDIA_MAX_BYTES)
@@ -138,11 +176,12 @@ async function prepareAttachment(asset: ImagePicker.ImagePickerAsset) {
           : ('file' as const),
     ...(image ? { width, height } : {}),
     ...(asset.fileName ? { fileName: safeAttachmentName(asset.fileName) } : {}),
+    ...(asset.duration != null ? { durationMs: asset.duration } : {}),
     ...(blurhash ? { blurhash } : {}),
     variants: variants.map(({ name, path, bytes, iv, digest, mime }) => ({
       name,
       path,
-      bytes: bytesToBase64(bytes),
+      bytes,
       iv,
       digest,
       mime,
@@ -150,51 +189,114 @@ async function prepareAttachment(asset: ImagePicker.ImagePickerAsset) {
   }
 }
 
-type PreparedAttachment = Awaited<ReturnType<typeof prepareAttachment>>
+type PreparedAttachment = Omit<Awaited<ReturnType<typeof prepareAttachment>>, 'variants'> & {
+  variants: (Omit<Awaited<ReturnType<typeof prepareAttachment>>['variants'][number], 'bytes'> & {
+    bytes?: string | undefined // Existing v1 jobs keep their frozen bytes on retry.
+    blobId?: string
+    size?: number
+  })[]
+}
 type UploadJob = {
   roomId: string
   clientId: string
   attachments: PreparedAttachment[]
+  paused?: boolean
+  sending?: boolean
+  media?: MediaDescriptor[]
 }
 const UPLOADS_KEY = 'meapp:media:uploads:v1'
-const fromBase64 = (value: string) => Uint8Array.from(atob(value), (char) => char.charCodeAt(0))
+const fromBase64 = (value: string) => {
+  const binary = atob(value)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+  return bytes
+}
+const variantSize = (variant: PreparedAttachment['variants'][number]) =>
+  variant.size ?? decodedSize(variant.bytes ?? '')
+async function frozenBytes(variant: PreparedAttachment['variants'][number]) {
+  const bytes = variant.blobId
+    ? await getFrozenCiphertext(variant.blobId)
+    : fromBase64(variant.bytes ?? '')
+  if (bytes.length !== variantSize(variant))
+    throw new Error('Saved upload size mismatch. Discard it and select the file again.')
+  return bytes
+}
+async function removeFrozenJob(job: UploadJob) {
+  for (const attachment of job.attachments)
+    for (const variant of attachment.variants)
+      if (variant.blobId)
+        await deleteFrozenCiphertext(variant.blobId).catch((error: unknown) => {
+          console.warn('[Media] Ciphertext cache cleanup deferred:', error)
+        })
+}
 let uploadQueue = Promise.resolve()
 
 function requireMediaSession(epoch: number) {
   if (mediaCacheEpoch() !== epoch) throw new Error('Media session ended')
 }
 
-async function uploadJob(job: UploadJob, epoch: number) {
+async function uploadJob(job: UploadJob, epoch: number, signal: AbortSignal) {
   requireMediaSession(epoch)
+  const total = job.attachments.reduce(
+    (sum, item) => sum + item.variants.reduce((n, v) => n + variantSize(v), 0),
+    0,
+  )
+  let loaded = 0
+  const report = (progress: number) =>
+    mediaCacheEpoch() === epoch &&
+    updateMediaTransfer({
+      id: job.clientId,
+      roomId: job.roomId,
+      phase: 'uploading',
+      loaded: progress,
+      total,
+    })
+  report(0)
+  if (job.sending && job.media) {
+    updateMediaTransfer({
+      id: job.clientId,
+      roomId: job.roomId,
+      phase: 'sending',
+      loaded: total,
+      total,
+    })
+    return sendE2EMessage(job.roomId, '', job.clientId, job.media, signal)
+  }
   const media: MediaDescriptor[] = []
   for (const attachment of job.attachments) {
+    signal.throwIfAborted()
     const intent = await postFetcher<{
       attachmentId: string
       base: string
       uploads: { name: string; url: string; headers: Record<string, string> }[]
-    }>('media/intent', {
-      clientId: attachment.clientId,
-      roomId: job.roomId,
-      variants: attachment.variants.map(({ name, bytes }) => ({
-        name,
-        size: fromBase64(bytes).length,
-      })),
-    })
+    }>(
+      'media/intent',
+      {
+        clientId: attachment.clientId,
+        roomId: job.roomId,
+        variants: attachment.variants.map((variant) => ({
+          name: variant.name,
+          size: variantSize(variant),
+        })),
+      },
+      { signal },
+    )
     requireMediaSession(epoch)
     for (const upload of intent.uploads) {
       const variant = attachment.variants.find((item) => item.name === upload.name)
       if (!variant) throw new Error('Unexpected media upload variant')
-      const response = await fetch(upload.url, {
-        method: 'PUT',
-        headers: upload.headers,
-        body: new Blob([new Uint8Array(fromBase64(variant.bytes))]),
-        signal: AbortSignal.timeout(MEDIA_TRANSFER_TIMEOUT_MS),
-      })
+      await uploadMediaBytes(upload.url, upload.headers, await frozenBytes(variant), signal, (n) =>
+        report(loaded + n),
+      )
+      loaded += variantSize(variant)
       requireMediaSession(epoch)
-      if (!response.ok && response.status !== 412)
-        throw new Error(`Media upload failed (${response.status})`)
     }
-    await postFetcher(`media/${intent.attachmentId}/commit`, { clientId: attachment.clientId })
+    signal.throwIfAborted()
+    await postFetcher(
+      `media/${intent.attachmentId}/commit`,
+      { clientId: attachment.clientId },
+      { signal },
+    )
     requireMediaSession(epoch)
     media.push(
       mediaDescriptorSchema.parse({
@@ -205,35 +307,67 @@ async function uploadJob(job: UploadJob, epoch: number) {
         kind: attachment.kind,
         ...(attachment.width ? { width: attachment.width, height: attachment.height } : {}),
         ...(attachment.fileName ? { fileName: attachment.fileName } : {}),
+        ...(attachment.durationMs != null ? { durationMs: attachment.durationMs } : {}),
         ...(attachment.blurhash ? { blurhash: attachment.blurhash } : {}),
-        variants: attachment.variants.map(({ bytes, ...variant }) => ({
-          ...variant,
-          size: fromBase64(bytes).length,
+        variants: attachment.variants.map((variant) => ({
+          name: variant.name,
+          path: variant.path,
+          iv: variant.iv,
+          digest: variant.digest,
+          mime: variant.mime,
+          size: variantSize(variant),
         })),
       }),
     )
   }
   requireMediaSession(epoch)
-  return sendE2EMessage(job.roomId, '', job.clientId, media)
+  signal.throwIfAborted()
+  // Once the message send starts its outcome may be ambiguous. Disable pause
+  // and preserve its client ID until an idempotent retry confirms delivery.
+  job.sending = true
+  job.media = media
+  const { storage } = await getE2EContext()
+  requireMediaSession(epoch)
+  await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify([job]))
+  requireMediaSession(epoch)
+  updateMediaTransfer({
+    id: job.clientId,
+    roomId: job.roomId,
+    phase: 'sending',
+    loaded: total,
+    total,
+  })
+  return sendE2EMessage(job.roomId, '', job.clientId, media, signal)
 }
 
+const decodedSize = (value: string) =>
+  (value.length / 4) * 3 - (value.endsWith('==') ? 2 : value.endsWith('=') ? 1 : 0)
+
 async function renewJob(job: UploadJob) {
+  const previousBlobs: string[] = []
   job.clientId = uuid()
   for (const attachment of job.attachments) {
     const oldKey = await AESEncryptionKey.import(attachment.key, 'base64')
     const key = await AESEncryptionKey.generate(256)
     for (const variant of attachment.variants) {
       const plain = await aesDecryptAsync(
-        AESSealedData.fromCombined(fromBase64(variant.bytes)),
+        AESSealedData.fromCombined(await frozenBytes(variant)),
         oldKey,
       )
       const sealed = await aesEncryptAsync(plain, key)
-      variant.bytes = await sealed.combined('base64')
+      const bytes = await sealed.combined()
+      const blobId = uuid()
+      await putFrozenCiphertext(blobId, bytes)
+      if (variant.blobId) previousBlobs.push(variant.blobId)
+      variant.blobId = blobId
+      variant.size = bytes.length
+      variant.bytes = undefined
       variant.iv = await sealed.iv('base64')
     }
     attachment.clientId = uuid()
     attachment.key = await key.encoded('base64')
   }
+  return previousBlobs
 }
 
 async function withUploadQueue<T>(operation: () => Promise<T>): Promise<T> {
@@ -250,29 +384,60 @@ async function withUploadQueue<T>(operation: () => Promise<T>): Promise<T> {
   }
 }
 
-async function drainUploads(epoch: number) {
+async function drainUploads(epoch: number, recoverExpired = true) {
   requireMediaSession(epoch)
   const { storage } = await getE2EContext()
   requireMediaSession(epoch)
   const raw = await getPrivateMetadata(storage, UPLOADS_KEY)
+  requireMediaSession(epoch)
   const jobs: UploadJob[] = raw ? JSON.parse(raw) : []
   const sent = []
   for (const job of [...jobs]) {
+    if (job.paused) {
+      updateMediaTransfer({
+        id: job.clientId,
+        roomId: job.roomId,
+        phase: 'paused',
+        loaded: 0,
+        total: 0,
+      })
+      continue
+    }
+    const controller = beginMediaTransfer(job.clientId)
     let message: Message
     try {
-      message = await uploadJob(job, epoch)
+      message = await uploadJob(job, epoch, controller.signal)
     } catch (error) {
-      if (!isApiHttpError(error) || error.status !== 410) throw error
-      await renewJob(job)
-      requireMediaSession(epoch)
+      if (isApiHttpError(error) && error.status === 410 && !job.sending && recoverExpired) {
+        removeMediaTransfer(job.clientId)
+        const previousBlobs = await renewJob(job)
+        requireMediaSession(epoch)
+        await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify(jobs))
+        for (const id of previousBlobs) await deleteFrozenCiphertext(id)
+        // Use a new attempt to keep error handling and persisted state identical.
+        return drainUploads(epoch, false)
+      }
+      if (mediaCacheEpoch() !== epoch) throw error
+      job.paused = controller.signal.aborted
       await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify(jobs))
-      message = await uploadJob(job, epoch)
+      updateMediaTransfer({
+        id: job.clientId,
+        roomId: job.roomId,
+        phase: job.paused ? 'paused' : 'failed',
+        loaded: 0,
+        total: 0,
+        error: error instanceof Error ? error.message : 'Transfer interrupted',
+        canDiscard: !job.sending,
+      })
+      throw error
     }
     requireMediaSession(epoch)
     sent.push(message)
+    removeMediaTransfer(job.clientId)
     jobs.splice(jobs.indexOf(job), 1)
     if (jobs.length) await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify(jobs))
     else await deletePrivateMetadata(storage, UPLOADS_KEY)
+    await removeFrozenJob(job)
   }
   return sent
 }
@@ -292,7 +457,7 @@ export function pickAndSendMedia(conversationId: string) {
     await publicOrigin()
     requireMediaSession(epoch)
     const picked = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       quality: 1,
       allowsMultipleSelection: true,
       selectionLimit: 4,
@@ -307,22 +472,53 @@ async function persistAndSendAssets(
   conversationId: string,
   assets: ImagePicker.ImagePickerAsset[],
   epoch: number,
+  onPrepared?: () => void,
 ) {
   requireMediaSession(epoch)
   const attachments: PreparedAttachment[] = []
-  for (const asset of assets) {
-    attachments.push(await prepareAttachment(asset))
-    requireMediaSession(epoch)
+  const createdBlobs: string[] = []
+  try {
+    for (const asset of assets) {
+      const prepared = await prepareAttachment(asset)
+      const variants: PreparedAttachment['variants'] = []
+      for (const { bytes, ...variant } of prepared.variants) {
+        const blobId = uuid()
+        await putFrozenCiphertext(blobId, bytes)
+        createdBlobs.push(blobId)
+        variants.push({ ...variant, blobId, size: bytes.length })
+      }
+      attachments.push({ ...prepared, variants })
+      requireMediaSession(epoch)
+    }
+  } catch (error) {
+    for (const id of createdBlobs) await deleteFrozenCiphertext(id)
+    throw error
+  } finally {
+    if (Platform.OS !== 'web') for (const asset of assets) removeTemporaryMedia(asset.uri)
   }
   const { storage } = await getE2EContext()
   requireMediaSession(epoch)
   const job: UploadJob = { roomId: conversationId, clientId: uuid(), attachments }
+  if (await getPrivateMetadata(storage, UPLOADS_KEY)) {
+    for (const id of createdBlobs) await deleteFrozenCiphertext(id)
+    throw new Error('Resume or discard the paused attachment before sending another.')
+  }
   // Persist keys, nonces, and exact encrypted bytes before the first network write.
-  await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify([job]))
+  try {
+    await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify([job]))
+  } catch (error) {
+    for (const id of createdBlobs) await deleteFrozenCiphertext(id)
+    throw error
+  }
+  onPrepared?.()
   return (await drainUploads(epoch))[0] ?? null
 }
 
-export function sendMediaAssets(conversationId: string, assets: ImagePicker.ImagePickerAsset[]) {
+export function sendMediaAssets(
+  conversationId: string,
+  assets: ImagePicker.ImagePickerAsset[],
+  onPrepared?: () => void,
+) {
   const epoch = mediaCacheEpoch()
   return withUploadQueue(async () => {
     if (assets.length < 1 || assets.length > 4)
@@ -331,8 +527,27 @@ export function sendMediaAssets(conversationId: string, assets: ImagePicker.Imag
     await drainUploads(epoch)
     await publicOrigin()
     requireMediaSession(epoch)
-    return persistAndSendAssets(conversationId, assets, epoch)
+    return persistAndSendAssets(conversationId, assets, epoch, onPrepared)
   })
+}
+
+export async function sendVoiceRecording(
+  conversationId: string,
+  asset: ImagePicker.ImagePickerAsset,
+  onPrepared?: () => void,
+) {
+  const size = Platform.OS === 'web' ? (asset.file?.size ?? 0) : new File(asset.uri).size
+  if (
+    !size ||
+    size > VOICE_MAX_BYTES ||
+    !asset.mimeType?.startsWith('audio/') ||
+    asset.duration == null ||
+    !Number.isFinite(asset.duration) ||
+    asset.duration < 0 ||
+    asset.duration > VOICE_MAX_DURATION_MS
+  )
+    throw new Error('Voice messages must be audio, at most 5 minutes and 10 MiB.')
+  return sendMediaAssets(conversationId, [asset], onPrepared)
 }
 
 export async function pickAndSendFiles(conversationId: string) {
@@ -367,6 +582,85 @@ export async function pickAndSendFiles(conversationId: string) {
   return sendMediaAssets(conversationId, assets)
 }
 
+export async function captureAndSendMedia(conversationId: string) {
+  const epoch = mediaCacheEpoch()
+  if (Platform.OS === 'web') {
+    const file = await new Promise<globalThis.File | null>((resolve) => {
+      const input = document.createElement('input')
+      input.type = 'file'
+      input.accept = 'image/*'
+      input.setAttribute('capture', 'environment')
+      const done = (file: globalThis.File | null) => {
+        input.remove()
+        resolve(file)
+      }
+      input.onchange = () => done(input.files?.[0] ?? null)
+      input.addEventListener('cancel', () => done(null), { once: true })
+      input.style.display = 'none'
+      document.body.append(input)
+      input.click()
+    })
+    requireMediaSession(epoch)
+    if (!file) return null
+    const uri = URL.createObjectURL(file)
+    try {
+      return await sendMediaAssets(conversationId, [
+        { uri, file, fileName: file.name, mimeType: file.type, width: 0, height: 0 },
+      ])
+    } finally {
+      URL.revokeObjectURL(uri)
+    }
+  }
+  const permission = await ImagePicker.requestCameraPermissionsAsync()
+  requireMediaSession(epoch)
+  if (!permission.granted)
+    throw new Error(
+      permission.canAskAgain
+        ? 'Camera permission is required to take a photo.'
+        : 'Enable camera permission for MeApp in Settings.',
+    )
+  const picked = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
+  requireMediaSession(epoch)
+  if (picked.canceled) return null
+  return sendMediaAssets(conversationId, picked.assets)
+}
+
+export function retryMediaUpload(id: string) {
+  const epoch = mediaCacheEpoch()
+  return withUploadQueue(async () => {
+    const { storage } = await getE2EContext()
+    requireMediaSession(epoch)
+    const raw = await getPrivateMetadata(storage, UPLOADS_KEY)
+    const jobs: UploadJob[] = raw ? JSON.parse(raw) : []
+    for (const job of jobs) if (job.clientId === id) job.paused = false
+    if (jobs.length) await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify(jobs))
+    return drainUploads(epoch)
+  })
+}
+
+export function discardMediaUpload(id: string) {
+  const epoch = mediaCacheEpoch()
+  return withUploadQueue(async () => {
+    const { storage } = await getE2EContext()
+    requireMediaSession(epoch)
+    const raw = await getPrivateMetadata(storage, UPLOADS_KEY)
+    const jobs: UploadJob[] = raw ? JSON.parse(raw) : []
+    if (jobs.find((job) => job.clientId === id)?.sending)
+      throw new Error('Delivery may have completed. Retry to confirm before discarding.')
+    const remaining = jobs.filter((job) => job.clientId !== id)
+    if (remaining.length) await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify(remaining))
+    else await deletePrivateMetadata(storage, UPLOADS_KEY)
+    const removed = jobs.find((job) => job.clientId === id)
+    if (removed) await removeFrozenJob(removed)
+    removeMediaTransfer(id)
+  })
+}
+
+export async function deleteMedia(id: string) {
+  await deleteFetcher(`media/${id}`)
+  await removeCachedAttachment(id)
+}
+
 let publicOriginPromise: Promise<string> | null = null
 function publicOrigin() {
   publicOriginPromise ??= getFetcher<{ publicUrl: string }>('media/config')
@@ -379,10 +673,16 @@ function publicOrigin() {
 }
 
 const downloads = new Map<string, Promise<string>>()
+type DownloadOptions = {
+  signal?: AbortSignal
+  onProgress?: (loaded: number, total: number) => void
+}
 export function loadMedia(
   descriptor: MediaDescriptor,
   preferred: 'orig' | 'thumb' = 'orig',
+  options?: DownloadOptions,
 ): Promise<string> {
+  if (options) return loadMediaOnce(descriptor, preferred, options)
   const key = `${mediaCacheEpoch()}:${descriptor.id}:${preferred}:${descriptor.variants.find((variant) => variant.name === preferred)?.digest}`
   const existing = downloads.get(key)
   if (existing) return existing
@@ -395,9 +695,18 @@ export function loadMedia(
 async function loadMediaOnce(
   descriptor: MediaDescriptor,
   preferred: 'orig' | 'thumb' = 'orig',
+  options?: DownloadOptions,
 ): Promise<string> {
+  options?.signal?.throwIfAborted()
   const epoch = mediaCacheEpoch()
   const parsed = mediaDescriptorSchema.parse(descriptor)
+  const status = await getFetcher<{ available: boolean }>(
+    `media/${parsed.id}/status`,
+    undefined,
+    options?.signal ? { signal: options.signal } : undefined,
+  )
+  requireMediaSession(epoch)
+  if (!status.available) throw new Error('Attachment was deleted or expired')
   const variant = parsed.variants.find((item) => item.name === preferred)
   if (!variant) throw new Error('Media variant is missing')
   const name = attachmentCacheName(parsed.id, variant.mime, parsed.fileName, preferred === 'thumb')
@@ -405,9 +714,15 @@ async function loadMediaOnce(
   if (cached) return cached
   const origin = await publicOrigin()
   const url = `${origin.replace(/\/$/, '')}/${parsed.base}/${variant.path}`
-  const response = await fetch(url, { signal: AbortSignal.timeout(MEDIA_TRANSFER_TIMEOUT_MS) })
+  const signal = options?.signal
+    ? AbortSignal.any([options.signal, AbortSignal.timeout(MEDIA_TRANSFER_TIMEOUT_MS)])
+    : AbortSignal.timeout(MEDIA_TRANSFER_TIMEOUT_MS)
+  const response = await fetch(url, { signal })
   if (!response.ok) throw new Error('Media download failed')
-  const encrypted = await readMediaResponse(response, variant.size)
+  const encrypted = await readMediaResponse(response, variant.size, {
+    signal,
+    ...(options?.onProgress ? { onProgress: options.onProgress } : {}),
+  })
   const sealed = AESSealedData.fromCombined(encrypted)
   if ((await sealed.iv('base64')) !== variant.iv) throw new Error('Media nonce mismatch')
   const key = await AESEncryptionKey.import(parsed.key, 'base64')
@@ -416,6 +731,7 @@ async function loadMediaOnce(
     new Uint8Array(await digest(CryptoDigestAlgorithm.SHA512, new Uint8Array(plain))),
   )
   if (hash !== variant.digest) throw new Error('Media digest mismatch')
+  signal.throwIfAborted()
   return cacheMedia(
     name,
     plain,

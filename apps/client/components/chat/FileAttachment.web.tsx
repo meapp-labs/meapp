@@ -1,35 +1,10 @@
-import { loadMedia } from '@/services/media'
-import { mediaCacheEpoch } from '@/services/mediaCache'
+import { useAttachmentDownload } from '@/services/useAttachmentDownload'
 import { theme } from '@/theme/theme'
 import type { MediaDescriptor } from '@meapp/shared'
-import { useRef, useState } from 'react'
-import Toast from 'react-native-toast-message'
 
 export function FileAttachment({ descriptor }: { descriptor: MediaDescriptor }) {
-  const [uri, setUri] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
-  const pending = useRef(false)
+  const { uri, busy, percent, load, cancel } = useAttachmentDownload(descriptor)
   const original = descriptor.variants.find((variant) => variant.name === 'orig')
-  const load = async () => {
-    if (pending.current) return
-    pending.current = true
-    setBusy(true)
-    const epoch = mediaCacheEpoch()
-    try {
-      const value = await loadMedia(descriptor)
-      if (mediaCacheEpoch() !== epoch) throw new Error('Media session ended')
-      setUri(value)
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'File unavailable',
-        text2: error instanceof Error ? error.message : 'Please try again',
-      })
-    } finally {
-      pending.current = false
-      setBusy(false)
-    }
-  }
   return (
     <div
       style={{
@@ -43,9 +18,18 @@ export function FileAttachment({ descriptor }: { descriptor: MediaDescriptor }) 
     >
       <span style={{ overflowWrap: 'anywhere' }}>{descriptor.fileName ?? 'Shared file'}</span>
       <span>{Math.max(0, (original?.size ?? 28) - 28).toLocaleString()} bytes</span>
+      {busy && (
+        <button type="button" onClick={cancel}>
+          Cancel download · {percent}%
+        </button>
+      )}
       {!uri ? (
         <button type="button" disabled={busy} onClick={() => void load()}>
-          {busy ? 'Loading…' : descriptor.kind === 'file' ? 'Prepare download' : 'Load media'}
+          {busy
+            ? `Loading ${percent}%…`
+            : descriptor.kind === 'file'
+              ? 'Prepare download'
+              : 'Load media'}
         </button>
       ) : (
         <>
@@ -64,8 +48,11 @@ export function FileAttachment({ descriptor }: { descriptor: MediaDescriptor }) 
             download={descriptor.fileName ?? 'attachment'}
             style={{ color: theme.colors.text }}
           >
-            Download file
+            Export / download file
           </a>
+          <button type="button" disabled={busy} onClick={() => void load()}>
+            {busy ? `Loading ${percent}%…` : 'Reload media'}
+          </button>
         </>
       )}
     </div>

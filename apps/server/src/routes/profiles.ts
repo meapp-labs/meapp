@@ -10,7 +10,7 @@ import {
 import { Elysia } from 'elysia'
 import { z } from 'zod'
 import { ApiError, ErrorCode, createForbiddenError, createNotFoundError } from '../lib/errors.ts'
-import { deleteObject, mediaEnabled, publicMediaUrl, signedObjectUrl } from '../lib/mediaStorage.ts'
+import { deleteObject, mediaEnabled, publicMediaUrl, putObject } from '../lib/mediaStorage.ts'
 import { normalizeAvatar } from '../lib/profileImages.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
@@ -79,18 +79,11 @@ export const profileRoutes = new Elysia({ prefix: '/api' })
       sqlite
         .query('INSERT INTO profile_avatars (id,user_id,url,created_at) VALUES (?,?,?,?)')
         .run(id, me.id, url, Date.now())
-      const headers = {
-        'Content-Type': 'image/webp',
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      }
-      const response = await fetch(signedObjectUrl('PUT', key, 60, headers), {
-        method: 'PUT',
-        headers,
-        body: new Uint8Array(bytes),
-        signal: AbortSignal.timeout(15_000),
-      })
-      if (!response.ok)
+      try {
+        await putObject(key, new Uint8Array(bytes), 'image/webp')
+      } catch {
         throw new ApiError(ErrorCode.INTERNAL_SERVER_ERROR, 'Avatar upload failed', 503)
+      }
       sqlite
         .query('UPDATE users SET avatar_url=?, updated_at=? WHERE id=?')
         .run(url, Math.floor(Date.now() / 1000), me.id)

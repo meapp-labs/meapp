@@ -13,6 +13,7 @@ export const messageSchema = z
     id: z.string(),
     clientId: z.string().optional(),
     attachmentIds: attachmentIdsSchema.optional(),
+    unavailableAttachmentIds: attachmentIdsSchema.optional(),
     media: z.array(mediaDescriptorSchema).min(1).max(4).optional(),
     roomId: z.string().optional(),
     userId: z.string().optional(),

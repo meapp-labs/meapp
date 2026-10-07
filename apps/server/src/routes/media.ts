@@ -5,9 +5,16 @@ import { Elysia } from 'elysia'
 import { canAccessRoom } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { ApiError, ErrorCode, createAuthError, createValidationError } from '../lib/errors.ts'
-import { deleteObject, headObject, mediaEnabled, signedObjectUrl } from '../lib/mediaStorage.ts'
+import {
+  deleteObject,
+  headObject,
+  mediaEnabled,
+  mediaPublicOrigin,
+  signedObjectUrl,
+} from '../lib/mediaStorage.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
+import { broadcastToRoom } from '../ws/chat.ts'
 
 const UPLOAD_TTL = 10 * 60
 const PENDING_TTL = 24 * 60 * 60
@@ -58,7 +65,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
   .get('/config', ({ user }) => {
     requireMedia()
     requireUser(user)
-    return { publicUrl: env.R2_PUBLIC_URL }
+    return { publicUrl: mediaPublicOrigin() }
   })
   .post(
     '/intent',
@@ -195,22 +202,76 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
     },
     { body: mediaCommitSchema },
   )
+  .get('/:id/status', async ({ params, user, set }) => {
+    requireMedia()
+    const me = requireUser(user)
+    const row = getDbInstance()
+      .sqlite.query('SELECT * FROM attachments WHERE id=?')
+      .get(params.id) as (Row & { linked_at: number | null }) | null
+    if (!row) throw new ApiError(ErrorCode.ITEM_NOT_FOUND, 'Attachment not found', 404)
+    if (!(await canAccessRoom(me.id, row.room_id))) throw createAuthError('Not a room member')
+    set.headers['Cache-Control'] = 'no-store'
+    const expired =
+      row.state === 'deleting' ||
+      row.state === 'expired' ||
+      (row.state === 'linked' &&
+        env.MEDIA_LINKED_TTL_SECONDS > 0 &&
+        (row.linked_at === null || row.linked_at + env.MEDIA_LINKED_TTL_SECONDS <= nowSeconds()))
+    return { available: row.state === 'linked' && !expired, state: expired ? 'expired' : row.state }
+  })
+  .delete('/:id', async ({ params, user }) => {
+    const me = requireUser(user)
+    const sqlite = getDbInstance().sqlite
+    const row = sqlite
+      .query('SELECT * FROM attachments WHERE id=? AND sender_id=?')
+      .get(params.id, me.id) as Row | null
+    if (!row) throw new ApiError(ErrorCode.ITEM_NOT_FOUND, 'Attachment not found', 404)
+    if (!(await canAccessRoom(me.id, row.room_id))) throw createAuthError('Not a room member')
+    // Durable tombstone precedes object deletion. Exact message retries still
+    // return their original result; this attachment can never be linked again.
+    sqlite
+      .query(
+        "UPDATE attachments SET state='deleting' WHERE id=? AND state NOT IN ('deleting','expired')",
+      )
+      .run(row.id)
+    await broadcastToRoom(
+      row.room_id,
+      JSON.stringify({
+        type: 'media-deleted',
+        payload: { roomId: row.room_id, attachmentId: row.id },
+      }),
+    )
+    void sweepMedia()
+    return { ok: true }
+  })
 
 /** Claim in SQLite before touching R2 so sends can never link an object being deleted. */
-let sweeping = false
-export async function sweepMedia(): Promise<void> {
-  if (sweeping) return
-  sweeping = true
-  try {
-    await sweepMediaPass()
-  } finally {
-    sweeping = false
-  }
+let sweepPromise: Promise<void> | null = null
+export function sweepMedia(): Promise<void> {
+  sweepPromise ??= sweepMediaPass().finally(() => {
+    sweepPromise = null
+  })
+  return sweepPromise
 }
 async function sweepMediaPass(): Promise<void> {
   if (!mediaEnabled()) return
   const sqlite = getDbInstance().sqlite
   const now = nowSeconds()
+  if (env.MEDIA_LINKED_TTL_SECONDS > 0) {
+    const expired = sqlite
+      .query(
+        "UPDATE attachments SET state='deleting' WHERE state='linked' AND linked_at<=? RETURNING id,room_id",
+      )
+      .all(now - env.MEDIA_LINKED_TTL_SECONDS) as { id: string; room_id: string }[]
+    for (const row of expired)
+      await broadcastToRoom(
+        row.room_id,
+        JSON.stringify({
+          type: 'media-deleted',
+          payload: { roomId: row.room_id, attachmentId: row.id },
+        }),
+      )
+  }
   const rows = sqlite
     .query(`SELECT * FROM attachments WHERE state='deleting'
     OR (state='pending' AND created_at<? AND last_upload_expiry<?)

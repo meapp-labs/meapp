@@ -15,6 +15,27 @@ test('media configuration is optional but partial credentials fail startup valid
   expect(serverEnvSchema.safeParse({ R2_BUCKET: 'media-test' }).success).toBe(false)
 })
 
+test('local storage requires an absolute directory and safe public origin', () => {
+  const local = {
+    MEDIA_STORAGE: 'local',
+    MEDIA_LOCAL_DIRECTORY: 'D:/meapp/data/media',
+    MEDIA_LOCAL_PUBLIC_URL: 'http://127.0.0.1:3001',
+  }
+  expect(serverEnvSchema.safeParse(local).success).toBe(true)
+  expect(serverEnvSchema.safeParse({ ...local, MEDIA_LOCAL_DIRECTORY: './media' }).success).toBe(
+    false,
+  )
+  expect(
+    serverEnvSchema.safeParse({ ...local, MEDIA_LOCAL_PUBLIC_URL: 'http://example.com' }).success,
+  ).toBe(false)
+  expect(
+    serverEnvSchema.safeParse({ ...local, MEDIA_LOCAL_PUBLIC_URL: 'https://example.com/cap' })
+      .success,
+  ).toBe(false)
+  expect(serverEnvSchema.parse({}).MEDIA_LINKED_TTL_SECONDS).toBe(0)
+  expect(serverEnvSchema.safeParse({ MEDIA_LINKED_TTL_SECONDS: -1 }).success).toBe(false)
+})
+
 test('media quota defaults to 2 GB and remains configurable', () => {
   expect(serverEnvSchema.parse({}).MEDIA_USER_QUOTA_BYTES).toBe(2 * 1024 * 1024 * 1024)
   expect(serverEnvSchema.parse({ MEDIA_USER_QUOTA_BYTES: '123' }).MEDIA_USER_QUOTA_BYTES).toBe(123)

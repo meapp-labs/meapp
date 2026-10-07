@@ -23,7 +23,7 @@ SQLite storage, and Redis-backed rate limiting and WebSocket fan-out.
 
 ## Quickstart
 
-Prerequisites: [Bun](https://bun.sh) and [Podman](https://podman.io).
+Prerequisite: [Bun](https://bun.sh). [Podman](https://podman.io) is optional for local Redis.
 
 ```sh
 # 1. Configure environment
@@ -42,6 +42,12 @@ bun run dev:web
 The server listens on `127.0.0.1:3000` (loopback only — Caddy fronts it in production).
 `bun run dev` starts Redis directly through Podman, so it does not require a Compose provider.
 Redis remains available after the dev process exits and is reused on the next run.
+If Podman is missing, fails or Redis stays unavailable, startup warns and continues
+with in-memory rate limits/tickets and local-only WebSocket broadcasts. On Windows,
+the known WSL missing `pids` controller error triggers a development-only compatibility
+container with cgroups disabled, preserving the original container and reusing its
+data volume. Compose containers are not changed. Startup waits up to 30 seconds for
+the API health endpoint before opening Expo; API errors still fail startup visibly.
 Interactive API docs are served at `/swagger` when the server is running.
 
 ## Development

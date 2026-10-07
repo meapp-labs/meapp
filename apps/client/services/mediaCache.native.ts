@@ -1,4 +1,6 @@
+import { MEDIA_CACHE_TTL_MS } from '@meapp/shared'
 import { Directory, File, Paths } from 'expo-file-system'
+import { clearMediaTransfers } from './mediaTransfers'
 
 const directory = new Directory(Paths.cache, 'meapp-media')
 const MAX_BYTES = 100 * 1024 * 1024
@@ -8,6 +10,31 @@ export const mediaCacheEpoch = () => epoch
 
 function ensureDirectory() {
   if (!directory.exists) directory.create()
+  pruneMediaCache()
+}
+
+export function pruneMediaCache() {
+  if (!directory.exists) return
+  for (const item of directory.list()) {
+    if (item instanceof File && Date.now() - (item.modificationTime ?? 0) >= MEDIA_CACHE_TTL_MS) {
+      item.delete()
+      accessed.delete(item.uri)
+    }
+  }
+}
+
+export async function removeCachedAttachment(id: string) {
+  if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error('Invalid attachment ID')
+  if (!directory.exists) return
+  for (const item of directory.list()) {
+    if (
+      item instanceof File &&
+      (item.name.startsWith(`${id}.`) || item.name.startsWith(`${id}-thumb.`))
+    ) {
+      item.delete()
+      accessed.delete(item.uri)
+    }
+  }
 }
 
 function fileFor(name: string) {
@@ -52,6 +79,7 @@ export async function getCachedMedia(name: string): Promise<string | null> {
 
 export async function clearMediaCache(): Promise<void> {
   epoch++
+  clearMediaTransfers()
   accessed.clear()
   if (directory.exists) directory.delete()
 }

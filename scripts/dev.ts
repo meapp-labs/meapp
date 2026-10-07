@@ -1,78 +1,39 @@
+import { createServer } from 'node:net'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { createServer } from 'node:net'
+import { ensureDevRedis } from './devRedis.ts'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-const localRedisContainer = 'meapp-redis-local-dev'
-const composeRedisContainer = 'meapp-redis-dev'
-const redisImage = 'docker.io/library/redis:7-alpine'
-const decoder = new TextDecoder()
-
-function podman(...args: string[]) {
-  const result = Bun.spawnSync(['podman', ...args], { cwd: root })
-  return {
-    ok: result.exitCode === 0,
-    stdout: decoder.decode(result.stdout).trim(),
-    stderr: decoder.decode(result.stderr).trim(),
+const podmanChildren = new Set<ReturnType<typeof Bun.spawn>>()
+async function podman(...args: string[]) {
+  try {
+    const child = Bun.spawn(['podman', ...args], { cwd: root, stdout: 'pipe', stderr: 'pipe' })
+    podmanChildren.add(child)
+    const timeout =
+      args[0] === 'machine' || args[0] === 'run' ? 90_000 : args[0] === 'exec' ? 1500 : 10_000
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      child.kill()
+    }, timeout)
+    try {
+      const [exitCode, stdout, stderr] = await Promise.all([
+        child.exited,
+        new Response(child.stdout).text(),
+        new Response(child.stderr).text(),
+      ])
+      return {
+        ok: exitCode === 0 && !timedOut,
+        stdout: stdout.trim(),
+        stderr: timedOut ? `podman ${args[0]} timed out` : stderr.trim(),
+      }
+    } finally {
+      clearTimeout(timer)
+      podmanChildren.delete(child)
+    }
+  } catch (error) {
+    return { ok: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }
   }
-}
-
-function requirePodman(...args: string[]) {
-  const result = podman(...args)
-  if (!result.ok) throw new Error(result.stderr || `podman ${args[0]} failed`)
-  return result.stdout
-}
-
-function startRedis() {
-  if (!podman('info').ok) {
-    console.log('Starting Podman machine...')
-    requirePodman('machine', 'start')
-  }
-
-  const composeContainer = podman(
-    'inspect',
-    '--type',
-    'container',
-    composeRedisContainer,
-    '--format',
-    '{{.State.Running}}',
-  )
-  const localContainer = podman(
-    'inspect',
-    '--type',
-    'container',
-    localRedisContainer,
-    '--format',
-    '{{.State.Running}}',
-  )
-  const useCompose =
-    composeContainer.stdout === 'true' ||
-    (localContainer.stdout !== 'true' && composeContainer.ok)
-  const redisContainer = useCompose ? composeRedisContainer : localRedisContainer
-  const running = useCompose ? composeContainer : localContainer
-  if (!running.ok) {
-    console.log('Creating local Redis container...')
-    requirePodman(
-      'run',
-      '--detach',
-      '--name',
-      redisContainer,
-      '--publish',
-      '127.0.0.1:6379:6379',
-      '--volume',
-      'meapp-redis-dev-data:/data',
-      redisImage,
-    )
-  } else if (running.stdout !== 'true') {
-    console.log('Starting local Redis container...')
-    requirePodman('start', redisContainer)
-  }
-
-  for (let attempt = 0; attempt < 30; attempt++) {
-    if (podman('exec', redisContainer, 'redis-cli', 'ping').stdout === 'PONG') return
-    Bun.sleepSync(500)
-  }
-  throw new Error(`Redis did not become ready. Check: podman logs ${redisContainer}`)
 }
 
 async function isRunning(url: string, expected: string) {
@@ -96,13 +57,19 @@ let server: ReturnType<typeof Bun.spawn> | undefined
 let client: ReturnType<typeof Bun.spawn> | undefined
 
 function stopChildren() {
+  for (const child of podmanChildren) child.kill()
   server?.kill()
   client?.kill()
 }
 
 try {
-  startRedis()
-  console.log('Redis ready.')
+  const stop = () => {
+    stopChildren()
+    process.exit(0)
+  }
+  process.on('SIGINT', stop)
+  process.on('SIGTERM', stop)
+  await ensureDevRedis({ run: podman })
 
   if (await isRunning('http://127.0.0.1:3000/health', '"status":"ok"')) {
     console.log('API server already running on port 3000.')
@@ -115,6 +82,20 @@ try {
       stdout: 'inherit',
       stderr: 'inherit',
     })
+    let exited = false
+    void server.exited.then(() => {
+      exited = true
+    })
+    const deadline = Date.now() + 30_000
+    while (!(await isRunning('http://127.0.0.1:3000/health', '"status":"ok"'))) {
+      if (exited) throw new Error('API server exited before becoming ready. See the error above.')
+      if (Date.now() >= deadline)
+        throw new Error(
+          'API server did not respond on port 3000 within 30 seconds. See the server output above.',
+        )
+      await Bun.sleep(250)
+    }
+    console.log('API server ready on http://127.0.0.1:3000.')
   }
 
   if (await isRunning('http://127.0.0.1:8081/status', 'packager-status:running')) {
@@ -132,8 +113,6 @@ try {
     })
   }
 
-  process.on('SIGINT', stopChildren)
-  process.on('SIGTERM', stopChildren)
   const children = [server, client].filter((child) => child !== undefined)
   if (children.length === 0) {
     console.log('Everything is already running.')

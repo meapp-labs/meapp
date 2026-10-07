@@ -22,10 +22,10 @@ const remote = spyOn(globalThis, 'fetch')
 const db = () => getDbInstance().sqlite
 const now = () => Math.floor(Date.now() / 1000)
 
-async function request(path: string, body?: unknown, authenticated = true) {
+async function request(path: string, body?: unknown, authenticated = true, method?: string) {
   return app.handle(
     new Request(`http://localhost/api/${path}`, {
-      method: body === undefined ? 'GET' : 'POST',
+      method: method ?? (body === undefined ? 'GET' : 'POST'),
       headers: {
         'content-type': 'application/json',
         cookie: authenticated ? cookie : '',
@@ -303,6 +303,54 @@ test('GC rechecks eligibility when an intent is refreshed during another deletio
   }
   await sweepMedia()
   expect(state(pending.attachmentId).state).toBe('pending')
+})
+
+test('sender deletion tombstones linked media, preserves message identity and marks history unavailable', async () => {
+  const item = await committed()
+  const payload = send([item.attachmentId])
+  const message = (await (await request('send-message', payload)).json()) as { id: string }
+  expect((await request(`media/${item.attachmentId}`, undefined, false, 'DELETE')).status).toBe(401)
+  db().query('UPDATE attachments SET sender_id=? WHERE id=?').run(recipient, item.attachmentId)
+  expect((await request(`media/${item.attachmentId}`, undefined, true, 'DELETE')).status).toBe(404)
+  db().query('UPDATE attachments SET sender_id=? WHERE id=?').run(sender, item.attachmentId)
+  expect((await request(`media/${item.attachmentId}`, undefined, true, 'DELETE')).status).toBe(200)
+  await sweepMedia()
+  expect(state(item.attachmentId).state).toBe('expired')
+  expect(await (await request(`media/${item.attachmentId}/status`)).json()).toMatchObject({
+    available: false,
+  })
+  const retry = await request('send-message', payload)
+  expect(retry.status).toBe(200)
+  expect(((await retry.json()) as { id: string }).id).toBe(message.id)
+  const history = (await (
+    await request(`get-messages?conversationId=${room}&installId=${installId}`)
+  ).json()) as {
+    messages: { id: string; attachmentIds: string[]; unavailableAttachmentIds: string[] }[]
+  }
+  expect(history.messages.find((entry) => entry.id === message.id)).toMatchObject({
+    attachmentIds: [item.attachmentId],
+    unavailableAttachmentIds: [item.attachmentId],
+  })
+})
+
+test('linked expiration denies new loads before the sweeper and deletes storage after claiming', async () => {
+  const previousTtl = env.MEDIA_LINKED_TTL_SECONDS
+  try {
+    env.MEDIA_LINKED_TTL_SECONDS = 10
+    const item = await committed()
+    expect((await request('send-message', send([item.attachmentId]))).status).toBe(200)
+    db()
+      .query('UPDATE attachments SET linked_at=? WHERE id=?')
+      .run(now() - 11, item.attachmentId)
+    expect(await (await request(`media/${item.attachmentId}/status`)).json()).toMatchObject({
+      available: false,
+    })
+    await sweepMedia()
+    expect(state(item.attachmentId).state).toBe('expired')
+    expect(objects.has(`/${env.R2_BUCKET}/${item.base}/orig.enc`)).toBe(false)
+  } finally {
+    env.MEDIA_LINKED_TTL_SECONDS = previousTtl
+  }
 })
 
 test('presigner binds method, object path, expiry, and fixed headers', () => {

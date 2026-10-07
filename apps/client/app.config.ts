@@ -55,7 +55,18 @@ export const expoConfig = {
       ],
       'expo-router',
       'expo-secure-store',
-      ['expo-image-picker', { microphonePermission: false, cameraPermission: false }],
+      [
+        'expo-image-picker',
+        { microphonePermission: false, cameraPermission: 'Allow MeApp to take photos.' },
+      ],
+      [
+        'expo-audio',
+        {
+          microphonePermission: 'Allow MeApp to record voice messages.',
+          enableBackgroundRecording: false,
+        },
+      ],
+      'expo-video',
       'expo-sharing',
       ['expo-sqlite', { useSQLCipher: true }],
       [

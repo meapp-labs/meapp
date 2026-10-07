@@ -12,7 +12,7 @@ import { logStartupInfo } from '@/lib/startupInfo'
 import { useAuthStore } from '@/lib/stores'
 import { toastConfig } from '@/misc/toastConfig'
 import { resumeMediaUploads } from '@/services/media'
-import { clearMediaCache } from '@/services/mediaCache'
+import { clearMediaCache, pruneMediaCache } from '@/services/mediaCache'
 import { RememberMeStorage } from '@/services/storage'
 
 // Log startup information when the app loads
@@ -24,6 +24,8 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const checkSession = async () => {
+      // Native cache survives restarts. Never reuse a previous session's plaintext.
+      await clearMediaCache()
       const rememberMe = await RememberMeStorage.get()
 
       if (!rememberMe) {
@@ -68,6 +70,7 @@ export default function RootLayout() {
     let stopped = false
     const resume = () => {
       if (stopped) return
+      pruneMediaCache()
       void resumeMediaUploads()
         .then((sent) => {
           if (sent.length && !stopped) void queryClient.invalidateQueries()

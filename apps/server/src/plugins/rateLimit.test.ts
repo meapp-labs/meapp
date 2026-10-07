@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test'
 import { Elysia } from 'elysia'
-import { getRouteRuleAndLimit, rateLimitPlugin } from './rateLimit.ts'
+import { getRouteRuleAndLimit, rateLimitPlugin, resetInMemoryRateLimits } from './rateLimit.ts'
 
 describe('Phase 8 - Rate Limiting & Body Limits', () => {
   it('identifies correct route rules and limits', () => {
@@ -48,6 +48,22 @@ describe('Phase 8 - Rate Limiting & Body Limits', () => {
     )
     expect(blockedRes.status).toBe(429)
     expect(blockedRes.headers.get('Retry-After')).toBeTruthy()
+  })
+
+  it('test resets isolate the same rate-limit identity with Redis online or offline', async () => {
+    const app = new Elysia().use(rateLimitPlugin).post('/api/login', () => ({ success: true }))
+    const testIp = `reset-${crypto.randomUUID()}`
+    const request = () =>
+      app.handle(
+        new Request('http://localhost/api/login', {
+          method: 'POST',
+          headers: { 'x-forwarded-for': testIp },
+        }),
+      )
+    for (let i = 0; i < 5; i++) expect((await request()).status).toBe(200)
+    expect((await request()).status).toBe(429)
+    resetInMemoryRateLimits()
+    expect((await request()).status).toBe(200)
   })
 
   it('enforces POST /ws/ticket limit (20/min per user)', async () => {

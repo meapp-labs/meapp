@@ -2,6 +2,20 @@ import { expect, mock, test } from 'bun:test'
 import type { MediaDescriptor, Message } from '@meapp/shared'
 
 const metadata = new Map<string, string>()
+const frozenCiphertexts = new Map<string, Uint8Array>()
+mock.module('./mediaUploadStore', () => ({
+  putFrozenCiphertext: async (id: string, bytes: Uint8Array) => {
+    frozenCiphertexts.set(id, new Uint8Array(bytes))
+  },
+  getFrozenCiphertext: async (id: string) => {
+    const bytes = frozenCiphertexts.get(id)
+    if (!bytes) throw new Error('Missing frozen ciphertext')
+    return new Uint8Array(bytes)
+  },
+  deleteFrozenCiphertext: async (id: string) => {
+    frozenCiphertexts.delete(id)
+  },
+}))
 const intents = new Map<string, { id: string; base: string; committed: boolean }>()
 const uploads: Uint8Array[] = []
 const sent: Message[] = []
@@ -12,6 +26,9 @@ let expireIntent = false
 let picks = 0
 let sessionEpoch = 0
 let onPick: (() => void) | null = null
+let failMessageSend = false
+let onMetadataWrite: ((value: string) => void) | null = null
+const platform = { OS: 'web' }
 class HttpError extends Error {
   constructor(readonly status: number) {
     super(String(status))
@@ -43,12 +60,15 @@ class Sealed {
   }
 }
 mock.module('react-native', () => ({
-  Platform: { OS: 'web' },
+  Platform: platform,
   Image: {
     getSize: (_uri: string, resolve: (width: number, height: number) => void) => resolve(10, 10),
   },
 }))
-mock.module('expo-file-system', () => ({ File: class {} }))
+mock.module('expo-file-system', () => ({
+  File: class {},
+  Paths: { cache: { uri: 'file:///cache' } },
+}))
 mock.module('expo-image', () => ({ Image: {} }))
 mock.module('expo-image-manipulator', () => ({}))
 mock.module('expo-image-picker', () => ({
@@ -107,8 +127,10 @@ mock.module('expo-crypto', () => ({
   },
 }))
 mock.module('@/lib/api', () => ({
+  deleteFetcher: async () => ({ ok: true }),
   isApiHttpError: (error: unknown) => error instanceof HttpError,
-  getFetcher: async () => ({ publicUrl: 'https://media.example.test' }),
+  getFetcher: async (path: string) =>
+    path.endsWith('/status') ? { available: true } : { publicUrl: 'https://media.example.test' },
   postFetcher: async (path: string, body: { clientId: string }) => {
     if (path === 'media/intent') {
       if (expireIntent && intents.has(body.clientId)) {
@@ -149,6 +171,7 @@ mock.module('./e2e', () => ({
     clientId: string,
     media: MediaDescriptor[],
   ) => {
+    if (failMessageSend) throw new Error('Lost message response')
     const message: Message = { id: crypto.randomUUID(), roomId, clientId, media, type: 'media' }
     sent.push(message)
     return message
@@ -158,12 +181,14 @@ mock.module('./e2ePrivateMetadata', () => ({
   getPrivateMetadata: async (_store: unknown, key: string) => metadata.get(key) ?? null,
   setPrivateMetadata: async (_store: unknown, key: string, value: string) => {
     metadata.set(key, value)
+    onMetadataWrite?.(value)
   },
   deletePrivateMetadata: async (_store: unknown, key: string) => {
     metadata.delete(key)
   },
 }))
 mock.module('./mediaCache', () => ({
+  removeCachedAttachment: async () => {},
   cacheMedia: async (_name: string, bytes: Uint8Array, mime: string) => {
     cachedFiles.push({ bytes, mime })
     return 'blob:verified'
@@ -172,7 +197,87 @@ mock.module('./mediaCache', () => ({
   mediaCacheEpoch: () => sessionEpoch,
 }))
 
-const { pickAndSendMedia, sendMediaAssets, resumeMediaUploads, loadMedia } = await import('./media')
+const {
+  pickAndSendMedia,
+  sendMediaAssets,
+  sendVoiceRecording,
+  resumeMediaUploads,
+  loadMedia,
+  retryMediaUpload,
+  discardMediaUpload,
+} = await import('./media')
+const { mediaTransferSnapshot, pauseMediaTransfer, clearMediaTransfers, uploadMediaBytes } =
+  await import('./mediaTransfers')
+
+test('native PUT sends an ArrayBuffer view through XHR without constructing a binary Blob', async () => {
+  const previousXHR = globalThis.XMLHttpRequest
+  const previousBlob = globalThis.Blob
+  let uploaded: ArrayBuffer | null = null
+  class FakeXHR {
+    timeout = 0
+    status = 201
+    upload = { onprogress: null as ((event: { loaded: number }) => void) | null }
+    onload: (() => void) | null = null
+    open() {}
+    setRequestHeader() {}
+    send(body: ArrayBuffer) {
+      uploaded = body
+      this.upload.onprogress?.({ loaded: body.byteLength })
+      this.onload?.()
+    }
+  }
+  globalThis.XMLHttpRequest = FakeXHR as unknown as typeof XMLHttpRequest
+  globalThis.Blob = class {
+    constructor() {
+      throw new Error('Native Blob cannot accept binary views')
+    }
+  } as unknown as typeof Blob
+  platform.OS = 'android'
+  try {
+    const values: number[] = []
+    const source = new Uint8Array([0, 1, 2, 3, 4])
+    await uploadMediaBytes(
+      'https://upload.example.test',
+      {},
+      source.subarray(1, 4),
+      new AbortController().signal,
+      (n) => values.push(n),
+    )
+    expect(uploaded).toBeInstanceOf(ArrayBuffer)
+    expect(new Uint8Array(uploaded as unknown as ArrayBuffer)).toEqual(new Uint8Array([1, 2, 3]))
+    expect(values.at(-1)).toBe(3)
+  } finally {
+    platform.OS = 'web'
+    globalThis.XMLHttpRequest = previousXHR
+    globalThis.Blob = previousBlob
+  }
+})
+
+test('logout while saving delivery state cannot start a message send in the new session', async () => {
+  const originalFetch = globalThis.fetch
+  const before = sent.length
+  const previousPicks = picks
+  const previousIntents = new Map(intents)
+  globalThis.fetch = Object.assign(async () => new Response(null, { status: 200 }), {
+    preconnect: originalFetch.preconnect,
+  })
+  onMetadataWrite = (value) => {
+    if (JSON.parse(value)[0]?.sending) sessionEpoch++
+  }
+  try {
+    await expect(pickAndSendMedia(crypto.randomUUID())).rejects.toThrow('Media session ended')
+    expect(sent.length).toBe(before)
+  } finally {
+    onMetadataWrite = null
+    globalThis.fetch = originalFetch
+    picks = previousPicks
+    intents.clear()
+    for (const [id, intent] of previousIntents) intents.set(id, intent)
+    metadata.clear()
+    frozenCiphertexts.clear()
+    clearMediaTransfers()
+  }
+})
 
 test('lost upload response resumes frozen bytes, then verifies receiver integrity', async () => {
   const originalFetch = globalThis.fetch
@@ -317,6 +422,154 @@ test('dropped media resumes frozen jobs and still sends the new drop without ope
   } finally {
     globalThis.fetch = originalFetch
     metadata.clear()
+  }
+})
+
+test('pause preserves the frozen job, automatic retries skip it, and explicit resume sends once', async () => {
+  clearMediaTransfers()
+  const originalFetch = globalThis.fetch
+  const before = sent.length
+  let first = true
+  globalThis.fetch = Object.assign(
+    async (_url: string | URL | Request, options?: RequestInit) => {
+      if (first) {
+        first = false
+        const id = mediaTransferSnapshot().find((item) => item.phase === 'uploading')?.id
+        if (!id) throw new Error('Missing transfer')
+        pauseMediaTransfer(id)
+        options?.signal?.throwIfAborted()
+      }
+      return new Response(null, { status: 200 })
+    },
+    { preconnect: originalFetch.preconnect },
+  )
+  try {
+    await expect(pickAndSendMedia(crypto.randomUUID())).rejects.toThrow()
+    const job = JSON.parse([...metadata.values()][0] ?? '[]')[0] as {
+      clientId: string
+      paused: boolean
+    }
+    expect(job.paused).toBe(true)
+    const frozen = [...metadata.values()][0]
+    expect(await resumeMediaUploads()).toHaveLength(0)
+    expect([...metadata.values()][0]).toBe(frozen)
+    expect(await retryMediaUpload(job.clientId)).toHaveLength(1)
+    expect(sent.length - before).toBe(1)
+    expect(metadata.size).toBe(0)
+  } finally {
+    globalThis.fetch = originalFetch
+    metadata.clear()
+    clearMediaTransfers()
+  }
+})
+
+test('discard removes a paused upload and voice limits reject oversized or overlong recordings', async () => {
+  const originalFetch = globalThis.fetch
+  globalThis.fetch = Object.assign(
+    async () => {
+      throw new Error('Offline')
+    },
+    { preconnect: originalFetch.preconnect },
+  )
+  try {
+    await expect(pickAndSendMedia(crypto.randomUUID())).rejects.toThrow('Offline')
+    const job = JSON.parse([...metadata.values()][0] ?? '[]')[0] as { clientId: string }
+    await discardMediaUpload(job.clientId)
+    expect(metadata.size).toBe(0)
+    const asset = {
+      uri: 'unused',
+      file: new File([gif], 'voice.webm', { type: 'audio/webm' }),
+      mimeType: 'audio/webm',
+      duration: 300001,
+      width: 0,
+      height: 0,
+    }
+    await expect(sendVoiceRecording(crypto.randomUUID(), asset)).rejects.toThrow('5 minutes')
+    await expect(
+      sendVoiceRecording(crypto.randomUUID(), {
+        ...asset,
+        duration: 1000,
+        file: new File([new Uint8Array(10 * 1024 * 1024 + 1)], 'voice.webm', {
+          type: 'audio/webm',
+        }),
+      }),
+    ).rejects.toThrow('10 MiB')
+  } finally {
+    globalThis.fetch = originalFetch
+    metadata.clear()
+    clearMediaTransfers()
+  }
+})
+
+test('delivery confirmation jobs cannot be discarded and retry without changing the client ID', async () => {
+  const originalFetch = globalThis.fetch
+  clearMediaTransfers()
+  globalThis.fetch = Object.assign(async () => new Response(null, { status: 200 }), {
+    preconnect: originalFetch.preconnect,
+  })
+  try {
+    failMessageSend = true
+    await expect(pickAndSendMedia(crypto.randomUUID())).rejects.toThrow('Lost message response')
+    const job = JSON.parse([...metadata.values()][0] ?? '[]')[0] as {
+      clientId: string
+      sending: boolean
+    }
+    expect(job.sending).toBe(true)
+    expect(
+      mediaTransferSnapshot().find((transfer) => transfer.id === job.clientId)?.canDiscard,
+    ).toBe(false)
+    await expect(discardMediaUpload(job.clientId)).rejects.toThrow('Delivery may have completed')
+    // Confirmation only needs the saved descriptor and idempotency key.
+    frozenCiphertexts.clear()
+    failMessageSend = false
+    const resumed = await resumeMediaUploads()
+    expect(resumed[0]?.clientId).toBe(job.clientId)
+    expect(metadata.size).toBe(0)
+  } finally {
+    globalThis.fetch = originalFetch
+    failMessageSend = false
+    metadata.clear()
+    clearMediaTransfers()
+  }
+})
+
+test('new frozen manifests contain binary references and legacy base64 jobs still resume unchanged', async () => {
+  const originalFetch = globalThis.fetch
+  let failed = false
+  const writes: Uint8Array[] = []
+  globalThis.fetch = Object.assign(
+    async (_input: string | URL | Request, options?: RequestInit) => {
+      writes.push(new Uint8Array(await (options?.body as Blob).arrayBuffer()))
+      if (!failed) {
+        failed = true
+        throw new Error('Offline')
+      }
+      return new Response(null, { status: 200 })
+    },
+    { preconnect: originalFetch.preconnect },
+  )
+  try {
+    await expect(pickAndSendMedia(crypto.randomUUID())).rejects.toThrow('Offline')
+    const raw = [...metadata.values()][0] ?? '[]'
+    expect(raw.length).toBeLessThan(4096)
+    const jobs = JSON.parse(raw) as {
+      attachments: { variants: { blobId?: string; bytes?: string; size?: number }[] }[]
+    }[]
+    const variant = jobs[0]?.attachments[0]?.variants[0]
+    if (!variant?.blobId) throw new Error('Missing binary reference')
+    expect(variant.bytes).toBeUndefined()
+    variant.bytes = btoa(String.fromCharCode(...(frozenCiphertexts.get(variant.blobId) ?? [])))
+    const { blobId: _blobId, size: _size, ...legacy } = variant
+    const attachment = jobs[0]?.attachments[0]
+    if (!attachment) throw new Error('Missing frozen attachment')
+    attachment.variants[0] = legacy
+    metadata.set('meapp:media:uploads:v1', JSON.stringify(jobs))
+    expect(await resumeMediaUploads()).toHaveLength(1)
+    expect(writes[1]).toEqual(writes[0])
+  } finally {
+    globalThis.fetch = originalFetch
+    metadata.clear()
+    clearMediaTransfers()
   }
 })
 

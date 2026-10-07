@@ -196,6 +196,7 @@ export async function sendE2EMessage(
   text: string,
   clientId: string,
   media: MediaDescriptor[] = [],
+  signal?: AbortSignal,
 ): Promise<Message> {
   const previous = sendQueue
   let release: () => void = () => {}
@@ -204,7 +205,8 @@ export async function sendE2EMessage(
   })
   await previous
   try {
-    return await sendE2EMessageSerial(conversationId, text, clientId, media)
+    signal?.throwIfAborted()
+    return await sendE2EMessageSerial(conversationId, text, clientId, media, signal)
   } finally {
     release()
   }
@@ -215,12 +217,14 @@ async function sendE2EMessageSerial(
   text: string,
   clientId: string,
   media: MediaDescriptor[],
+  signal?: AbortSignal,
 ): Promise<Message> {
   if ((!text.trim() && media.length === 0) || text.length > 2000 || media.length > 4)
     throw new Error('Message must contain text or up to four media attachments')
   for (const descriptor of media) mediaDescriptorSchema.parse(descriptor)
   const storedContent = encodeContent(text, media)
   const context = await getE2EContext()
+  signal?.throwIfAborted()
   const { client, installId, storage, relay, userId, username } = context
   const receipt = await getPrivateMetadata(storage, receiptKey(clientId))
   if (receipt) {

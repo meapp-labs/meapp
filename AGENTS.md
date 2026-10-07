@@ -9,7 +9,7 @@ Bun workspaces: `apps/client`, `apps/server`, `packages/db`, `packages/shared`. 
 ## Commands
 
 ```sh
-bun run dev                # start Redis via Podman, then server + Expo client
+bun run dev                # try Redis via Podman; start server + Expo even if Redis fails
 bun run dev:server         # bun --filter @meapp/server dev
 bun run dev:client         # bun --filter @meapp/client dev (Expo)
 bun run dev:web            # bun --filter @meapp/client web
@@ -47,11 +47,14 @@ bun --filter @meapp/server migrate  # drizzle migrations
 
 ## Boundaries
 
-Ask before: changing `compose.*`, `Caddyfile`, `deploy/`, adding dependencies.
+Ask before: changing `compose.*`, `Caddyfile`, `deploy/`, or adding unfamiliar dependencies.
+Allowed without asking: add well-known, maintained dependencies from established projects
+(for example Expo SDK modules), using versions compatible with this workspace. Avoid
+unnecessary packages; update `bun.lock` and run the relevant checks after adding them.
 Allowed without asking: edit `schema.ts`, regenerate the initial schema snapshot, and
 clear/rebuild this checkout's local development database for schema changes. Never clear
 another checkout's database or a production database. Update `bun.lock` when dependencies
-change; dependency additions still require approval.
+change; unfamiliar dependency additions still require approval.
 Never: edit `packages/db/drizzle/*` (generated), bind `0.0.0.0` (loopback only),
 hardcode `EXPO_PUBLIC_API_URL`, insert messages outside `insertMessageWithSequence()`.
 For every schema change, clear the local development database and rebuild it from
