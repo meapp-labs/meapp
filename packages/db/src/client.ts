@@ -15,9 +15,7 @@ export type DbInstance = {
 export const createDb = (customPath?: string): DbInstance => {
   const dbPath = customPath || process.env.DATABASE_URL || './data/data.db'
 
-  try {
-    mkdirSync(dirname(dbPath), { recursive: true })
-  } catch {}
+  if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true })
 
   const sqlite = new Database(dbPath, {
     create: true,

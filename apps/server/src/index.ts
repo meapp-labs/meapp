@@ -4,9 +4,11 @@ import { checkpoint, getDbInstance, runMigrations } from '@meapp/db'
 import { E2E_SEND_MAX_BYTES } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
+import { startBackgroundTask } from './lib/backgroundTask.ts'
 import { env, isProduction } from './lib/config.ts'
 import { devSeedRoutes } from './lib/devSeed.ts'
 import { ApiError, ErrorCode, toErrorResponse } from './lib/errors.ts'
+import { logger } from './lib/logger.ts'
 import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redis, redisPlugin } from './plugins/redis.ts'
@@ -22,7 +24,7 @@ import { reactionRoutes } from './routes/reactions.ts'
 import { receiptRoutes } from './routes/receipts.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
-import { chatWs, startPubsub } from './ws/chat.ts'
+import { chatWs, closeChatSocketsForRestart, startPubsub } from './ws/chat.ts'
 
 const allowedOrigins: string[] =
   isProduction && env.DOMAIN
@@ -39,6 +41,9 @@ const corsOrigin = allowedOrigins.length > 0 ? allowedOrigins : devOriginRegex
 export const app = new Elysia({
   serve: { development: !isProduction },
 })
+  .onRequest(({ set }) => {
+    set.headers['X-Request-Id'] = crypto.randomUUID()
+  })
   .onAfterHandle({ as: 'global' }, ({ set }) => {
     set.headers['X-Content-Type-Options'] = 'nosniff'
     set.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
@@ -56,7 +61,14 @@ export const app = new Elysia({
   .use(redisPlugin)
   .use(authPlugin)
   .use(rateLimitPlugin)
-  .onError(({ error, code, set }) => {
+  .onError(({ error, code, set, request, user }) => {
+    logger.error('http.failed', {
+      reqId: set.headers['X-Request-Id'],
+      route: new URL(request.url).pathname,
+      userId: user?.id,
+      code,
+      err: code === 'VALIDATION' ? { name: error.name } : error,
+    })
     if (error instanceof ApiError) {
       set.status = error.statusCode
       return error.toBody()
@@ -77,7 +89,6 @@ export const app = new Elysia({
       return { message: 'Not found', code: ErrorCode.ITEM_NOT_FOUND }
     }
 
-    console.error('[API] Unexpected error:', error)
     const { status, body } = toErrorResponse(error)
     set.status = status
     return body
@@ -156,8 +167,11 @@ export const app = new Elysia({
 
 export type App = typeof app
 
+const stopBackgroundTasks: (() => void)[] = []
 const shutdown = () => {
-  console.log('Shutting down server...')
+  logger.info('server.shutdown')
+  for (const stop of stopBackgroundTasks) stop()
+  closeChatSocketsForRestart()
   checkpoint()
   process.exit(0)
 }
@@ -172,10 +186,10 @@ if (import.meta.main) {
   // A new installation must have its schema before any HTTP or WS handler runs.
   runMigrations()
   cleanupExpiredDeviceLinks()
-  void sweepMedia()
-  void sweepProfileAvatars()
-  setInterval(() => void sweepProfileAvatars(), 15 * 60 * 1000).unref?.()
-  setInterval(() => void sweepMedia(), 15 * 60 * 1000).unref?.()
+  stopBackgroundTasks.push(startBackgroundTask('media', sweepMedia, 15 * 60 * 1000))
+  stopBackgroundTasks.push(
+    startBackgroundTask('profile-avatars', sweepProfileAvatars, 15 * 60 * 1000),
+  )
   app.listen(
     {
       port: env.PORT,
@@ -185,8 +199,7 @@ if (import.meta.main) {
       development: !isProduction,
     },
     () => {
-      console.log(`🚀 Elysia server running at http://${env.HOST}:${env.PORT}`)
-      if (isProduction) console.log('[CORS] Allowed origins:', allowedOrigins.join(', '))
+      logger.info('server.started', { host: env.HOST, port: env.PORT, origins: allowedOrigins })
       void startPubsub(() => app.server ?? undefined)
     },
   )

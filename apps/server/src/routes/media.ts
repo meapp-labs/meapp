@@ -11,6 +11,7 @@ import { canAccessRoom, requireRoomInteraction } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { devSeedMediaOrigin } from '../lib/devSeed.ts'
 import { ApiError, ErrorCode, createAuthError, createValidationError } from '../lib/errors.ts'
+import { logger } from '../lib/logger.ts'
 import {
   deleteObject,
   headObject,
@@ -256,7 +257,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
         payload: { roomId: row.room_id, attachmentId: row.id },
       }),
     )
-    void sweepMedia()
+    void sweepMedia().catch((err) => logger.error('media.sweep_failed', { err }))
     return { ok: true }
   })
 
@@ -310,7 +311,7 @@ async function sweepMediaPass(): Promise<void> {
         .query("UPDATE attachments SET state='expired' WHERE id=? AND state='deleting'")
         .run(row.id)
     } catch (error) {
-      console.error('[media] Cleanup deferred:', error)
+      logger.error('media.cleanup_deferred', { err: error })
     }
   }
   const late = sqlite
@@ -322,7 +323,7 @@ async function sweepMediaPass(): Promise<void> {
         await deleteObject(`${row.storage_key}/${variant.name}.enc`)
       }
     } catch (error) {
-      console.error('[media] Late cleanup deferred:', error)
+      logger.error('media.late_cleanup_deferred', { err: error })
     }
   }
 }

@@ -1,9 +1,11 @@
+import { useRealtimeStore } from '@/lib/polling'
 import { useEffect, useRef } from 'react'
 
 export type UseWebSocketOptions = {
   onMessage: (data: unknown) => void
   getAuthMessage: (signal: AbortSignal) => Promise<string>
   enabled: boolean
+  roomId: string
 }
 
 export type WebSocketHandle = {
@@ -17,8 +19,9 @@ export type WebSocketHandle = {
  */
 export function useWebSocket(
   url: string,
-  { onMessage, getAuthMessage, enabled }: UseWebSocketOptions,
+  { onMessage, getAuthMessage, enabled, roomId }: UseWebSocketOptions,
 ): WebSocketHandle | null {
+  const active = useRealtimeStore((state) => state.active)
   const wsRef = useRef<WebSocket | null>(null)
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onMessageRef = useRef(onMessage)
@@ -27,7 +30,9 @@ export function useWebSocket(
   getAuthMessageRef.current = getAuthMessage
 
   useEffect(() => {
-    if (!enabled || !url) return
+    if (!enabled || !url || !active) return
+    const setConnected = (connected: boolean) =>
+      useRealtimeStore.getState().setRoomConnected(roomId, connected)
 
     let cancelled = false
     let attempt = 0
@@ -62,6 +67,7 @@ export function useWebSocket(
               message.type === 'authenticated'
             ) {
               attempt = 0
+              setConnected(true)
             }
             onMessageRef.current(message)
           } catch (e) {
@@ -74,6 +80,7 @@ export function useWebSocket(
           // Keep the replacement's ref so cleanup can close the right socket.
           if (wsRef.current === ws) wsRef.current = null
           if (cancelled) return
+          setConnected(false)
           // Auth and permission failures need a new login or room selection.
           if (event.code >= 4400 && event.code < 4500 && event.code !== 4429) {
             console.warn('[WebSocket] Connection rejected:', event.code, event.reason)
@@ -103,6 +110,7 @@ export function useWebSocket(
 
     return () => {
       cancelled = true
+      setConnected(false)
       controller.abort()
       if (timerRef.current) {
         clearTimeout(timerRef.current)
@@ -113,7 +121,7 @@ export function useWebSocket(
         wsRef.current = null
       }
     }
-  }, [url, enabled])
+  }, [url, enabled, active, roomId])
 
   return {
     send: (data: string) => wsRef.current?.send(data),

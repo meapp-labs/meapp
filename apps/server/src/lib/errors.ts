@@ -1,3 +1,4 @@
+import { logger } from './logger.ts'
 export const ErrorCode = {
   // Authentication
   UNAUTHORIZED: 'UNAUTHORIZED',
@@ -124,7 +125,7 @@ export const handleAsyncOperation = async <T>(
     if (error instanceof ApiError) {
       throw error
     }
-    console.error('[API] Operation failed:', error)
+    logger.error('database.operation_failed', { err: error })
     throw new ApiError(code, errorMessage, 500)
   }
 }

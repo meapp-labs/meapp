@@ -104,7 +104,11 @@ export const RegisterSchema = registerFormSchema
 export type RegisterType = RegisterFormInput
 
 export const pushTokenSchema = z.object({
-  token: z.string().min(1, 'Push token is required'),
+  token: z
+    .string()
+    .max(256)
+    .refine((token) => !/\s/.test(token), 'Push tokens cannot contain whitespace')
+    .regex(/^(ExpoPushToken|ExponentPushToken)\[[A-Za-z0-9_-]+\]$/, 'Invalid Expo push token'),
 })
 
 export type PushTokenInput = z.infer<typeof pushTokenSchema>

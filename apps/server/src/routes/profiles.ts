@@ -10,6 +10,7 @@ import {
 import { Elysia } from 'elysia'
 import { z } from 'zod'
 import { ApiError, ErrorCode, createForbiddenError, createNotFoundError } from '../lib/errors.ts'
+import { logger } from '../lib/logger.ts'
 import { deleteObject, mediaEnabled, publicMediaUrl, putObject } from '../lib/mediaStorage.ts'
 import { normalizeAvatar } from '../lib/profileImages.ts'
 import { requireUser } from '../lib/session.ts'
@@ -151,7 +152,7 @@ export async function sweepProfileAvatars() {
       await deleteObject(`avatars/${row.id}.webp`)
       sqlite.query('DELETE FROM profile_avatars WHERE id=?').run(row.id)
     } catch (error) {
-      console.error('[Profile] Avatar cleanup failed', error)
+      logger.error('profile.avatar_cleanup_failed', { err: error })
     }
   }
 }

@@ -1,3 +1,6 @@
+import { apiEndpoint } from './endpoints'
+export { endpoint } from './endpoints'
+export type ApiRequestInit = RequestInit & { timeoutMs?: number }
 import type { ApiError as SharedApiError } from '@meapp/shared'
 import { AuthStorage } from './authStorage'
 import { env } from './env'
@@ -39,34 +42,22 @@ export type ApiError<T = ApiErrorResponse> = ApiHttpError & {
 }
 
 function buildUrl(path: string, params?: Record<string, unknown>): string {
-  let url: URL
   if (/^https?:\/\//i.test(path)) {
-    url = new URL(path)
-  } else {
-    const base = env.EXPO_PUBLIC_API_URL.replace(/\/+$/, '')
-    let cleanPath = path.replace(/^\/+/, '')
-    if (!cleanPath.startsWith('api/') && !cleanPath.startsWith('ws/') && cleanPath !== 'health') {
-      cleanPath = `api/${cleanPath}`
-    }
-    url = new URL(`${base}/${cleanPath}`)
-  }
-
-  if (params) {
-    for (const [key, value] of Object.entries(params)) {
-      if (value !== undefined && value !== null) {
-        url.searchParams.append(key, String(value))
+    const url = new URL(path)
+    if (params)
+      for (const [key, value] of Object.entries(params)) {
+        if (value !== undefined && value !== null) url.searchParams.append(key, String(value))
       }
-    }
+    return url.toString()
   }
-
-  return url.toString()
+  return apiEndpoint(env.EXPO_PUBLIC_API_URL, path, params)
 }
 
 async function request<T>(
   method: string,
   url: string,
   body?: unknown,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
   const headers = new Headers(init?.headers)
   const token = await AuthStorage.getToken()
@@ -80,11 +71,12 @@ async function request<T>(
     headers.set('Content-Type', 'application/json')
   }
 
+  const { timeoutMs = 30_000, ...fetchInit } = init ?? {}
   const options: RequestInit = {
+    ...fetchInit,
     method,
     headers,
     credentials: 'include',
-    ...init,
   }
 
   if (body !== undefined) {
@@ -96,7 +88,7 @@ async function request<T>(
   const abort = () => controller.abort()
   if (init?.signal?.aborted) abort()
   else init?.signal?.addEventListener('abort', abort, { once: true })
-  const timer = setTimeout(abort, 30_000)
+  const timer = setTimeout(abort, timeoutMs)
   options.signal = controller.signal
   try {
     const response = await fetch(url, options)
@@ -131,7 +123,7 @@ async function request<T>(
 export async function getFetcher<T, P = Record<string, unknown>>(
   url: string,
   params?: P,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<T> {
   const targetUrl = buildUrl(url, params as Record<string, unknown> | undefined)
   return request<T>('GET', targetUrl, undefined, init)
@@ -140,7 +132,7 @@ export async function getFetcher<T, P = Record<string, unknown>>(
 export async function postFetcher<TResponse, TRequest = unknown>(
   url: string,
   body?: TRequest,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<TResponse> {
   return request<TResponse>('POST', buildUrl(url), body, init)
 }
@@ -148,14 +140,14 @@ export async function postFetcher<TResponse, TRequest = unknown>(
 export async function patchFetcher<TResponse, TRequest = unknown>(
   url: string,
   body?: TRequest,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<TResponse> {
   return request<TResponse>('PATCH', buildUrl(url), body, init)
 }
 
 export async function deleteFetcher<TResponse>(
   url: string,
-  init?: RequestInit,
+  init?: ApiRequestInit,
 ): Promise<TResponse> {
   return request<TResponse>('DELETE', buildUrl(url), undefined, init)
 }

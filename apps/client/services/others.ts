@@ -1,3 +1,4 @@
+import { usePollingInterval } from '@/lib/polling'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
@@ -14,10 +15,11 @@ export function useGetFriends() {
 }
 
 export function useFriendRequests() {
+  const pollInterval = usePollingInterval(15_000)
   return useQuery<FriendRequestLists, ApiError>({
     queryKey: [Keys.Query.FRIEND_REQUESTS],
     queryFn: () => getFetcher<FriendRequestLists>(Keys.Query.FRIEND_REQUESTS),
-    refetchInterval: 5000,
+    refetchInterval: pollInterval,
     refetchOnWindowFocus: true,
   })
 }

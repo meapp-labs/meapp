@@ -1,4 +1,5 @@
 import { getFetcher, postFetcher } from '@/lib/api'
+import { usePollingInterval } from '@/lib/polling'
 import { useAuthStore } from '@/lib/stores'
 import {
   type Profile,
@@ -45,16 +46,18 @@ const aliasCrypto: AliasCrypto = {
 }
 
 export function useOwnProfile() {
+  const pollInterval = usePollingInterval(60_000)
   const account = useAuthStore((s) => s.username)
   return useQuery({
     queryKey: ['profiles', account, 'self'],
     queryFn: async () => profileSchema.parse(await getFetcher('profile')),
     enabled: !!account,
-    refetchInterval: 15_000,
+    refetchInterval: pollInterval,
   })
 }
 
 export function useProfile(value: string, byId = false) {
+  const pollInterval = usePollingInterval(60_000)
   const account = useAuthStore((s) => s.username)
   return useQuery({
     queryKey: ['profiles', account, byId ? 'id' : 'username', value],
@@ -66,16 +69,17 @@ export function useProfile(value: string, byId = false) {
           byId ? undefined : { username: value },
         ),
       ),
-    refetchInterval: 15_000,
+    refetchInterval: pollInterval,
   })
 }
 
 export function useAliases() {
+  const pollInterval = usePollingInterval(30_000)
   const own = useOwnProfile()
   return useQuery({
     queryKey: ['aliases', own.data?.id],
     enabled: !!own.data?.id,
-    refetchInterval: 10_000,
+    refetchInterval: pollInterval,
     queryFn: async () => {
       const ownerId = own.data?.id
       if (!ownerId) throw new Error('Sign in to load aliases')

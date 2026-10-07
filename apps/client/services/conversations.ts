@@ -1,3 +1,4 @@
+import { usePollingInterval } from '@/lib/polling'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
 import { type ApiError, getFetcher, postFetcher } from '@/lib/api'
@@ -33,12 +34,13 @@ export function useCreateConversation() {
  * Get all conversations for current user
  */
 export function useGetConversations(enabled = true) {
+  const pollInterval = usePollingInterval(15_000)
   return useQuery<Conversation[], ApiError>({
     queryKey: [Keys.Query.GET_CONVERSATIONS],
     queryFn: () => getFetcher<Conversation[]>(Keys.Query.GET_CONVERSATIONS),
     enabled,
     staleTime: 30000, // 30 seconds
-    refetchInterval: 5000,
+    refetchInterval: pollInterval,
     refetchOnWindowFocus: true,
   })
 }
@@ -121,12 +123,13 @@ import type {
 } from '@meapp/shared'
 
 export function useGetGroupMembers(roomId: string | undefined, enabled = true) {
+  const membersPollInterval = usePollingInterval(30_000)
   return useQuery<GroupMember[], ApiError>({
     queryKey: ['rooms', roomId, 'members'],
     queryFn: () => getFetcher<GroupMember[]>(`rooms/${roomId}/members`),
     enabled: Boolean(roomId && enabled),
     staleTime: 10000,
-    refetchInterval: enabled ? 10_000 : false,
+    refetchInterval: enabled ? membersPollInterval : false,
   })
 }
 

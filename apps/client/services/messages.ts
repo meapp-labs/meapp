@@ -1,3 +1,4 @@
+import { usePollingInterval } from '@/lib/polling'
 import {
   type QueryClient,
   useInfiniteQuery,
@@ -217,6 +218,7 @@ export function useGetMessages({
 }) {
   const queryClient = useQueryClient()
   const [readyRoom, setReadyRoom] = useState<string | null>(null)
+  const pollInterval = usePollingInterval(30_000, conversationId)
 
   // Fall back to loading history when the socket cannot authenticate.
   useEffect(() => {
@@ -236,7 +238,7 @@ export function useGetMessages({
     { after?: number; before?: number }
   >({
     queryKey: messageQueryKey(conversationId, threadRootId),
-    refetchInterval: 30000,
+    refetchInterval: pollInterval,
     queryFn: async ({ pageParam }) => {
       const params: {
         conversationId: string
@@ -294,6 +296,7 @@ export function useGetMessages({
     `${env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')}/ws?roomId=${encodeURIComponent(conversationId)}`,
     {
       enabled: enabled && !!conversationId && !threadRootId,
+      roomId: conversationId,
       getAuthMessage: async (signal) => {
         const res = await postFetcher<{ ticket?: string }>(
           '/ws/ticket',

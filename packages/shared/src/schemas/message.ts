@@ -9,44 +9,73 @@ import { threadSummarySchema } from './thread.ts'
 
 export const MESSAGE_MAX_LENGTH = 2000
 
-export const messageSchema = z
-  .object({
-    id: z.string(),
-    replyTo: z.string().uuid().optional(),
-    threadRootId: z.string().uuid().optional(),
-    clientId: z.string().optional(),
-    attachmentIds: attachmentIdsSchema.optional(),
-    unavailableAttachmentIds: attachmentIdsSchema.optional(),
-    media: z.array(mediaDescriptorSchema).min(1).max(4).optional(),
-    roomId: z.string().optional(),
-    userId: z.string().optional(),
-    sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
-    acknowledgedRead: z.boolean().optional(),
-    envelopeAvailable: z.boolean().optional(),
-    text: z.string().min(1).max(MESSAGE_MAX_LENGTH).optional(),
-    ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX).optional(),
-    ciphertextType: z.number().int().optional(),
-    fromDeviceId: z.string().uuid().optional(),
-    fromProtocolDeviceId: z.number().int().min(1).max(5).optional(),
-    envelopeSourceUserId: z.string().uuid().optional(),
-    envelopeSourceDeviceId: z.number().int().min(1).max(5).optional(),
-    createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
-    // Compatibility & UI fields across REST and WebSocket
-    index: z.union([z.number(), z.string()]).optional(),
-    from: z.string().optional(),
-    type: z.string().optional().default('text'),
-    timestamp: z.string().optional(),
-  })
-  .refine(
-    (message) =>
-      (message.ciphertext !== undefined) !==
-      (message.text !== undefined || Boolean(message.media?.length)),
-    {
-      message: 'A message must contain ciphertext or decrypted content',
-    },
-  )
+const messageFieldsSchema = z.object({
+  id: z.string(),
+  replyTo: z.string().uuid().optional(),
+  threadRootId: z.string().uuid().optional(),
+  clientId: z.string().optional(),
+  attachmentIds: attachmentIdsSchema.optional(),
+  unavailableAttachmentIds: attachmentIdsSchema.optional(),
+  media: z.array(mediaDescriptorSchema).min(1).max(4).optional(),
+  roomId: z.string().optional(),
+  userId: z.string().optional(),
+  sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
+  acknowledgedRead: z.boolean().optional(),
+  envelopeAvailable: z.boolean().optional(),
+  text: z.string().min(1).max(MESSAGE_MAX_LENGTH).optional(),
+  ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX).optional(),
+  ciphertextType: z
+    .number()
+    .int()
+    .refine((value): boolean => value === 1 || value === 3, 'Unknown ciphertext type')
+    .optional(),
+  fromDeviceId: z.string().uuid().optional(),
+  fromProtocolDeviceId: z.number().int().min(1).max(5).optional(),
+  envelopeSourceUserId: z.string().uuid().optional(),
+  envelopeSourceDeviceId: z.number().int().min(1).max(5).optional(),
+  createdAt: z.union([z.string(), z.date(), z.number()]).optional(),
+  // Compatibility & UI fields across REST and WebSocket
+  index: z.union([z.number(), z.string()]).optional(),
+  from: z.string().optional(),
+  type: z.enum(['text', 'media', 'undecryptable']).optional().default('text'),
+  timestamp: z.string().optional(),
+})
+
+// Local UI messages may be optimistic or undecryptable; wire messages require identity and cursor fields.
+export const messageSchema = messageFieldsSchema.refine(
+  (message) =>
+    (message.ciphertext !== undefined) !==
+    (message.text !== undefined || Boolean(message.media?.length)),
+  {
+    message: 'A message must contain ciphertext or decrypted content',
+  },
+)
 
 export type Message = z.infer<typeof messageSchema>
+
+const wireFieldsSchema = messageFieldsSchema.extend({
+  id: z.string().uuid(),
+  clientId: z.string().uuid(),
+  roomId: z.string().uuid(),
+  userId: z.string().uuid(),
+  sequence: z.number().int().positive(),
+  from: z.string().min(1),
+  timestamp: z.string().datetime(),
+})
+export const plaintextMessageSchema = wireFieldsSchema.extend({
+  text: z.string().min(1).max(MESSAGE_MAX_LENGTH),
+  ciphertext: z.never().optional(),
+  ciphertextType: z.never().optional(),
+})
+export const encryptedMessageSchema = wireFieldsSchema.extend({
+  ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX),
+  ciphertextType: z.union([z.literal(1), z.literal(3)]),
+  fromDeviceId: z.string().uuid(),
+  fromProtocolDeviceId: z.number().int().min(1).max(5),
+  text: z.never().optional(),
+  media: z.never().optional(),
+})
+export const wireMessageSchema = z.union([plaintextMessageSchema, encryptedMessageSchema])
 
 export const attachmentSchema = z.object({
   id: z.string().uuid(),
@@ -76,8 +105,7 @@ export const messageWsIncomingSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('auth'),
     payload: z.object({
-      ticket: z.string().optional(),
-      token: z.string().optional(),
+      ticket: z.string().min(1),
     }),
   }),
   z.object({
@@ -93,7 +121,7 @@ export const messageWsIncomingSchema = z.discriminatedUnion('type', [
 export type MessageWsIncoming = z.infer<typeof messageWsIncomingSchema>
 
 export const messageWsOutgoingSchema = z.discriminatedUnion('type', [
-  z.object({ type: z.literal('message'), payload: messageSchema }),
+  z.object({ type: z.literal('message'), payload: wireMessageSchema }),
   z.object({
     type: z.literal('typing'),
     payload: z.object({ roomId: z.string().uuid(), userId: z.string().uuid() }),

@@ -1,13 +1,16 @@
 import { jwt } from '@elysiajs/jwt'
-import { IdempotencyConflictError, getDbInstance, insertMessageWithSequence } from '@meapp/db'
+import { getDbInstance } from '@meapp/db'
 import { MESSAGE_MAX_LENGTH, messageWsIncomingSchema } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
-import { requireRoomInteraction, roomInteractionAllowed } from '../lib/authz.ts'
+import { roomInteractionAllowed } from '../lib/authz.ts'
 import { clientIpOf } from '../lib/clientIp.ts'
 import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
+import { ApiError, ErrorCode } from '../lib/errors.ts'
+import { logger } from '../lib/logger.ts'
+import { sendMessage } from '../lib/services/sendMessage.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redis, redisPlugin } from '../plugins/redis.ts'
-import { inMemoryTickets } from '../routes/wsTicket.ts'
+import { TicketAuthError, authenticateTicket } from './authenticateTicket.ts'
 import {
   USER_CONNECTION_REFRESH_MS,
   WsConnectionManager,
@@ -174,7 +177,7 @@ export const chatWs = new Elysia()
         // A socket can authenticate only once.
         if (state?.authenticatedUserId) return
 
-        const ticket = msg.payload.ticket || msg.payload.token
+        const ticket = msg.payload.ticket
         if (!ticket) {
           ws.send(
             JSON.stringify({
@@ -187,73 +190,12 @@ export const chatWs = new Elysia()
 
         const { redis: redisClient, ticketJwt } = ws.data
         try {
-          const payload = (await ticketJwt.verify(ticket)) as unknown as {
-            sub?: string
-            roomId?: string
-            jti?: string
-          }
-          if (!payload?.sub || !payload?.jti || !payload?.roomId) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'UNAUTHENTICATED', message: 'Invalid ticket payload' },
-              }),
-            )
-            ws.close(4401, 'Invalid ticket')
-            return
-          }
-
-          const key = `ws_ticket:${payload.jti}`
-          let stored: string | null = null
-          try {
-            // GETDEL: atomic consume — GET then DEL would allow ticket replay.
-            stored = (await redisClient.getdel(key)) ?? null
-          } catch {
-            // Redis unavailable - fallback to inMemoryTickets
-          }
-
-          if (!stored) {
-            const fallback = inMemoryTickets.get(payload.jti)
-            if (fallback && fallback.exp > Date.now()) {
-              stored = JSON.stringify({ userId: fallback.userId, roomId: fallback.roomId })
-              inMemoryTickets.delete(payload.jti)
-            }
-          }
-
-          if (!stored) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'UNAUTHENTICATED', message: 'Ticket expired or already used' },
-              }),
-            )
-            ws.close(4401, 'Ticket invalid')
-            return
-          }
-
-          const userId = payload.sub
-          if (payload.roomId !== roomId) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'FORBIDDEN', message: 'Ticket room mismatch' },
-              }),
-            )
-            ws.close(4403, 'Room mismatch')
-            return
-          }
-
-          const can = roomInteractionAllowed(userId, roomId)
-          if (!can) {
-            ws.send(
-              JSON.stringify({
-                type: 'error',
-                payload: { code: 'FORBIDDEN', message: 'Not member of room' },
-              }),
-            )
-            ws.close(4403, 'Forbidden')
-            return
-          }
+          const userId = await authenticateTicket(
+            ticket,
+            roomId,
+            (value) => ticketJwt.verify(value),
+            redisClient,
+          )
 
           const allowed = await connectionManager.canUserConnect(userId, state.connectionId)
           if (state.closed) {
@@ -321,14 +263,19 @@ export const chatWs = new Elysia()
           }, USER_CONNECTION_REFRESH_MS)
 
           ws.send(JSON.stringify({ type: 'authenticated', payload: { userId } }))
-        } catch {
+        } catch (err) {
+          logger.warn('ws.authentication_failed', { connectionId: state.connectionId, roomId, err })
+          const code = err instanceof TicketAuthError ? err.code : 'UNAUTHENTICATED'
           ws.send(
             JSON.stringify({
               type: 'error',
-              payload: { code: 'UNAUTHENTICATED', message: 'Invalid ticket signature' },
+              payload: {
+                code,
+                message: err instanceof TicketAuthError ? err.message : 'Invalid ticket signature',
+              },
             }),
           )
-          ws.close(4401, 'Invalid ticket')
+          ws.close(code === 'FORBIDDEN' ? 4403 : 4401, 'Ticket rejected')
         }
         return
       }
@@ -499,13 +446,15 @@ export const chatWs = new Elysia()
 
         // Atomic sequence insertion with BEGIN IMMEDIATE and retry
         try {
-          const result = await insertMessageWithSequence(getDbInstance().sqlite, {
-            roomId: payload.roomId,
-            userId,
-            clientId: payload.clientId,
-            text: payload.text,
-            mutation: () => requireRoomInteraction(userId, payload.roomId),
-          })
+          const senderRow = getDbInstance()
+            .sqlite.query('SELECT username FROM users WHERE id=?')
+            .get(userId) as { username: string | null } | null
+          const result = await sendMessage(
+            { conversationId: payload.roomId, clientId: payload.clientId, text: payload.text },
+            { id: userId, username: senderRow?.username ?? userId },
+            getDbInstance(),
+            broadcastToRoom,
+          )
 
           // Acknowledge sender
           ws.send(
@@ -518,36 +467,8 @@ export const chatWs = new Elysia()
               },
             }),
           )
-
-          if (!result.created) return
-
-          // Client compares message.from against the username, not the UUID.
-          const senderRow = getDbInstance()
-            .sqlite.query('SELECT username FROM users WHERE id = ?')
-            .get(userId) as {
-            username: string | null
-          } | null
-          const senderUsername = senderRow?.username ?? userId
-
-          const messageBroadcast = {
-            id: result.id,
-            clientId: payload.clientId,
-            roomId: payload.roomId,
-            userId,
-            from: senderUsername,
-            sequence: result.sequence,
-            text: payload.text,
-            createdAt: new Date(result.createdAt * 1000).toISOString(),
-          }
-
-          const broadcastEnvelope = JSON.stringify({
-            type: 'message',
-            payload: messageBroadcast,
-          })
-
-          await broadcastToRoom(payload.roomId, broadcastEnvelope)
         } catch (e) {
-          if (e instanceof IdempotencyConflictError) {
+          if (e instanceof ApiError && e.code === ErrorCode.DUPLICATE_ITEM) {
             ws.send(
               JSON.stringify({
                 type: 'error',
@@ -556,7 +477,13 @@ export const chatWs = new Elysia()
             )
             return
           }
-          console.error('[chatWs] Error writing message:', e)
+          logger.error('ws.message_failed', {
+            connectionId: state.connectionId,
+            userId,
+            roomId: payload.roomId,
+            clientId: payload.clientId,
+            err: e,
+          })
           ws.send(
             JSON.stringify({
               type: 'error',
@@ -601,3 +528,8 @@ export const chatWs = new Elysia()
       }
     },
   })
+
+export function closeChatSocketsForRestart() {
+  for (const entry of activeSockets)
+    entry.ws.close(1012, 'Server restarting; reconnect for a new ticket')
+}

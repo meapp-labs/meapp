@@ -1,3 +1,4 @@
+import type { Database } from 'bun:sqlite'
 import { getDbInstance } from '@meapp/db'
 import type { ThreadSummary } from '@meapp/shared'
 import { chatTimestampIso } from './dbTime.ts'
@@ -8,9 +9,10 @@ export function requireThreadRoot(
   rootId: string,
   userId: string,
   deviceId: number,
+  sqlite: Database = getDbInstance().sqlite,
 ) {
-  const row = getDbInstance()
-    .sqlite.query(`SELECT m.thread_root_id AS threadRootId, m.user_id AS userId
+  const row = sqlite
+    .query(`SELECT m.thread_root_id AS threadRootId, m.user_id AS userId
     FROM messages m WHERE m.id=? AND m.room_id=?
     AND (m.is_encrypted=0 OR m.user_id=? OR EXISTS (SELECT 1 FROM message_envelopes e
       WHERE e.message_id=m.id AND e.target_user_id=? AND e.target_device_id=?))`)
@@ -32,11 +34,12 @@ export function requireThreadTarget(
   targetId: string | undefined,
   userId: string,
   deviceId: number,
+  sqlite: Database = getDbInstance().sqlite,
 ) {
-  requireThreadRoot(roomId, rootId, userId, deviceId)
+  requireThreadRoot(roomId, rootId, userId, deviceId, sqlite)
   if (!targetId || targetId === rootId) return
-  const target = getDbInstance()
-    .sqlite.query(`SELECT m.thread_root_id AS rootId FROM messages m WHERE m.id=? AND m.room_id=?
+  const target = sqlite
+    .query(`SELECT m.thread_root_id AS rootId FROM messages m WHERE m.id=? AND m.room_id=?
     AND (m.user_id=? OR EXISTS (SELECT 1 FROM message_envelopes e WHERE e.message_id=m.id AND e.target_user_id=? AND e.target_device_id=?))`)
     .get(targetId, roomId, userId, userId, deviceId) as { rootId: string | null } | null
   if (!target || target.rootId !== rootId)
@@ -44,9 +47,13 @@ export function requireThreadTarget(
 }
 
 /** Current members from the root's original audience, including their linked devices. */
-export function threadRecipientDevices(roomId: string, rootId: string) {
-  return getDbInstance()
-    .sqlite.query(`SELECT ri.user_id AS userId, u.username, ri.device_id AS deviceId
+export function threadRecipientDevices(
+  roomId: string,
+  rootId: string,
+  sqlite: Database = getDbInstance().sqlite,
+) {
+  return sqlite
+    .query(`SELECT ri.user_id AS userId, u.username, ri.device_id AS deviceId
     FROM room_members rm JOIN users u ON u.id=rm.user_id
     JOIN relay_identities ri ON ri.user_id=rm.user_id
     WHERE rm.room_id=? AND (rm.user_id=(SELECT user_id FROM messages WHERE id=?)

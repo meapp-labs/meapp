@@ -71,7 +71,8 @@ export const insertMessageWithSequence = async (
       existing.roomId !== opts.roomId ||
       existing.replyTo !== (opts.replyTo ?? null) ||
       existing.threadRootId !== (opts.threadRootId ?? null) ||
-      existing.attachmentIds !== JSON.stringify(attachmentIds) ||
+      JSON.stringify((JSON.parse(existing.attachmentIds) as string[]).sort()) !==
+        JSON.stringify(attachmentIds) ||
       existing.text !== storedText ||
       existing.ciphertext !== (opts.ciphertext ?? null) ||
       existing.ciphertextType !== (opts.ciphertextType ?? null) ||

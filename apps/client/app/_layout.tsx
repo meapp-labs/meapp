@@ -1,12 +1,14 @@
-import { QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider, focusManager } from '@tanstack/react-query'
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
+import { AppState, Platform } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Loader } from '@/components/Loader'
 import { getFetcher, postFetcher } from '@/lib/api'
 import { AuthStorage } from '@/lib/authStorage'
 import { Keys } from '@/lib/keys'
+import { useRealtimeStore } from '@/lib/polling'
 import { queryClient } from '@/lib/queryInit'
 import { logStartupInfo } from '@/lib/startupInfo'
 import { useAuthStore } from '@/lib/stores'
@@ -63,13 +65,28 @@ function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
+  useEffect(() => {
+    const update = (active: boolean) => {
+      useRealtimeStore.getState().setActive(active)
+      focusManager.setFocused(active)
+    }
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const changed = () => update(document.visibilityState === 'visible')
+      changed()
+      document.addEventListener('visibilitychange', changed)
+      return () => document.removeEventListener('visibilitychange', changed)
+    }
+    update(AppState.currentState === 'active')
+    const subscription = AppState.addEventListener('change', (state) => update(state === 'active'))
+    return () => subscription.remove()
+  }, [])
   const username = useAuthStore((state) => state.username)
   const isAuthenticated = !!username
   useEffect(() => {
     if (!username) return
     let stopped = false
     const resume = () => {
-      if (stopped) return
+      if (stopped || !useRealtimeStore.getState().active) return
       pruneMediaCache()
       void resumeMediaUploads()
         .then((sent) => {

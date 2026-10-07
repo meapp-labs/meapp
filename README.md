@@ -80,9 +80,8 @@ deploy/      Production quadlet units + backup/restore docs
 scripts/     Chaos test, migration guard
 ```
 
-## Production
+## Deployment
 
-See [`deploy/README.md`](deploy/README.md) for the quadlet-based deployment,
-pre-migration backups (`VACUUM INTO`), and restore procedure. CI (`.github/workflows/cicd.yml`)
-builds an immutable image tag, scans it with Trivy, migrates, and deploys with health-check
-rollback.
+A deployment target has not been selected. Existing Podman configuration and backup/restore
+notes in [`deploy/README.md`](deploy/README.md) are reference material. There is currently no
+CI deployment workflow.

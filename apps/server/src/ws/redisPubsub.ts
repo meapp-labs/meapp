@@ -1,4 +1,5 @@
 import type Redis from 'ioredis'
+import { logger } from '../lib/logger.ts'
 
 /**
  * Cross-instance Redis pub/sub bridge for WebSocket fan-out.
@@ -42,7 +43,7 @@ export class RedisPubsub {
       await this.subscriber.connect()
       await this.subscriber.psubscribe('meapp:room*')
     } catch (err) {
-      console.warn('[RedisPubsub] Bridge unavailable, running in local-only mode:', err)
+      logger.warn('redis.pubsub_degraded', { err })
       this.subscriber = null
     }
   }

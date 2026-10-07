@@ -64,6 +64,26 @@ beforeAll(async () => {
 })
 beforeEach(resetInMemoryRateLimits)
 
+test('group creation rolls back the room when a member insert fails and reports a request ID', async () => {
+  const name = `rollback-${crypto.randomUUID()}`
+  db().exec(`CREATE TEMP TRIGGER audit_group_member_failure BEFORE INSERT ON room_members
+    WHEN NEW.user_id='${account(2).id}' BEGIN SELECT RAISE(ABORT, 'Audit member failure'); END`)
+  try {
+    const response = await api('conversations', 0, 'POST', {
+      type: 'group',
+      name,
+      participants: [account(1).username, account(2).username],
+    })
+    expect(response.status).toBe(500)
+    expect(response.headers.get('X-Request-Id')).toBeTruthy()
+    expect(db().query('SELECT COUNT(*) AS total FROM rooms WHERE name=?').get(name)).toEqual({
+      total: 0,
+    })
+  } finally {
+    db().exec('DROP TRIGGER audit_group_member_failure')
+  }
+})
+
 test('group roles authorize administration and DM membership is immutable', async () => {
   const id = room()
   expect((await api(`rooms/${id}/members`, -1)).status).toBe(401)

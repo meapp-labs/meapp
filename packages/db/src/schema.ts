@@ -45,11 +45,6 @@ export const rooms = sqliteTable('rooms', {
 export type Room = typeof rooms.$inferSelect
 export type NewRoom = typeof rooms.$inferInsert
 
-// Alias conversations to rooms for compatibility
-export const conversations = rooms
-export type Conversation = Room
-export type NewConversation = NewRoom
-
 // ─────────────────────────────────────────────────────────────
 // room_members (participants) (V8 FINAL)
 // ─────────────────────────────────────────────────────────────
@@ -77,11 +72,6 @@ export const roomMembers = sqliteTable(
 
 export type RoomMember = typeof roomMembers.$inferSelect
 export type NewRoomMember = typeof roomMembers.$inferInsert
-
-// Alias participants to roomMembers
-export const participants = roomMembers
-export type Participant = RoomMember
-export type NewParticipant = NewRoomMember
 
 // ─────────────────────────────────────────────────────────────
 // room_invites (expiring, hashed tokens with atomic usage count)
