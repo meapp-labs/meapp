@@ -8,6 +8,7 @@ import { DeleteFriend } from '@/components/chat/DeleteFriend'
 import { GroupManageModal } from '@/components/chat/GroupManageModal'
 import { LeaveGroupModal } from '@/components/chat/LeaveGroupModal'
 import { Text } from '@/components/common/Text'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
 import { useSelectedConversation } from '@/services/conversations'
 import {
@@ -40,6 +41,7 @@ function getDisplayName(
 }
 
 export function ChatHeader() {
+  const { isMobile } = useBreakpoint()
   const { setSelectedConversationId } = useConversationStore()
   const selectedConversation = useSelectedConversation()
   const mute = useConversationMute(selectedConversation?.id)
@@ -97,30 +99,59 @@ export function ChatHeader() {
   return (
     <View style={styles.container}>
       <View style={styles.innerContainer}>
-        <TouchableOpacity onPress={handlePress}>
-          <MaterialIcons name="arrow-back" size={34} color={theme.colors.text} />
-        </TouchableOpacity>
+        {isMobile && (
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel="Back to conversations"
+            style={styles.iconButton}
+            onPress={handlePress}
+          >
+            <MaterialIcons name="arrow-back" size={23} color={theme.colors.text} />
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
           style={styles.contactInfo}
+          disabled={!isGroup}
+          accessibilityRole={isGroup ? 'button' : undefined}
+          accessibilityLabel={isGroup ? 'Open group details' : undefined}
           onPress={() => {
             if (isGroup) setShowGroupManageModal(true)
           }}
         >
-          {isGroup ? (
-            <MaterialIcons name="groups" size={34} color={theme.colors.text} />
+          {isGroup || isSaved ? (
+            <View style={styles.groupAvatar}>
+              <MaterialIcons
+                name={isSaved ? 'bookmark-border' : 'groups'}
+                size={23}
+                color={theme.colors.primary}
+              />
+            </View>
           ) : (
-            <UserAvatar uri={contact.profile?.avatarUrl} size={34} label={displayName} />
+            <UserAvatar uri={contact.profile?.avatarUrl} size={42} label={displayName} />
           )}
-          <View>
-            <Text style={styles.contactName}>{displayName}</Text>
-            {!isGroup && !isSaved && <Text>@{otherParticipant}</Text>}
+          <View style={styles.contactLabels}>
+            <Text style={styles.contactName} numberOfLines={1}>
+              {displayName}
+            </Text>
+            <Text style={styles.contactSubtitle} numberOfLines={1}>
+              {isSaved
+                ? 'Notes, links and little reminders'
+                : isGroup
+                  ? `${selectedConversation?.participants.length ?? 0} members · Group conversation`
+                  : `@${otherParticipant}`}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
 
       <View>
-        <TouchableOpacity onPress={() => setShowMenu(true)}>
-          <MaterialIcons name="more-vert" size={34} color={theme.colors.text} />
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel="Open chat menu"
+          style={styles.iconButton}
+          onPress={() => setShowMenu(true)}
+        >
+          <MaterialIcons name="more-vert" size={24} color={theme.colors.textSecondary} />
         </TouchableOpacity>
 
         <Modal
@@ -361,44 +392,79 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    margin: theme.spacing.md,
-    marginVertical: theme.spacing.lg,
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderSecondary,
+    backgroundColor: theme.colors.surface,
     zIndex: 1,
   },
   contactInfo: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
+    gap: 12,
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+  },
+  contactLabels: { flex: 1, minWidth: 0, gap: 4 },
+  contactSubtitle: { fontSize: 12, color: theme.colors.textSecondary },
+  groupAvatar: {
+    width: 42,
+    height: 42,
+    borderRadius: 15,
+    backgroundColor: '#F5BA3014',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 14,
   },
   contactName: {
-    ...theme.typography.h1,
+    fontSize: 16,
+    fontWeight: '600',
   },
   innerContainer: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
+    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    marginRight: 12,
   },
   menuOverlay: {
     flex: 1,
-    backgroundColor: 'transparent',
+    backgroundColor: 'rgba(0,0,0,0.2)',
   },
   menuContainer: {
     position: 'absolute',
-    top: 60,
-    right: 20,
+    top: 72,
+    right: 16,
     backgroundColor: theme.colors.surface,
     padding: theme.spacing.sm,
-    borderRadius: theme.spacing.sm,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    minWidth: 150,
+    width: 264,
+    maxWidth: '90%',
   },
   menuItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.xs,
-    padding: theme.spacing.xs,
+    gap: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 13,
+    minHeight: 44,
+    borderRadius: 10,
   },
   safetyOverlay: {
     flex: 1,

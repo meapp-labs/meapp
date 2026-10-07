@@ -7,6 +7,11 @@ export const toastConfig = {
     <BaseToast
       {...props}
       style={{
+        width: '90%',
+        maxWidth: 420,
+        minHeight: 72,
+        height: 'auto',
+        borderRadius: 14,
         borderLeftColor: theme.colors.primary,
         backgroundColor: theme.colors.card,
         borderLeftWidth: 5,
@@ -31,6 +36,11 @@ export const toastConfig = {
     <ErrorToast
       {...props}
       style={{
+        width: '90%',
+        maxWidth: 420,
+        minHeight: 72,
+        height: 'auto',
+        borderRadius: 14,
         borderLeftColor: theme.colors.error,
         backgroundColor: theme.colors.card,
         borderLeftWidth: 5,
@@ -55,6 +65,11 @@ export const toastConfig = {
     <InfoToast
       {...props}
       style={{
+        width: '90%',
+        maxWidth: 420,
+        minHeight: 72,
+        height: 'auto',
+        borderRadius: 14,
         borderLeftColor: theme.colors.secondary,
         backgroundColor: theme.colors.card,
         borderLeftWidth: 5,

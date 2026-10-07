@@ -80,6 +80,23 @@ export function devSeedContent(clientId: string, text: string | null) {
   }
 }
 
+/** Keep development fixture envelopes out of conversation summaries. */
+export function devSeedPreview(clientId: string, text: string | null): string {
+  const content = devSeedContent(clientId, text)
+  if (!content) return text ?? ''
+  if (content.text) return content.text
+  const kind = content.media?.[0]?.kind
+  return kind === 'image'
+    ? 'Shared photo'
+    : kind === 'video'
+      ? 'Shared video'
+      : kind === 'audio'
+        ? 'Shared audio'
+        : kind === 'gif'
+          ? 'Shared GIF'
+          : 'Shared attachment'
+}
+
 export const devSeedRoutes =
   env.NODE_ENV === 'development'
     ? new Elysia().get('/__dev/media/*', async ({ params, set }) => {

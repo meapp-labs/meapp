@@ -1,10 +1,13 @@
 import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
+import { FormContainer } from '@/components/forms/FormContainer'
+import { DocumentTitle } from '@/misc/DocumentTitle'
 import { completePasswordReset, requestPasswordReset } from '@/services/accountRecovery'
 import { theme } from '@/theme/theme'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { router } from 'expo-router'
 import { useState } from 'react'
-import { ScrollView, TextInput, View } from 'react-native'
+import { ScrollView, StyleSheet, TextInput, View } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 
 export default function ForgotPasswordScreen() {
@@ -40,88 +43,131 @@ export default function ForgotPasswordScreen() {
   }
   const inputStyle = {
     color: theme.colors.text,
-    borderColor: theme.colors.secondary,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: 6,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 50,
+    fontSize: 16,
   }
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <ScrollView contentContainerStyle={{ padding: 24, alignItems: 'center' }}>
-        <View style={{ width: '100%', maxWidth: 480, gap: 16 }}>
-          <Text style={theme.typography.h2}>Recover account access</Text>
-          <Text>
-            Use the email you verified in settings. Password recovery signs out existing sessions.
-            Your encrypted history still needs your recovery key or original device.
-          </Text>
-          {!done &&
-            (enterCode ? (
-              <>
+      <DocumentTitle title="Recover account" />
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        <FormContainer>
+          <View style={{ gap: 18 }}>
+            <View style={styles.brand}>
+              <MaterialIcons name="chat-bubble-outline" size={25} color={theme.colors.primary} />
+              <Text style={styles.brandName}>MeApp</Text>
+            </View>
+            <Text style={styles.heading}>
+              {done
+                ? 'You’re all set.'
+                : enterCode
+                  ? 'Check your inbox.'
+                  : 'Let’s get you back in.'}
+            </Text>
+            <Text style={styles.description}>
+              Use the email you verified in settings. Password recovery signs out existing sessions.
+              Your encrypted history still needs your recovery key or original device.
+            </Text>
+            {!done &&
+              (enterCode ? (
+                <>
+                  <TextInput
+                    accessibilityLabel="Recovery code"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    editable={!busy}
+                    placeholder="Recovery code from email"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    value={token}
+                    onChangeText={setToken}
+                    style={inputStyle}
+                  />
+                  <TextInput
+                    accessibilityLabel="New password"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    editable={!busy}
+                    placeholder="New password"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                    style={inputStyle}
+                  />
+                  <TextInput
+                    accessibilityLabel="Confirm new password"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    editable={!busy}
+                    placeholder="Confirm new password"
+                    secureTextEntry
+                    value={confirmPassword}
+                    onChangeText={setConfirmPassword}
+                    style={inputStyle}
+                  />
+                </>
+              ) : (
                 <TextInput
-                  accessibilityLabel="Recovery code"
-                  placeholder="Recovery code from email"
+                  accessibilityLabel="Verified email"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  editable={!busy}
+                  placeholder="Verified email"
+                  keyboardType="email-address"
                   autoCapitalize="none"
-                  autoCorrect={false}
-                  value={token}
-                  onChangeText={setToken}
+                  value={email}
+                  onChangeText={setEmail}
                   style={inputStyle}
                 />
-                <TextInput
-                  accessibilityLabel="New password"
-                  placeholder="New password"
-                  secureTextEntry
-                  value={password}
-                  onChangeText={setPassword}
-                  style={inputStyle}
-                />
-                <TextInput
-                  accessibilityLabel="Confirm new password"
-                  placeholder="Confirm new password"
-                  secureTextEntry
-                  value={confirmPassword}
-                  onChangeText={setConfirmPassword}
-                  style={inputStyle}
-                />
-              </>
-            ) : (
-              <TextInput
-                accessibilityLabel="Verified email"
-                placeholder="Verified email"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-                style={inputStyle}
+              ))}
+            {!done && (
+              <Button
+                title={enterCode ? 'Reset password' : 'Send recovery code'}
+                loading={busy}
+                size="large"
+                onPress={() => {
+                  void run()
+                }}
               />
-            ))}
-          {!done && (
+            )}
+            {!done && (
+              <Button
+                title={enterCode ? 'Request another code' : 'Enter recovery code'}
+                disabled={busy}
+                variant="outline"
+                onPress={() => {
+                  setEnterCode(!enterCode)
+                  setMessage('')
+                }}
+              />
+            )}
+            {!!message && (
+              <Text style={styles.description} accessibilityLiveRegion="polite">
+                {message}
+              </Text>
+            )}
             <Button
-              title={enterCode ? 'Reset password' : 'Send recovery code'}
-              loading={busy}
-              onPress={() => {
-                void run()
-              }}
-            />
-          )}
-          {!done && (
-            <Button
-              title={enterCode ? 'Request another code' : 'Enter recovery code'}
-              disabled={busy}
+              title="Back to sign in"
               variant="outline"
-              onPress={() => {
-                setEnterCode(!enterCode)
-                setMessage('')
-              }}
+              onPress={() => router.replace('/login')}
             />
-          )}
-          {!!message && <Text accessibilityLiveRegion="polite">{message}</Text>}
-          <Button
-            title="Back to sign in"
-            variant="outline"
-            onPress={() => router.replace('/login')}
-          />
-        </View>
+          </View>
+        </FormContainer>
       </ScrollView>
     </SafeAreaView>
   )
 }
+
+const styles = StyleSheet.create({
+  content: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    paddingVertical: 40,
+  },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 12 },
+  brandName: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
+  heading: { fontSize: 32, lineHeight: 40, fontWeight: '700', letterSpacing: -0.8 },
+  description: { color: theme.colors.textSecondary, lineHeight: 24, fontSize: 14 },
+})

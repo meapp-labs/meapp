@@ -1,5 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
-import { Modal, Pressable, StyleSheet, View } from 'react-native'
+import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
 import { Keys } from '@/lib/keys'
@@ -13,7 +13,7 @@ type DeleteFriendProps = {
 }
 
 export function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
-  const { mutate, isPending } = useRemoveFriend({
+  const { mutate, isPending, error } = useRemoveFriend({
     onSuccess: () => {
       void queryClient.refetchQueries({
         queryKey: [Keys.Query.GET_FRIENDS],
@@ -23,36 +23,52 @@ export function DeleteFriend({ friend, onChange }: DeleteFriendProps) {
   })
 
   return (
-    <Modal transparent animationType="fade" visible={true}>
+    <Modal
+      transparent
+      animationType="fade"
+      visible={true}
+      onRequestClose={() => onChange(friend, null)}
+    >
       <Pressable style={styles.overlay} onPress={() => onChange(friend, null)}>
-        <View style={styles.modalContent}>
-          <View style={styles.iconContainer}>
-            <MaterialIcons name="person-remove" size={42} color={theme.colors.error} />
-          </View>
+        <Pressable style={styles.modalContent} onPress={(event) => event.stopPropagation()}>
+          <ScrollView
+            style={{ width: '100%', flexGrow: 0 }}
+            contentContainerStyle={{ alignItems: 'center' }}
+          >
+            <View style={styles.iconContainer}>
+              <MaterialIcons name="person-remove" size={42} color={theme.colors.error} />
+            </View>
 
-          <Text style={styles.title}>Remove Friend?</Text>
-          <Text style={styles.description}>
-            Are you sure you want to remove <Text style={styles.name}>{friend}</Text>? This action
-            will hide the conversation from your list.
-          </Text>
+            <Text style={styles.title}>Remove Friend?</Text>
+            <Text style={styles.description}>
+              Are you sure you want to remove <Text style={styles.name}>{friend}</Text>? This action
+              will hide the conversation from your list.
+            </Text>
 
-          <View style={styles.buttonContainer}>
-            <Pressable
-              style={[styles.button, styles.cancelButton]}
-              onPress={() => onChange(friend, null)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </Pressable>
+            {error && (
+              <Text style={styles.error}>{error.response?.data?.message ?? error.message}</Text>
+            )}
+            <View style={styles.buttonContainer}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isPending}
+                style={[styles.button, styles.cancelButton]}
+                onPress={() => onChange(friend, null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </Pressable>
 
-            <Pressable
-              style={[styles.button, styles.confirmButton]}
-              onPress={() => mutate(friend)}
-              disabled={isPending}
-            >
-              <Text style={styles.confirmButtonText}>{isPending ? 'Removing...' : 'Remove'}</Text>
-            </Pressable>
-          </View>
-        </View>
+              <Pressable
+                accessibilityRole="button"
+                style={[styles.button, styles.confirmButton]}
+                onPress={() => mutate(friend)}
+                disabled={isPending}
+              >
+                <Text style={styles.confirmButtonText}>{isPending ? 'Removing...' : 'Remove'}</Text>
+              </Pressable>
+            </View>
+          </ScrollView>
+        </Pressable>
       </Pressable>
     </Modal>
   )
@@ -69,9 +85,12 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.spacing.lg,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.lg,
     width: '100%',
     maxWidth: 340,
+    maxHeight: '95%',
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
     alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 10 },
@@ -92,6 +111,7 @@ const styles = StyleSheet.create({
     ...theme.typography.h2,
     marginBottom: theme.spacing.sm,
     color: theme.colors.text,
+    fontWeight: '700',
   },
   description: {
     ...theme.typography.body,
@@ -108,6 +128,13 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: theme.spacing.md,
     width: '100%',
+  },
+  error: {
+    color: theme.colors.error,
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 16,
+    textAlign: 'center',
   },
   button: {
     flex: 1,

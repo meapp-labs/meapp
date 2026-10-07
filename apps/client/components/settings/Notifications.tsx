@@ -1,10 +1,11 @@
 import { Button } from '@/components/common/Button'
+import { Switch } from '@/components/common/Switch'
 import { Text } from '@/components/common/Text'
 import { useNotificationSettings } from '@/services/notificationPreferences'
 import { theme } from '@/theme/theme'
 import { notificationSettingsSchema } from '@meapp/shared'
 import { useEffect, useState } from 'react'
-import { Switch, TextInput, View } from 'react-native'
+import { StyleSheet, TextInput, View } from 'react-native'
 const timeText = (minute: number) =>
   `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
 function timeMinutes(value: string) {
@@ -35,21 +36,16 @@ export function Notifications() {
       setMessage(error instanceof Error ? error.message : 'Unable to save notification settings')
     }
   }
-  const inputStyle = {
-    color: theme.colors.text,
-    borderWidth: 1,
-    borderColor: theme.colors.secondary,
-    borderRadius: 6,
-    padding: 10,
-  }
   return (
-    <View style={{ gap: 16 }}>
-      <Text>
+    <View style={styles.container}>
+      <Text style={styles.description}>
         Push preferences apply across your devices. Mute individual chats from their menu. Muting
         keeps messages and unread counts.
       </Text>
       {!settings.data && (
-        <Text>{settings.isError ? 'Unable to load preferences.' : 'Loading…'}</Text>
+        <Text style={styles.description}>
+          {settings.isError ? 'Unable to load preferences.' : 'Loading…'}
+        </Text>
       )}
       {settings.isError && (
         <Button
@@ -61,51 +57,67 @@ export function Notifications() {
       )}
       {settings.data && (
         <>
-          {(
-            [
-              ['messages', 'Message notifications'],
-              ['friendRequests', 'Friend requests'],
-              ['quietHours', 'Quiet hours'],
-            ] as const
-          ).map(([key, label]) => (
-            <View
-              key={key}
-              style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}
-            >
-              <Text>{label}</Text>
-              <Switch
-                accessibilityLabel={label}
-                value={settings.data?.[key]}
-                disabled={settings.update.isPending}
-                onValueChange={(value) => {
-                  void save({ [key]: value })
-                }}
-              />
+          <View style={styles.card}>
+            {(
+              [
+                ['messages', 'Message notifications'],
+                ['friendRequests', 'Friend requests'],
+                ['quietHours', 'Quiet hours'],
+              ] as const
+            ).map(([key, label]) => (
+              <View key={key} style={styles.preference}>
+                <Text style={styles.preferenceLabel}>{label}</Text>
+                <Switch
+                  accessibilityLabel={label}
+                  value={settings.data?.[key]}
+                  disabled={settings.update.isPending}
+                  onValueChange={(value) => {
+                    void save({ [key]: value })
+                  }}
+                />
+              </View>
+            ))}
+          </View>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Quiet hours schedule</Text>
+            <Text style={styles.description}>
+              Use 24-hour time. Matching start and end times silence notifications all day.
+            </Text>
+            <View style={styles.timeRow}>
+              <View style={styles.timeField}>
+                <Text style={styles.label}>Starts at</Text>
+                <TextInput
+                  accessibilityLabel="Quiet hours start"
+                  value={start}
+                  onChangeText={setStart}
+                  placeholder="22:00"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  style={styles.input}
+                />
+              </View>
+              <View style={styles.timeField}>
+                <Text style={styles.label}>Ends at</Text>
+                <TextInput
+                  accessibilityLabel="Quiet hours end"
+                  value={end}
+                  onChangeText={setEnd}
+                  placeholder="08:00"
+                  placeholderTextColor={theme.colors.textTertiary}
+                  style={styles.input}
+                />
+              </View>
             </View>
-          ))}
-          <Text>
-            Quiet hours start and end (24-hour time). Equal times silence notifications all day.
-          </Text>
-          <TextInput
-            accessibilityLabel="Quiet hours start"
-            value={start}
-            onChangeText={setStart}
-            style={inputStyle}
-          />
-          <TextInput
-            accessibilityLabel="Quiet hours end"
-            value={end}
-            onChangeText={setEnd}
-            style={inputStyle}
-          />
-          <Text>Time zone, for example Europe/Warsaw</Text>
-          <TextInput
-            accessibilityLabel="Quiet hours time zone"
-            autoCapitalize="none"
-            value={zone}
-            onChangeText={setZone}
-            style={inputStyle}
-          />
+            <Text style={styles.label}>Time zone</Text>
+            <TextInput
+              accessibilityLabel="Quiet hours time zone"
+              autoCapitalize="none"
+              value={zone}
+              onChangeText={setZone}
+              placeholder="Europe/Warsaw"
+              placeholderTextColor={theme.colors.textTertiary}
+              style={styles.input}
+            />
+          </View>
           <Button
             title="Save quiet hours"
             loading={settings.update.isPending}
@@ -123,7 +135,47 @@ export function Notifications() {
           />
         </>
       )}
-      {!!message && <Text accessibilityLiveRegion="polite">{message}</Text>}
+      {!!message && (
+        <Text style={styles.message} accessibilityLiveRegion="polite">
+          {message}
+        </Text>
+      )}
     </View>
   )
 }
+
+const styles = StyleSheet.create({
+  container: { gap: 20 },
+  description: { color: theme.colors.textSecondary, fontSize: 14, lineHeight: 23 },
+  card: {
+    gap: 16,
+    padding: 18,
+    borderRadius: 18,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+  },
+  preference: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 12,
+    minHeight: 44,
+  },
+  preferenceLabel: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 22 },
+  sectionTitle: { fontSize: 16, fontWeight: '600' },
+  label: { fontSize: 13, fontWeight: '500', color: theme.colors.textSecondary },
+  timeRow: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
+  timeField: { flex: 1, minWidth: 100, gap: 8 },
+  input: {
+    color: theme.colors.text,
+    fontSize: 15,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 50,
+  },
+  message: { color: theme.colors.error, fontSize: 14, lineHeight: 22 },
+})

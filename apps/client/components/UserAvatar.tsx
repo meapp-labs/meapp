@@ -22,8 +22,20 @@ export function UserAvatar({
       onError={() => setFailedUri(uri)}
     />
   ) : (
-    <View accessibilityLabel={label}>
-      <MaterialIcons name="face-5" size={size} color={theme.colors.text} />
+    <View
+      accessibilityLabel={label}
+      style={{
+        width: size,
+        height: size,
+        borderRadius: size / 2,
+        backgroundColor: theme.colors.card,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+      }}
+    >
+      <MaterialIcons name="person-outline" size={size * 0.55} color={theme.colors.textSecondary} />
     </View>
   )
 }

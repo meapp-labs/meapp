@@ -7,7 +7,18 @@ import { theme } from '@/theme/theme'
 export function Logout() {
   const { mutate: logout } = useLogoutUser()
   return (
-    <TouchableOpacity onPress={() => logout()}>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Sign out"
+      onPress={() => logout()}
+      style={{
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 12,
+      }}
+    >
       <MaterialIcons name="logout" size={24} color={theme.colors.text} />
     </TouchableOpacity>
   )

@@ -154,7 +154,13 @@ export const MessageBubble = {
       <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
         <UserAvatar uri={contact.profile?.avatarUrl} size={34} label={contact.name} />
         <View style={styles.messageTextWrapper}>
-          <Text style={theme.typography.caption}>
+          <Text
+            style={[
+              theme.typography.caption,
+              { color: theme.colors.textSecondary, marginBottom: 5 },
+            ]}
+            numberOfLines={1}
+          >
             {contact.name} · @{contact.profile?.username ?? message.from}
           </Text>
           <View
@@ -281,7 +287,7 @@ const styles = StyleSheet.create({
   time: {
     ...theme.typography.caption,
     alignSelf: 'center',
-    color: 'gray',
+    color: theme.colors.textSecondary,
   },
   messageMetadata: {
     alignItems: 'center',
@@ -293,7 +299,9 @@ const styles = StyleSheet.create({
     color: theme.colors.textSecondary,
   },
   sentMessageContainer: {
-    backgroundColor: theme.colors.surface,
+    backgroundColor: '#302919',
+    borderWidth: 1,
+    borderColor: '#443821',
     borderBottomRightRadius: theme.spacing.sm,
     padding: theme.spacing.md,
     borderRadius: 20,
@@ -304,8 +312,14 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: theme.spacing.md,
   },
-  mediaImage: { width: 240, maxHeight: 320, borderRadius: 12 },
+  mediaImage: { width: 240, maxWidth: '100%', maxHeight: 320, borderRadius: 12 },
   linkContainer: { padding: theme.spacing.sm, borderRadius: 12 },
-  mediaPlaceholder: { width: 240, maxHeight: 320, backgroundColor: '#555', borderRadius: 12 },
+  mediaPlaceholder: {
+    width: 240,
+    maxWidth: '100%',
+    maxHeight: 320,
+    backgroundColor: theme.colors.surfaceElevated,
+    borderRadius: 12,
+  },
   mediaStatus: { color: theme.colors.text },
 })

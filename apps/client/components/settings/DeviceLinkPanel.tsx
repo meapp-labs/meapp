@@ -1,3 +1,4 @@
+import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { getFetcher } from '@/lib/api'
 import {
@@ -394,75 +395,87 @@ export function DeviceLinkPanel({
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>
-        {mode === 'approve' ? 'Link another browser' : 'Recover encrypted chats'}
-      </Text>
       {mode === 'approve' ? (
         <>
-          <Text>Open this account on the new browser, then enter the code shown here.</Text>
-          <Pressable style={styles.button} disabled={busy} onPress={() => void start()}>
-            <Text>Generate link code</Text>
-          </Pressable>
+          <Text style={styles.detail}>
+            Open this account on the new browser, then enter the code shown here.
+          </Text>
+          <Button title="Generate link code" loading={busy} onPress={() => void start()} />
           {session && (
             <>
               <TextInput
+                accessibilityLabel="Generated device link code"
                 value={session.qrCodeUrl}
                 editable={false}
                 selectTextOnFocus
                 style={styles.code}
               />
-              {verificationCode && <Text>Verification code: {verificationCode}</Text>}
-              <Pressable
-                style={styles.button}
+              {verificationCode && (
+                <Text style={styles.verification}>Verification code: {verificationCode}</Text>
+              )}
+              <Button
+                title="Approve connected device"
                 disabled={busy || !verificationCode}
                 onPress={() => void approve()}
-              >
-                <Text>Approve connected device</Text>
-              </Pressable>
+              />
             </>
           )}
           {historyTargetId !== null && (
-            <Pressable
-              style={styles.button}
+            <Button
+              title="Retry encrypted history transfer"
+              variant="outline"
               disabled={busy}
               onPress={() => void retryHistory(historyTargetId)}
-            >
-              <Text>Retry encrypted history transfer</Text>
-            </Pressable>
+            />
           )}
           {linkedDevices && (
             <>
-              <Text>Linked devices</Text>
+              <Text style={styles.sectionTitle}>Your devices</Text>
               {linkedDevices.devices.map((device) => (
                 <View key={device.deviceId} style={styles.deviceRow}>
-                  <Text>
-                    {device.platform} · device {device.deviceId}
-                    {device.deviceId === linkedDevices.currentDeviceId ? ' (this device)' : ''}
-                  </Text>
+                  <View style={styles.deviceHeading}>
+                    <MaterialIcons
+                      name={device.platform === 'web' ? 'laptop' : 'smartphone'}
+                      size={22}
+                      color={theme.colors.textSecondary}
+                    />
+                    <Text style={styles.deviceName}>
+                      {device.platform} · device {device.deviceId}
+                      {device.deviceId === linkedDevices.currentDeviceId ? ' (this device)' : ''}
+                    </Text>
+                  </View>
                   {!device.historyComplete && device.deviceId !== linkedDevices.currentDeviceId && (
-                    <Pressable disabled={busy} onPress={() => void retryHistory(device.deviceId)}>
-                      <Text>Resume encrypted history transfer</Text>
-                    </Pressable>
+                    <Button
+                      title="Resume history transfer"
+                      variant="outline"
+                      disabled={busy}
+                      onPress={() => void retryHistory(device.deviceId)}
+                    />
                   )}
                   {device.deviceId !== linkedDevices.currentDeviceId &&
                     (confirmRevoke === device.deviceId ? (
                       <>
-                        <Text>Remove this device from encrypted chats?</Text>
-                        <Pressable
-                          style={styles.button}
+                        <Text style={styles.detail}>Remove this device from encrypted chats?</Text>
+                        <Button
+                          title="Remove device"
+                          variant="outline"
+                          textStyle={{ color: theme.colors.error }}
                           disabled={busy}
                           onPress={() => void revoke(device.deviceId)}
-                        >
-                          <Text>Remove device</Text>
-                        </Pressable>
-                        <Pressable onPress={() => setConfirmRevoke(null)}>
-                          <Text>Cancel</Text>
-                        </Pressable>
+                        />
+                        <Button
+                          title="Cancel"
+                          variant="outline"
+                          onPress={() => setConfirmRevoke(null)}
+                        />
                       </>
                     ) : (
-                      <Pressable onPress={() => setConfirmRevoke(device.deviceId)}>
-                        <Text>Remove</Text>
-                      </Pressable>
+                      <Button
+                        title="Remove device"
+                        variant="outline"
+                        textStyle={{ color: theme.colors.error }}
+                        onPress={() => setConfirmRevoke(device.deviceId)}
+                      />
                     ))}
                 </View>
               ))}
@@ -492,7 +505,11 @@ export function DeviceLinkPanel({
           </Pressable>
         </>
       )}
-      {!!message && <Text>{message}</Text>}
+      {!!message && (
+        <Text style={styles.message} accessibilityLiveRegion="polite">
+          {message}
+        </Text>
+      )}
     </View>
   )
 }
@@ -508,7 +525,7 @@ const styles = StyleSheet.create({
   recoverCard: {
     width: '100%',
     maxWidth: 480,
-    padding: theme.spacing.xl,
+    padding: theme.spacing.lg,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: theme.colors.borderSecondary,
@@ -549,7 +566,7 @@ const styles = StyleSheet.create({
   inputLabel: { color: theme.colors.text, fontWeight: '600', marginBottom: -8 },
   recoverInput: {
     minHeight: 52,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
     backgroundColor: theme.colors.card,
@@ -560,7 +577,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: theme.spacing.sm,
-    borderRadius: 10,
+    borderRadius: 12,
     padding: theme.spacing.md,
     backgroundColor: theme.colors.card,
   },
@@ -568,7 +585,7 @@ const styles = StyleSheet.create({
   statusText: { flex: 1, color: theme.colors.textSecondary, lineHeight: 20, fontSize: 14 },
   recoverButton: {
     minHeight: 50,
-    borderRadius: 10,
+    borderRadius: 12,
     backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
@@ -582,7 +599,7 @@ const styles = StyleSheet.create({
   },
   secondaryButton: {
     minHeight: 48,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: theme.colors.border,
     alignItems: 'center',
@@ -592,16 +609,43 @@ const styles = StyleSheet.create({
   disabledButton: { opacity: 0.5 },
   cancelButton: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   cancelText: { color: theme.colors.textSecondary, fontWeight: '600' },
-  container: { padding: 20, gap: 16, maxWidth: 560 },
-  title: { ...theme.typography.h2 },
+  container: { gap: 18, width: '100%' },
+  detail: { fontSize: 14, lineHeight: 23, color: theme.colors.textSecondary },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginTop: 12 },
+  verification: {
+    padding: 16,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    fontWeight: '600',
+    color: theme.colors.primary,
+    lineHeight: 24,
+  },
+  message: {
+    padding: 16,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    fontSize: 14,
+    lineHeight: 23,
+  },
+  deviceHeading: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 4 },
+  deviceName: { flex: 1, fontSize: 14, fontWeight: '500', lineHeight: 22 },
   button: { backgroundColor: theme.colors.surface, padding: 12, borderRadius: 8 },
-  deviceRow: { padding: 12, gap: 8, borderBottomColor: theme.colors.surface, borderBottomWidth: 1 },
+  deviceRow: {
+    padding: 18,
+    gap: 12,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.borderSecondary,
+    borderWidth: 1,
+    borderRadius: 16,
+  },
   code: {
     color: theme.colors.text,
-    borderColor: theme.colors.secondary,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderColor: theme.colors.border,
     borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    minHeight: 48,
+    borderRadius: 12,
+    padding: 14,
+    minHeight: 50,
+    fontSize: 14,
   },
 })

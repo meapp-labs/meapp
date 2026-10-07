@@ -7,8 +7,9 @@ export function FormContainer({ children, style, ...props }: ViewProps) {
     <KeyboardAvoidingView
       behavior={Platform.OS === 'android' ? 'padding' : 'height'}
       keyboardVerticalOffset={50}
+      style={{ width: '100%', maxWidth: 480 }}
     >
-      <View {...props} style={[styles.container, styles.shadow, style]}>
+      <View {...props} style={[styles.container, style]}>
         {children}
       </View>
     </KeyboardAvoidingView>
@@ -18,15 +19,9 @@ export function FormContainer({ children, style, ...props }: ViewProps) {
 const styles = StyleSheet.create({
   container: {
     padding: theme.spacing.lg,
-    borderRadius: theme.spacing.md,
+    borderRadius: 24,
     borderWidth: 1,
-    borderColor: theme.colors.secondary,
-    backgroundColor: theme.colors.background,
-  },
-  shadow: {
-    shadowColor: theme.colors.secondary,
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-    elevation: 15,
+    borderColor: theme.colors.borderSecondary,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
 })

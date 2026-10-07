@@ -1,7 +1,8 @@
 import * as Clipboard from 'expo-clipboard'
 import { useCallback, useEffect, useState } from 'react'
-import { Platform, Pressable, StyleSheet, View } from 'react-native'
+import { Platform, StyleSheet, View } from 'react-native'
 
+import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
 import { getE2EContext } from '@/services/e2e'
 import { createRecoveryKey, recoveryStatus, uploadRecoveryBackup } from '@/services/recovery'
@@ -71,7 +72,6 @@ export function RecoveryKeyPanel() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Recovery key</Text>
       <Text style={styles.detail}>
         Save this key outside your device. It unlocks an encrypted backup of this device’s chat keys
         and history. If you lose every linked device and the key, old encrypted chats cannot be
@@ -102,38 +102,36 @@ export function RecoveryKeyPanel() {
         </Text>
       )}
       {lastError && <Text>Last backup error: {lastError}</Text>}
-      <Pressable style={styles.secondaryButton} onPress={() => void loadStatus()}>
-        <Text>Check backup status</Text>
-      </Pressable>
-      <Pressable
+      <Button title="Check backup status" variant="outline" onPress={() => void loadStatus()} />
+      <Button
         disabled={busy || !loaded || !canUpdate}
-        style={styles.button}
+        loading={busy}
+        title={available ? 'Show recovery key' : 'Create recovery key'}
         onPress={() => void create()}
-      >
-        <Text style={styles.buttonText}>
-          {busy ? 'Working…' : available ? 'Show recovery key' : 'Create recovery key'}
-        </Text>
-      </Pressable>
+      />
       {key ? (
         <View style={styles.keyBox}>
           <Text selectable style={styles.key}>
             {key}
           </Text>
-          <Pressable
+          <Button
+            title="Copy key"
+            variant="outline"
             onPress={() =>
               void Clipboard.setStringAsync(key).catch(() =>
                 setMessage('Could not copy the key. Select it and save it manually.'),
               )
             }
-          >
-            <Text style={styles.copy}>Copy key</Text>
-          </Pressable>
+          />
         </View>
       ) : null}
       {available && canUpdate && (
-        <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void refresh()}>
-          <Text style={styles.secondaryText}>Update backup now</Text>
-        </Pressable>
+        <Button
+          title="Update backup now"
+          variant="outline"
+          disabled={busy}
+          onPress={() => void refresh()}
+        />
       )}
       {message ? <Text style={styles.detail}>{message}</Text> : null}
     </View>
@@ -141,35 +139,28 @@ export function RecoveryKeyPanel() {
 }
 
 const styles = StyleSheet.create({
-  container: { padding: theme.spacing.md, gap: theme.spacing.md },
-  title: { ...theme.typography.h2, fontWeight: '700' },
-  detail: { color: theme.colors.textSecondary, lineHeight: 21 },
-  status: { color: theme.colors.success },
-  button: {
-    padding: theme.spacing.md,
-    borderRadius: 10,
-    backgroundColor: theme.colors.primary,
-    alignItems: 'center',
+  container: { gap: 18 },
+  detail: { color: theme.colors.textSecondary, lineHeight: 23, fontSize: 14 },
+  status: {
+    color: theme.colors.success,
+    fontSize: 14,
+    lineHeight: 22,
+    padding: 16,
+    borderRadius: 14,
+    backgroundColor: theme.colors.backgroundSecondary,
   },
-  buttonText: { color: '#111', fontWeight: '700' },
-  secondaryButton: {
-    padding: theme.spacing.md,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    alignItems: 'center',
-  },
-  secondaryText: { color: theme.colors.text },
   keyBox: {
     padding: theme.spacing.md,
-    borderRadius: 10,
-    backgroundColor: theme.colors.card,
-    gap: theme.spacing.sm,
+    borderRadius: 16,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    gap: 16,
   },
   key: {
     color: theme.colors.primary,
     fontFamily: Platform.OS === 'web' ? 'monospace' : undefined,
     fontSize: 15,
+    lineHeight: 24,
   },
-  copy: { color: theme.colors.primary, fontWeight: '600' },
 })

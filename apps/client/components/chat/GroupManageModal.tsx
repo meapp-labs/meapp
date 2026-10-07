@@ -2,7 +2,9 @@ import { MaterialIcons } from '@expo/vector-icons'
 import { useState } from 'react'
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -116,16 +118,34 @@ export function GroupManageModal({
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <KeyboardAvoidingView
+        style={styles.overlay}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Close group settings"
+          onPress={onClose}
+          style={StyleSheet.absoluteFillObject}
+        />
         <Pressable style={styles.card} onPress={(e) => e.stopPropagation()}>
           <View style={styles.header}>
-            <Text style={styles.title}>Group Settings</Text>
-            <TouchableOpacity onPress={onClose}>
+            <Text style={styles.title}>Group settings</Text>
+            <TouchableOpacity
+              accessibilityRole="button"
+              accessibilityLabel="Close group settings"
+              style={styles.iconAction}
+              onPress={onClose}
+            >
               <MaterialIcons name="close" size={24} color={theme.colors.text} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <ScrollView
+            style={styles.content}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {/* Rename Group Section */}
             {isAdmin && (
               <View style={styles.section}>
@@ -133,18 +153,24 @@ export function GroupManageModal({
                 <View style={styles.row}>
                   <TextInput
                     style={styles.input}
+                    accessibilityLabel="Group name"
+                    maxLength={100}
                     value={newGroupName}
                     onChangeText={setNewGroupName}
                     placeholder="Enter group name"
-                    placeholderTextColor="#888"
+                    placeholderTextColor={theme.colors.textTertiary}
                   />
                   <TouchableOpacity
                     style={[styles.smallBtn, renameMutation.isPending && styles.disabledBtn]}
-                    disabled={renameMutation.isPending}
+                    disabled={
+                      renameMutation.isPending ||
+                      !newGroupName.trim() ||
+                      newGroupName.trim() === groupName
+                    }
                     onPress={handleRename}
                   >
                     {renameMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={theme.colors.background} />
                     ) : (
                       <Text style={styles.smallBtnText}>Save</Text>
                     )}
@@ -160,19 +186,20 @@ export function GroupManageModal({
                 <View style={styles.row}>
                   <TextInput
                     style={styles.input}
+                    accessibilityLabel="New member username"
                     value={addUsername}
                     onChangeText={setAddUsername}
                     placeholder="Username"
                     autoCapitalize="none"
-                    placeholderTextColor="#888"
+                    placeholderTextColor={theme.colors.textTertiary}
                   />
                   <TouchableOpacity
                     style={[styles.smallBtn, addMemberMutation.isPending && styles.disabledBtn]}
-                    disabled={addMemberMutation.isPending}
+                    disabled={addMemberMutation.isPending || !addUsername.trim()}
                     onPress={handleAddMember}
                   >
                     {addMemberMutation.isPending ? (
-                      <ActivityIndicator size="small" color="#fff" />
+                      <ActivityIndicator size="small" color={theme.colors.background} />
                     ) : (
                       <Text style={styles.smallBtnText}>Add</Text>
                     )}
@@ -194,7 +221,9 @@ export function GroupManageModal({
                   onPress={handleCreateInvite}
                 >
                   <MaterialIcons name="link" size={18} color={theme.colors.primary} />
-                  <Text style={styles.secondaryBtnText}>Create Invite Link</Text>
+                  <Text style={styles.secondaryBtnText}>
+                    {createInviteMutation.isPending ? 'Creating invite…' : 'Create invite token'}
+                  </Text>
                 </TouchableOpacity>
                 {generatedInviteToken && (
                   <View style={styles.tokenBox}>
@@ -213,6 +242,7 @@ export function GroupManageModal({
                       {new Date(invite.expiresAt).toLocaleString()}
                     </Text>
                     <TouchableOpacity
+                      style={styles.revokeButton}
                       disabled={revokeInvite.isPending}
                       onPress={() => {
                         void revokeInvite
@@ -221,7 +251,7 @@ export function GroupManageModal({
                           .catch(() => undefined)
                       }}
                     >
-                      <Text>Revoke invite</Text>
+                      <Text style={styles.revokeText}>Revoke invite</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
@@ -269,6 +299,7 @@ export function GroupManageModal({
                               style={styles.iconAction}
                               onPress={() => handlePromoteAdmin(member.userId, member.username)}
                               accessibilityLabel="Promote to admin"
+                              disabled={transferAdminMutation.isPending}
                             >
                               <MaterialIcons
                                 name="security"
@@ -282,6 +313,7 @@ export function GroupManageModal({
                               style={styles.iconAction}
                               onPress={() => handleRemoveMember(member.userId, member.username)}
                               accessibilityLabel="Remove member"
+                              disabled={removeMemberMutation.isPending}
                             >
                               <MaterialIcons
                                 name="person-remove"
@@ -299,7 +331,7 @@ export function GroupManageModal({
             </View>
           </ScrollView>
         </Pressable>
-      </Pressable>
+      </KeyboardAvoidingView>
     </Modal>
   )
 }
@@ -310,15 +342,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.6)',
     justifyContent: 'center',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: theme.spacing.md,
   },
   card: {
     width: '100%',
     maxWidth: 480,
-    maxHeight: '85%',
+    maxHeight: '95%',
     backgroundColor: theme.colors.surface,
-    borderRadius: theme.spacing.md,
-    padding: theme.spacing.lg,
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
   },
   header: {
     flexDirection: 'row',
@@ -327,7 +361,9 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.md,
   },
   title: {
-    ...theme.typography.h1,
+    fontSize: 22,
+    fontWeight: '700',
+    letterSpacing: -0.5,
   },
   content: {
     flexGrow: 0,
@@ -336,12 +372,10 @@ const styles = StyleSheet.create({
     marginBottom: theme.spacing.lg,
   },
   sectionTitle: {
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: '600',
     color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.xs,
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    marginBottom: 10,
   },
   row: {
     flexDirection: 'row',
@@ -349,23 +383,27 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 46,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    backgroundColor: theme.colors.card,
     fontSize: 15,
     color: theme.colors.text,
   },
   smallBtn: {
     backgroundColor: theme.colors.primary,
-    borderRadius: theme.spacing.xs,
+    borderRadius: 12,
+    minHeight: 46,
     paddingHorizontal: theme.spacing.md,
     justifyContent: 'center',
     alignItems: 'center',
   },
   smallBtnText: {
-    color: '#fff',
+    color: theme.colors.background,
     fontWeight: '600',
     fontSize: 14,
   },
@@ -375,7 +413,8 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     borderWidth: 1,
     borderColor: theme.colors.primary,
-    borderRadius: theme.spacing.xs,
+    borderRadius: 12,
+    minHeight: 44,
     paddingVertical: theme.spacing.xs,
     paddingHorizontal: theme.spacing.sm,
     alignSelf: 'flex-start',
@@ -387,9 +426,9 @@ const styles = StyleSheet.create({
   },
   tokenBox: {
     marginTop: theme.spacing.xs,
-    padding: theme.spacing.sm,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-    borderRadius: theme.spacing.xs,
+    backgroundColor: theme.colors.card,
+    borderRadius: 12,
+    padding: 12,
   },
   tokenLabel: {
     fontSize: 12,
@@ -413,8 +452,9 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
   },
   memberInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flex: 1,
+    minWidth: 0,
+    alignItems: 'flex-start',
     gap: theme.spacing.sm,
   },
   memberName: {
@@ -428,7 +468,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   adminBadge: {
-    backgroundColor: 'rgba(79, 70, 229, 0.15)',
+    backgroundColor: '#F5BA3018',
   },
   memberBadge: {
     backgroundColor: 'rgba(107, 114, 128, 0.15)',
@@ -448,8 +488,14 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   iconAction: {
-    padding: 6,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 12,
   },
+  revokeButton: { minHeight: 44, justifyContent: 'center', alignSelf: 'flex-start' },
+  revokeText: { color: theme.colors.error, fontSize: 13, fontWeight: '600' },
   disabledBtn: {
     opacity: 0.5,
   },

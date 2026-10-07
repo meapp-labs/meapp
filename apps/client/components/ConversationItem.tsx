@@ -36,6 +36,14 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
       (preview.isPending ? 'Loading message…' : 'Message unavailable on this device'))
     : conversation.lastIncomingMessagePreview
   const isSelected = selectedConversationId === conversation.id
+  const messageDate = conversation.lastIncomingMessageAt
+    ? new Date(conversation.lastIncomingMessageAt)
+    : null
+  const timestamp = messageDate
+    ? messageDate.toDateString() === new Date().toDateString()
+      ? messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      : messageDate.toLocaleDateString([], { month: 'short', day: 'numeric' })
+    : ''
 
   const handleSelect = () => {
     if (!isSelected) {
@@ -47,33 +55,48 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   return (
     <Pressable
       onPress={handleSelect}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${displayName}${conversation.unreadCount ? `, ${conversation.unreadCount} unread messages` : ''}`}
+      accessibilityState={{ selected: isSelected }}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
-      style={[styles.item, hovered && styles.itemHovered, isSelected && styles.itemSelected]}
+      style={({ pressed }) => [
+        styles.item,
+        hovered && styles.itemHovered,
+        isSelected && styles.itemSelected,
+        pressed && styles.itemPressed,
+      ]}
     >
       <View style={styles.container}>
-        {conversation.isGroup ? (
-          <MaterialIcons name="groups" size={38} color={theme.colors.text} />
+        {conversation.isGroup || conversation.type === 'saved' ? (
+          <View style={styles.groupAvatar}>
+            <MaterialIcons
+              name={conversation.type === 'saved' ? 'bookmark-border' : 'groups'}
+              size={24}
+              color={theme.colors.primary}
+            />
+          </View>
         ) : (
-          <UserAvatar uri={contact.profile?.avatarUrl} size={38} label={displayName} />
+          <UserAvatar uri={contact.profile?.avatarUrl} size={46} label={displayName} />
         )}
         <View style={styles.content}>
-          <Text>{displayName}</Text>
-          {!conversation.isGroup && conversation.type !== 'saved' && (
-            <Text style={theme.typography.caption}>@{contact.profile?.username ?? others[0]}</Text>
-          )}
-          {incomingMessagePreview && (
-            <Text style={theme.typography.caption} numberOfLines={1}>
-              {incomingMessagePreview}
-            </Text>
-          )}
+          <Text
+            style={[styles.name, !!conversation.unreadCount && styles.unreadName]}
+            numberOfLines={1}
+          >
+            {displayName}
+          </Text>
+          <Text style={styles.preview} numberOfLines={1}>
+            {incomingMessagePreview ||
+              (conversation.type === 'saved'
+                ? 'A little space for yourself'
+                : conversation.isGroup
+                  ? `${conversation.participants.length} members · Start the conversation`
+                  : `@${contact.profile?.username ?? others[0]}`)}
+          </Text>
         </View>
         <View style={styles.metadata}>
-          <Text style={styles.timestamp}>
-            {conversation.lastIncomingMessageAt
-              ? new Date(conversation.lastIncomingMessageAt).toLocaleDateString()
-              : ''}
-          </Text>
+          <Text style={styles.timestamp}>{timestamp}</Text>
           {!!conversation.unreadCount && (
             <View style={styles.unreadBadge}>
               <Text
@@ -95,31 +118,46 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flexDirection: 'row',
     marginHorizontal: theme.spacing.sm,
-    marginVertical: theme.spacing.xs,
-    borderRadius: theme.spacing.sm,
-    borderColor: theme.colors.surface,
+    marginVertical: 3,
+    borderRadius: 16,
+    borderColor: 'transparent',
     borderWidth: 1,
   },
   itemHovered: {
-    borderColor: theme.colors.secondary,
-  },
-  itemSelected: {
     backgroundColor: theme.colors.card,
   },
+  itemSelected: {
+    backgroundColor: '#F5BA3012',
+    borderColor: '#F5BA3033',
+  },
+  itemPressed: { opacity: 0.75 },
+  groupAvatar: {
+    width: 46,
+    height: 46,
+    borderRadius: 17,
+    backgroundColor: '#F5BA3014',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  name: { fontSize: 14, fontWeight: '600', marginBottom: 5 },
+  unreadName: { color: theme.colors.text },
+  preview: { fontSize: 12, color: theme.colors.textSecondary, lineHeight: 18 },
   content: {
     flex: 1,
     flexShrink: 1,
+    minWidth: 0,
     flexDirection: 'column',
-    margin: theme.spacing.sm,
+    marginLeft: 12,
   },
   container: {
     flexDirection: 'row',
     alignItems: 'center',
     flex: 1,
-    padding: theme.spacing.sm,
+    padding: 12,
+    minHeight: 78,
   },
   timestamp: {
-    ...theme.typography.caption,
+    fontSize: 10,
     color: theme.colors.textSecondary,
   },
   metadata: {

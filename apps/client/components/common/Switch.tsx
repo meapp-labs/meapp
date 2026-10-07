@@ -1,4 +1,5 @@
 import {
+  Platform,
   Switch as RNSwitch,
   StyleSheet,
   type SwitchProps,
@@ -39,6 +40,7 @@ export function Switch({
         true: theme.colors.secondary,
       }}
       thumbColor={value ? theme.colors.primary : theme.colors.text}
+      {...(Platform.OS === 'web' ? { activeThumbColor: theme.colors.primary } : {})}
       disabled={disabled}
       {...props}
     />

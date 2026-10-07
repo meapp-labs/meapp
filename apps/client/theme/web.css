@@ -1,0 +1,42 @@
+html {
+  color-scheme: dark;
+  background: #0c0f14;
+}
+body {
+  margin: 0;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #394354 #10141b;
+}
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #10141b;
+}
+::-webkit-scrollbar-thumb {
+  background: #394354;
+  border-radius: 8px;
+}
+input:autofill {
+  box-shadow: 0 0 0 1000px #161b24 inset;
+  -webkit-text-fill-color: #f3f4f6;
+}
+:focus-visible {
+  outline: 2px solid #f5ba30;
+  outline-offset: 3px;
+}
+input:focus-visible,
+textarea:focus-visible {
+  outline-offset: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

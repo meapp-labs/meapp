@@ -1,4 +1,5 @@
 import { QueryClientProvider, focusManager } from '@tanstack/react-query'
+import '../theme/web.css'
 import { Stack } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { AppState, Platform } from 'react-native'

@@ -1,7 +1,8 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { router } from 'expo-router'
 import { useForm } from 'react-hook-form'
-import { StyleSheet, TouchableHighlight, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Button } from '@/components/common/Button'
@@ -23,7 +24,6 @@ export function RegisterForm() {
     resolver: zodResolver(RegisterSchema),
     defaultValues: {
       username: '',
-      // email: '',
       password: '',
       confirmPassword: '',
     },
@@ -44,13 +44,18 @@ export function RegisterForm() {
 
   return (
     <FormContainer>
-      <Text style={styles.header}>Create a new account</Text>
+      <View style={styles.brand}>
+        <MaterialIcons name="chat-bubble-outline" size={25} color={theme.colors.primary} />
+        <Text style={styles.brandName}>MeApp</Text>
+      </View>
+      <Text style={styles.header}>Make yourself at home.</Text>
+      <Text style={styles.subtitle}>A little more connection starts right here.</Text>
 
-      <View style={{ flexDirection: 'row' }}>
+      <View style={styles.accountLink}>
         <Text>Already have an account? </Text>
-        <TouchableHighlight onPress={() => router.replace('/login')}>
-          <Text style={{ color: theme.colors.secondary }}>Sign in</Text>
-        </TouchableHighlight>
+        <Pressable accessibilityRole="link" onPress={() => router.replace('/login')}>
+          <Text style={styles.link}>Sign in</Text>
+        </Pressable>
       </View>
 
       <View style={styles.inputContainer}>
@@ -65,18 +70,6 @@ export function RegisterForm() {
             void onSubmit()
           }}
         />
-
-        {/* <FormField
-            control={control}
-            name="email"
-            label="Email"
-            placeholder="Enter email"
-            error={errors.email}
-            editable={!isPending}
-            onSubmitEditing={() => {
-              void onSubmit();
-            }}
-          /> */}
 
         <FormField
           control={control}
@@ -105,13 +98,13 @@ export function RegisterForm() {
         />
       </View>
       <Button
-        title="Register"
+        title="Create account"
         onPress={() => {
           void onSubmit()
         }}
         loading={isPending}
         variant="primary"
-        size="small"
+        size="large"
       />
     </FormContainer>
   )
@@ -119,13 +112,20 @@ export function RegisterForm() {
 
 const styles = StyleSheet.create({
   header: {
-    ...theme.typography.h1,
-    fontWeight: 'bold',
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.8,
   },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 32 },
+  brandName: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
+  subtitle: { color: theme.colors.textSecondary, lineHeight: 24, marginTop: 8 },
+  accountLink: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 16 },
+  link: { color: theme.colors.primary, fontWeight: '600', fontSize: 14 },
   inputContainer: {
-    marginTop: theme.spacing.md,
-    rowGap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
+    marginTop: 28,
+    rowGap: 18,
+    marginBottom: 24,
   },
   errorText: {
     color: theme.colors.error,

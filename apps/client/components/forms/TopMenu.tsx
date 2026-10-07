@@ -31,13 +31,14 @@ export function TopMenu({ searchQuery, onSearchChange, unreadCount }: TopMenuPro
         )}
         <View style={styles.inputContainer}>
           <TextInput
+            accessibilityLabel="Search conversations"
             value={searchQuery}
-            placeholder="Search conversations..."
+            placeholder="Search conversations"
             placeholderTextColor={theme.colors.textSecondary}
             style={styles.textInput}
             onChangeText={onSearchChange}
           />
-          <View style={styles.searchIcon}>
+          <View style={styles.searchIcon} pointerEvents="none">
             <MaterialIcons name="search" size={24} color={theme.colors.textSecondary} />
           </View>
         </View>
@@ -49,7 +50,7 @@ export function TopMenu({ searchQuery, onSearchChange, unreadCount }: TopMenuPro
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'column',
-    flex: 1,
+    width: '100%',
   },
   innerContainer: {
     flexDirection: 'row',
@@ -59,17 +60,20 @@ const styles = StyleSheet.create({
   inputContainer: {
     flexDirection: 'row',
     flex: 1,
-    justifyContent: 'center',
+    minWidth: 0,
+    alignItems: 'center',
     gap: theme.spacing.sm,
     marginVertical: theme.spacing.md,
-    marginHorizontal: theme.spacing.sm,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    borderRadius: 14,
   },
   textInput: {
-    flexGrow: 1,
+    flex: 1,
+    minWidth: 0,
     color: theme.colors.text,
-    backgroundColor: theme.colors.card,
     padding: theme.spacing.md,
-    borderRadius: theme.spacing.lg,
     paddingRight: 48,
   },
   searchIcon: {

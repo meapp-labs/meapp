@@ -13,7 +13,7 @@ import { sendMessage } from '../lib/services/sendMessage.ts'
 import { canAccessRoom, contactBlocked } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { chatTimestampIso } from '../lib/dbTime.ts'
-import { devSeedContent } from '../lib/devSeed.ts'
+import { devSeedContent, devSeedPreview } from '../lib/devSeed.ts'
 import {
   ErrorCode,
   createAuthError,
@@ -275,7 +275,9 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               // The client decrypts encrypted previews on the recipient device.
               lastMessageEncrypted: Boolean(lastMsg.isEncrypted),
               lastMessageId: lastMsg.id,
-              ...(lastMsg.isEncrypted ? {} : { lastMessagePreview: lastMsg.text ?? '' }),
+              ...(lastMsg.isEncrypted
+                ? {}
+                : { lastMessagePreview: devSeedPreview(lastMsg.clientId, lastMsg.text) }),
               lastMessageAt: chatTimestampIso(lastMsg.createdAt),
               lastMessageFrom: lastMsg.username ?? undefined,
             }
@@ -287,7 +289,12 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               lastIncomingMessageEncrypted: Boolean(lastIncoming.isEncrypted),
               ...(lastIncoming.isEncrypted
                 ? {}
-                : { lastIncomingMessagePreview: lastIncoming.text ?? '' }),
+                : {
+                    lastIncomingMessagePreview: devSeedPreview(
+                      lastIncoming.clientId,
+                      lastIncoming.text,
+                    ),
+                  }),
               lastIncomingMessageAt: chatTimestampIso(lastIncoming.createdAt),
             }
           : {}),

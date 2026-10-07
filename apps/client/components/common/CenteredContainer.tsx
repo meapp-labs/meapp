@@ -1,13 +1,22 @@
 import type { PropsWithChildren } from 'react'
-import { StyleSheet, View } from 'react-native'
+import { ScrollView, StyleSheet } from 'react-native'
 
 export function CenteredContainer({ children }: PropsWithChildren) {
-  return <View style={styles.container}>{children}</View>
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={styles.container}
+      keyboardShouldPersistTaps="handled"
+    >
+      {children}
+    </ScrollView>
+  )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
+    flexGrow: 1,
+    padding: 20,
     alignItems: 'center',
     justifyContent: 'center',
   },

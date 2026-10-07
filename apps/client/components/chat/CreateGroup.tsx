@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import {
   ActivityIndicator,
   FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -73,7 +75,10 @@ export function CreateGroup({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -119,7 +124,12 @@ export function CreateGroup({ onClose }: { onClose: () => void }) {
             autoCorrect={false}
           />
           {search.length > 0 && (
-            <Pressable accessibilityLabel="Clear search" onPress={() => setSearch('')}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+              hitSlop={12}
+              onPress={() => setSearch('')}
+            >
               <MaterialIcons name="close" size={19} color={theme.colors.textSecondary} />
             </Pressable>
           )}
@@ -162,7 +172,9 @@ export function CreateGroup({ onClose }: { onClose: () => void }) {
                   <MaterialIcons name="person" size={21} color={theme.colors.textSecondary} />
                 </View>
                 <View style={styles.personCopy}>
-                  <Text style={styles.personName}>{item.username}</Text>
+                  <Text style={styles.personName} numberOfLines={1}>
+                    {item.username}
+                  </Text>
                   <Text style={styles.personType}>
                     {item.isFriend ? 'Friend' : 'From your chats'}
                   </Text>
@@ -210,7 +222,7 @@ export function CreateGroup({ onClose }: { onClose: () => void }) {
           </Text>
         </Pressable>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   )
 }
 
@@ -229,14 +241,14 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.borderSecondary,
   },
   back: {
-    width: 36,
-    height: 36,
+    width: 44,
+    height: 44,
     borderRadius: 12,
     backgroundColor: theme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0 },
   title: { color: theme.colors.text, fontSize: 20, fontWeight: '700' },
   subtitle: { color: theme.colors.textSecondary, marginTop: 2, fontSize: 12 },
   form: {
@@ -276,6 +288,7 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, minWidth: 0, color: theme.colors.text, fontSize: 14 },
   chips: { flexGrow: 0, marginTop: theme.spacing.md },
   chip: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 5,
@@ -305,7 +318,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: theme.colors.surfaceElevated,
   },
-  personCopy: { flex: 1 },
+  personCopy: { flex: 1, minWidth: 0 },
   personName: { color: theme.colors.text, fontSize: 15, fontWeight: '600' },
   personType: { color: theme.colors.textSecondary, fontSize: 12, marginTop: 2 },
   empty: { color: theme.colors.textSecondary, textAlign: 'center', padding: theme.spacing.xl },

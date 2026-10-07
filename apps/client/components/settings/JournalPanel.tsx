@@ -4,7 +4,7 @@ import { openJournal } from '@/services/journal'
 import { theme } from '@/theme/theme'
 import type { Journal } from '@meapp/shared'
 import { useEffect, useState } from 'react'
-import { TextInput, View } from 'react-native'
+import { StyleSheet, TextInput, View } from 'react-native'
 export function JournalPanel() {
   const [journal, setJournal] = useState<Journal | null>(null)
   const [text, setText] = useState('')
@@ -49,19 +49,23 @@ export function JournalPanel() {
     }
   }, [])
   return (
-    <View style={{ gap: 12 }}>
-      <Text>
+    <View style={styles.container}>
+      <Text style={styles.description}>
         This journal is encrypted on this device. It does not sync or belong to your chat recovery
         backup. Clearing local storage or restoring a backup removes it. Keep important notes in
         Saved messages.
       </Text>
       <Button
         title="Reload journal"
+        variant="outline"
         disabled={busy}
         onPress={() => {
           void run('load')
         }}
       />
+      <Text style={styles.sectionTitle}>
+        {editing ? 'Edit your entry' : 'A moment for yourself'}
+      </Text>
       <TextInput
         accessibilityLabel="Journal entry"
         multiline
@@ -69,14 +73,9 @@ export function JournalPanel() {
         onChangeText={setText}
         maxLength={10000}
         placeholder="Write a private note"
-        style={{
-          minHeight: 120,
-          padding: 12,
-          color: theme.colors.text,
-          borderWidth: 1,
-          borderColor: theme.colors.secondary,
-          borderRadius: 6,
-        }}
+        placeholderTextColor={theme.colors.textTertiary}
+        textAlignVertical="top"
+        style={styles.input}
       />
       <Button
         title={editing ? 'Save changes' : 'Add entry'}
@@ -96,14 +95,28 @@ export function JournalPanel() {
           }}
         />
       )}
-      {!!error && <Text accessibilityLiveRegion="polite">{error}</Text>}
+      {!!error && (
+        <Text style={styles.error} accessibilityLiveRegion="polite">
+          {error}
+        </Text>
+      )}
+      {journal && journal.entries.length === 0 && (
+        <View style={styles.empty}>
+          <Text style={styles.description}>
+            Your journal is a clean page. Add your first note above.
+          </Text>
+        </View>
+      )}
       {journal?.entries.map((entry) => (
-        <View key={entry.id} style={{ gap: 8, paddingVertical: 12 }}>
-          <Text>{new Date(entry.updatedAt).toLocaleString()}</Text>
-          <Text selectable>{entry.text}</Text>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View key={entry.id} style={styles.entry}>
+          <Text style={styles.timestamp}>{new Date(entry.updatedAt).toLocaleString()}</Text>
+          <Text selectable style={styles.entryText}>
+            {entry.text}
+          </Text>
+          <View style={styles.actions}>
             <Button
               title="Edit"
+              variant="outline"
               disabled={busy}
               onPress={() => {
                 setEditing(entry.id)
@@ -124,3 +137,38 @@ export function JournalPanel() {
     </View>
   )
 }
+
+const styles = StyleSheet.create({
+  container: { gap: 18 },
+  description: { fontSize: 14, lineHeight: 23, color: theme.colors.textSecondary },
+  sectionTitle: { fontSize: 16, fontWeight: '600', marginTop: 6 },
+  input: {
+    minHeight: 160,
+    padding: 16,
+    fontSize: 15,
+    lineHeight: 24,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 16,
+  },
+  error: { color: theme.colors.error, fontSize: 14, lineHeight: 22 },
+  empty: {
+    padding: 18,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    borderRadius: 16,
+  },
+  entry: {
+    gap: 14,
+    padding: 18,
+    backgroundColor: theme.colors.backgroundSecondary,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    borderRadius: 16,
+  },
+  timestamp: { fontSize: 12, color: theme.colors.textTertiary },
+  entryText: { fontSize: 15, lineHeight: 24 },
+  actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+})

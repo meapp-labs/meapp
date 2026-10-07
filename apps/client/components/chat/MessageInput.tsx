@@ -1,7 +1,7 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import { useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Attachment } from '@/components/chat/Attachment'
@@ -108,9 +108,9 @@ export function MessageInput({
   }
 
   return (
-    <View>
+    <View style={styles.composer}>
       {blocked && (
-        <Text>
+        <Text style={styles.blockedNotice}>
           This account is blocked. Unblock it from the chat menu or settings to send messages.
         </Text>
       )}
@@ -155,9 +155,15 @@ export function MessageInput({
           style={styles.inputField}
           value={inputData}
           editable={!blocked && !isPending}
-          placeholder={threadRootId ? 'Reply in thread…' : 'Type a message...'}
+          placeholder={
+            blocked
+              ? 'Unblock this account to send a message'
+              : threadRootId
+                ? 'Reply in thread…'
+                : 'Write a message…'
+          }
           accessibilityLabel={threadRootId ? 'Reply in thread' : 'Message'}
-          placeholderTextColor="#9BA1A6"
+          placeholderTextColor={theme.colors.textTertiary}
           onChangeText={(value) => {
             lastSubmitted.current = null
             setInputData(value)
@@ -170,13 +176,24 @@ export function MessageInput({
           maxLength={MESSAGE_MAX_LENGTH}
         />
         <TouchableOpacity
-          style={styles.send}
+          style={[styles.send, (blocked || !inputData.trim() || isPending) && styles.sendDisabled]}
           accessibilityRole="button"
           accessibilityLabel={threadRootId ? 'Send thread reply' : 'Send message'}
-          disabled={blocked || isPending}
+          accessibilityState={{ disabled: blocked || !inputData.trim() || isPending }}
+          disabled={blocked || !inputData.trim() || isPending}
           onPress={() => void handleSend()}
         >
-          <MaterialIcons name="send" size={24} color={theme.colors.text} />
+          {isPending ? (
+            <ActivityIndicator size="small" color={theme.colors.background} />
+          ) : (
+            <MaterialIcons
+              name="arrow-upward"
+              size={23}
+              color={
+                blocked || !inputData.trim() ? theme.colors.textTertiary : theme.colors.background
+              }
+            />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -184,12 +201,24 @@ export function MessageInput({
 }
 
 const styles = StyleSheet.create({
+  composer: {
+    paddingHorizontal: 14,
+    paddingTop: 10,
+    paddingBottom: 14,
+    backgroundColor: theme.colors.background,
+  },
+  blockedNotice: {
+    color: theme.colors.textSecondary,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: 10,
+  },
   replyDraft: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     padding: 12,
-    marginHorizontal: 12,
+    marginBottom: 8,
     backgroundColor: theme.colors.card,
     borderRadius: 14,
     borderLeftWidth: 3,
@@ -198,25 +227,36 @@ const styles = StyleSheet.create({
   replyAuthor: { color: theme.colors.primary, fontSize: 12, fontWeight: '700' },
   replyPreview: { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 },
   container: {
-    justifyContent: 'center',
-    marginHorizontal: theme.spacing.sm,
-    marginTop: theme.spacing.xs,
-  },
-  inputField: {
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: 48,
-    color: theme.colors.text,
-    width: '100%',
-    borderRadius: theme.spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
+    padding: 6,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+    borderRadius: 22,
     backgroundColor: theme.colors.surface,
   },
-  send: {
-    position: 'absolute',
-    right: theme.spacing.md,
+  inputField: {
+    flex: 1,
+    minWidth: 0,
+    minHeight: 44,
+    maxHeight: 144,
+    paddingVertical: 13,
+    paddingHorizontal: 7,
+    fontSize: 14,
+    lineHeight: 20,
+    color: theme.colors.text,
   },
+  send: {
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 16,
+    backgroundColor: theme.colors.primary,
+  },
+  sendDisabled: { backgroundColor: theme.colors.card },
   attachment: {
-    position: 'absolute',
-    left: theme.spacing.xs,
-    zIndex: 1,
+    alignSelf: 'flex-end',
   },
 })

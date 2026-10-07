@@ -3,7 +3,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { router } from 'expo-router'
 import { useState } from 'react'
 import { useForm } from 'react-hook-form'
-import { Pressable, StyleSheet, TouchableHighlight, View } from 'react-native'
+import { Pressable, StyleSheet, View } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Button } from '@/components/common/Button'
@@ -74,13 +74,18 @@ export function LoginForm() {
 
   return (
     <FormContainer>
-      <Text style={styles.header}>Login to your account</Text>
+      <View style={styles.brand}>
+        <MaterialIcons name="chat-bubble-outline" size={25} color={theme.colors.primary} />
+        <Text style={styles.brandName}>MeApp</Text>
+      </View>
+      <Text style={styles.header}>Welcome back.</Text>
+      <Text style={styles.subtitle}>Your people. Your conversations. Your space.</Text>
 
-      <View style={{ flexDirection: 'row' }}>
+      <View style={styles.accountLink}>
         <Text>Don&apos;t have an account? </Text>
-        <TouchableHighlight onPress={() => router.replace('/register')}>
-          <Text style={{ color: theme.colors.secondary }}>Sign up</Text>
-        </TouchableHighlight>
+        <Pressable accessibilityRole="link" onPress={() => router.replace('/register')}>
+          <Text style={styles.link}>Sign up</Text>
+        </Pressable>
       </View>
 
       <View style={styles.inputContainer}>
@@ -108,18 +113,30 @@ export function LoginForm() {
           }}
         />
         <View style={styles.container}>
-          <Pressable onPress={() => setRememberMe(!rememberMe)}>
+          <Pressable
+            accessibilityRole="checkbox"
+            aria-checked={rememberMe}
+            accessibilityState={{ checked: rememberMe }}
+            accessibilityLabel="Remember me"
+            disabled={isPending}
+            style={styles.optionTouch}
+            onPress={() => setRememberMe(!rememberMe)}
+          >
             <View style={styles.checkboxContainer}>
               <MaterialIcons
                 name={rememberMe ? 'check-box' : 'check-box-outline-blank'}
-                size={20}
-                color={rememberMe ? theme.colors.text : theme.colors.borderSecondary}
+                size={22}
+                color={rememberMe ? theme.colors.primary : theme.colors.textSecondary}
               />
               <Text selectable={false}>Remember me</Text>
             </View>
           </Pressable>
-          <Pressable>
-            <Text selectable={false} onPress={() => router.push('/forgot-password')}>
+          <Pressable
+            accessibilityRole="link"
+            style={styles.optionTouch}
+            onPress={() => router.push('/forgot-password')}
+          >
+            <Text selectable={false} style={styles.link}>
               Forgot password?
             </Text>
           </Pressable>
@@ -127,13 +144,13 @@ export function LoginForm() {
       </View>
 
       <Button
-        title="Login"
+        title="Sign in"
         onPress={() => {
           void onSubmit()
         }}
         loading={isPending}
         variant="primary"
-        size="small"
+        size="large"
       />
     </FormContainer>
   )
@@ -141,15 +158,26 @@ export function LoginForm() {
 
 const styles = StyleSheet.create({
   header: {
-    ...theme.typography.h1,
-    fontWeight: 'bold',
+    fontSize: 32,
+    lineHeight: 40,
+    fontWeight: '700',
+    letterSpacing: -0.8,
   },
+  brand: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 32 },
+  brandName: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
+  subtitle: { color: theme.colors.textSecondary, lineHeight: 24, marginTop: 8 },
+  accountLink: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', marginTop: 16 },
+  link: { color: theme.colors.primary, fontWeight: '600', fontSize: 14 },
+  optionTouch: { minHeight: 44, justifyContent: 'center' },
   inputContainer: {
-    marginVertical: theme.spacing.md,
-    rowGap: theme.spacing.sm,
+    marginTop: 28,
+    marginBottom: 20,
+    rowGap: 18,
   },
   container: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
     justifyContent: 'space-between',
     marginTop: theme.spacing.sm,
     alignItems: 'center',

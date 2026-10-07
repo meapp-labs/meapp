@@ -5,12 +5,13 @@ export function messageRepository(sqlite: Database) {
     latestMessages(roomIds: string[]) {
       if (!roomIds.length) return []
       return sqlite
-        .query(`SELECT m.id,m.room_id AS roomId,m.text,m.is_encrypted AS isEncrypted,
+        .query(`SELECT m.id,m.client_id AS clientId,m.room_id AS roomId,m.text,m.is_encrypted AS isEncrypted,
         m.created_at AS createdAt,u.username FROM messages m JOIN users u ON m.user_id=u.id
         WHERE (m.room_id,m.sequence) IN (SELECT room_id,MAX(sequence) FROM messages
         WHERE room_id IN (${roomIds.map(() => '?').join(',')}) GROUP BY room_id)`)
         .all(...roomIds) as {
         id: string
+        clientId: string
         roomId: string
         text: string | null
         isEncrypted: number
@@ -21,12 +22,13 @@ export function messageRepository(sqlite: Database) {
     latestIncomingMessages(roomIds: string[], userId: string) {
       if (!roomIds.length) return []
       return sqlite
-        .query(`SELECT m.id,m.room_id AS roomId,m.sequence,m.text,
+        .query(`SELECT m.id,m.client_id AS clientId,m.room_id AS roomId,m.sequence,m.text,
         m.is_encrypted AS isEncrypted,m.created_at AS createdAt FROM messages m
         WHERE (m.room_id,m.sequence) IN (SELECT room_id,MAX(sequence) FROM messages
         WHERE room_id IN (${roomIds.map(() => '?').join(',')}) AND user_id<>? GROUP BY room_id)`)
         .all(...roomIds, userId) as {
         id: string
+        clientId: string
         roomId: string
         sequence: number
         text: string | null

@@ -3,8 +3,17 @@ import { Text } from '@/components/common/Text'
 import { searchHistory } from '@/services/historyTools'
 import { useGetMessages } from '@/services/messages'
 import { theme } from '@/theme/theme'
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useMemo, useState } from 'react'
-import { FlatList, Modal, TextInput, View } from 'react-native'
+import {
+  ActivityIndicator,
+  FlatList,
+  Modal,
+  Pressable,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { FileAttachment } from './FileAttachment'
 export function HistoryToolsModal({
@@ -22,26 +31,41 @@ export function HistoryToolsModal({
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
-        <View style={{ flex: 1, padding: 20, gap: 12 }}>
-          <Text style={theme.typography.h2}>{filesOnly ? 'Shared files' : 'Search chat'}</Text>
-          <Text>
-            Search runs on this device over decrypted history loaded below. Load older messages to
-            expand results. Messages unavailable to this device cannot be searched.
+        <View style={styles.container}>
+          <View style={styles.header}>
+            <View style={styles.heading}>
+              <View style={styles.icon}>
+                <MaterialIcons
+                  name={filesOnly ? 'folder-open' : 'search'}
+                  size={22}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <Text style={styles.title}>{filesOnly ? 'Shared files' : 'Search chat'}</Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Close chat history"
+              style={styles.close}
+              onPress={onClose}
+            >
+              <MaterialIcons name="close" size={23} color={theme.colors.textSecondary} />
+            </Pressable>
+          </View>
+          <Text style={styles.description}>
+            Search your loaded chat history. Load older messages below to find more.
           </Text>
           <TextInput
             accessibilityLabel="Search loaded history"
             placeholder={filesOnly ? 'Filter file names' : 'Find a word or phrase'}
             value={query}
             onChangeText={setQuery}
-            style={{
-              padding: 12,
-              color: theme.colors.text,
-              borderWidth: 1,
-              borderColor: theme.colors.secondary,
-              borderRadius: 6,
-            }}
+            placeholderTextColor={theme.colors.textTertiary}
+            style={styles.input}
           />
-          <Text>{messages.length} results in loaded history</Text>
+          <Text style={styles.count}>
+            {messages.length} {messages.length === 1 ? 'result' : 'results'}
+          </Text>
           {history.isError ? (
             <Button
               title="Retry loading history"
@@ -51,11 +75,13 @@ export function HistoryToolsModal({
             />
           ) : (
             <FlatList
+              style={styles.list}
+              keyboardShouldPersistTaps="handled"
               data={messages}
               keyExtractor={(message) => message.id}
               renderItem={({ item }) => (
-                <View style={{ paddingVertical: 14, gap: 8 }}>
-                  <Text>
+                <View style={styles.message}>
+                  <Text style={styles.metadata}>
                     {item.from ?? 'Message'} ·{' '}
                     {item.timestamp ? new Date(item.timestamp).toLocaleString() : ''}
                   </Text>
@@ -66,7 +92,21 @@ export function HistoryToolsModal({
                 </View>
               )}
               ListEmptyComponent={
-                <Text>{history.isPending ? 'Loading history…' : 'No matching messages'}</Text>
+                <View style={styles.empty}>
+                  {history.isPending ? (
+                    <ActivityIndicator color={theme.colors.primary} />
+                  ) : (
+                    <MaterialIcons name="search-off" size={30} color={theme.colors.textTertiary} />
+                  )}
+                  <Text style={styles.emptyTitle}>
+                    {history.isPending ? 'Loading history…' : 'No matching messages'}
+                  </Text>
+                  {!history.isPending && (
+                    <Text style={styles.description}>
+                      Try another search or load older messages.
+                    </Text>
+                  )}
+                </View>
               }
             />
           )}
@@ -79,9 +119,62 @@ export function HistoryToolsModal({
               }}
             />
           )}
-          <Button title="Close" variant="outline" onPress={onClose} />
+          <View style={styles.privacy}>
+            <MaterialIcons name="lock-outline" size={14} color={theme.colors.textSecondary} />
+            <Text style={styles.privacyText}>
+              Search stays on this device. Unavailable messages cannot be searched.
+            </Text>
+          </View>
         </View>
       </SafeAreaView>
     </Modal>
   )
 }
+
+const styles = StyleSheet.create({
+  container: { flex: 1, width: '100%', maxWidth: 760, alignSelf: 'center', padding: 20, gap: 14 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  heading: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  icon: {
+    width: 44,
+    height: 44,
+    borderRadius: 15,
+    backgroundColor: theme.colors.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  title: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  close: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  description: { color: theme.colors.textSecondary, fontSize: 13, lineHeight: 21 },
+  input: {
+    minHeight: 48,
+    padding: 13,
+    color: theme.colors.text,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 13,
+  },
+  count: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
+  list: { flex: 1 },
+  message: {
+    padding: 16,
+    gap: 10,
+    marginBottom: 10,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.borderSecondary,
+  },
+  metadata: { color: theme.colors.textSecondary, fontSize: 12 },
+  empty: { alignItems: 'center', justifyContent: 'center', paddingVertical: 44, gap: 12 },
+  emptyTitle: { fontSize: 15, fontWeight: '600' },
+  privacy: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  privacyText: { flex: 1, color: theme.colors.textSecondary, fontSize: 11, lineHeight: 17 },
+})

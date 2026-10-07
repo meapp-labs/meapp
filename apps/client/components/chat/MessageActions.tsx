@@ -73,7 +73,7 @@ export function MessageInteraction({
     }),
   ).current
   return (
-    <View>
+    <View style={{ paddingRight: 30, paddingVertical: 4 }}>
       <Animated.View
         pointerEvents="none"
         style={[
@@ -157,6 +157,7 @@ export function ReactionPills({
 }) {
   const active = entries.filter((entry) => entry.emoji)
   const groups = [...new Set(active.map((entry) => entry.emoji))]
+  if (groups.length === 0) return null
   return (
     <View style={styles.pills}>
       {groups.map((emoji) => {
@@ -355,7 +356,15 @@ export function MessageActions({
 
 const styles = StyleSheet.create({
   swipeHint: { position: 'absolute', left: 20, top: 24 },
-  more: { alignSelf: 'flex-end', marginRight: 14, paddingHorizontal: 6 },
+  more: {
+    position: 'absolute',
+    right: 0,
+    top: 10,
+    width: 30,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   quote: {
     borderLeftWidth: 3,
     borderLeftColor: theme.colors.primary,

@@ -1,6 +1,5 @@
 import {
   ActivityIndicator,
-  Platform,
   StyleSheet,
   type TextStyle,
   TouchableOpacity,
@@ -33,6 +32,8 @@ export function Button({
 }: CustomButtonProps) {
   return (
     <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityState={{ disabled: disabled || loading, busy: loading }}
       style={[
         styles.base,
         styles[variant],
@@ -46,7 +47,7 @@ export function Button({
     >
       {loading ? (
         <ActivityIndicator
-          color={variant === 'outline' ? theme.colors.primary : theme.colors.text}
+          color={variant === 'primary' ? theme.colors.background : theme.colors.text}
           size="small"
         />
       ) : (
@@ -58,7 +59,7 @@ export function Button({
 
 const styles = StyleSheet.create({
   base: {
-    borderRadius: theme.spacing.xs,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: theme.spacing.md,
@@ -68,27 +69,22 @@ const styles = StyleSheet.create({
   text: {
     ...theme.typography.body,
     fontWeight: '600',
-    ...Platform.select({
-      web: {
-        textShadowColor: theme.colors.background,
-        textShadowRadius: 20,
-      },
-      default: {
-        textShadowRadius: 8,
-      },
-    }),
   },
   // Variants
   primary: { backgroundColor: theme.colors.primary },
-  secondary: { backgroundColor: theme.colors.secondary },
+  secondary: {
+    backgroundColor: theme.colors.card,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
   outline: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: theme.colors.primary,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
 
   // Text colors
-  primaryText: { color: theme.colors.text },
+  primaryText: { color: theme.colors.background },
   secondaryText: { color: theme.colors.text },
   outlineText: { color: theme.colors.primary },
 

@@ -7,7 +7,7 @@ import {
   type FieldValues,
   type Path,
 } from 'react-hook-form'
-import { Platform, Pressable, StyleSheet, TextInput, type TextInputProps, View } from 'react-native'
+import { Pressable, StyleSheet, TextInput, type TextInputProps, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
 import { theme } from '@/theme/theme'
@@ -54,6 +54,7 @@ export function FormField<T extends FieldValues>({
   ...inputProps
 }: FormFieldProps<T>) {
   const [showPassword, setShowPassword] = useState(false)
+  const [focused, setFocused] = useState(false)
 
   // Auto-detect if not manually provided
   const contentType = textContentType ?? getContentType(name as string)
@@ -62,17 +63,18 @@ export function FormField<T extends FieldValues>({
   return (
     <View>
       <View style={styles.labelContainer}>
-        <Text>{label}</Text>
+        <Text style={styles.label}>{label}</Text>
         {isPassword && (
           <Pressable
-            accessible={false}
-            tabIndex={-1}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+            style={styles.passwordToggle}
             onPress={() => setShowPassword(!showPassword)}
           >
             <Ionicons
               name={showPassword ? 'eye-off-outline' : 'eye-outline'}
               size={22}
-              color="white"
+              color={theme.colors.textSecondary}
               style={styles.icon}
             />
           </Pressable>
@@ -85,14 +87,27 @@ export function FormField<T extends FieldValues>({
         render={({ field: { value, onChange, onBlur } }) => (
           <TextInput
             {...inputProps}
-            style={[styles.input, error && styles.inputError, inputProps.style]}
+            accessibilityLabel={label}
+            style={[
+              styles.input,
+              focused && styles.inputFocused,
+              error && styles.inputError,
+              inputProps.style,
+            ]}
             secureTextEntry={isPassword && !showPassword}
             placeholderTextColor={theme.colors.textSecondary}
             textContentType={contentType}
             autoComplete={autoCompleteType}
             value={value}
             onChangeText={onChange}
-            onBlur={onBlur}
+            onFocus={(event) => {
+              setFocused(true)
+              inputProps.onFocus?.(event)
+            }}
+            onBlur={() => {
+              setFocused(false)
+              onBlur()
+            }}
           />
         )}
       />
@@ -107,23 +122,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     minHeight: theme.spacing.lg,
+    justifyContent: 'space-between',
   },
+  label: { fontSize: 14, fontWeight: '600', color: theme.colors.textSecondary },
+  passwordToggle: { minWidth: 44, minHeight: 36, alignItems: 'center', justifyContent: 'center' },
   icon: {
     marginLeft: theme.spacing.sm,
   },
   input: {
-    borderColor: theme.colors.borderSecondary,
+    borderColor: theme.colors.border,
     marginTop: theme.spacing.xs,
-    padding: Platform.OS === 'android' ? theme.spacing.md : theme.spacing.sm,
+    padding: 14,
+    minHeight: 50,
+    fontSize: 16,
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderRadius: theme.spacing.xs,
+    borderRadius: 12,
     color: theme.colors.text,
   },
   inputError: {
     borderColor: theme.colors.error,
   },
+  inputFocused: { borderColor: theme.colors.primary },
   errorText: {
     color: theme.colors.error,
     ...theme.typography.caption,
+    marginTop: 6,
   },
 })

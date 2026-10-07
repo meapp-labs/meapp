@@ -1,5 +1,7 @@
+import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  ActivityIndicator,
   BackHandler,
   KeyboardAvoidingView,
   Platform,
@@ -142,13 +144,15 @@ export default function ChatApp() {
         />
       ) : setupError ? (
         <View style={styles.setup}>
+          <MaterialIcons name="lock-outline" size={32} color={theme.colors.primary} />
           <Text>{setupError}</Text>
-          <Pressable onPress={prepareE2E}>
-            <Text>Retry encryption setup</Text>
+          <Pressable accessibilityRole="button" style={styles.retryButton} onPress={prepareE2E}>
+            <Text style={styles.retryLabel}>Try again</Text>
           </Pressable>
         </View>
       ) : !e2eReady ? (
         <View style={styles.setup}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text>{setupProgress}</Text>
         </View>
       ) : isMobile ? (
@@ -181,7 +185,19 @@ export default function ChatApp() {
               </MediaDropZone>
             </KeyboardAvoidingView>
           ) : (
-            <Text>{'Select a conversation'}</Text>
+            <View style={styles.welcome}>
+              <View style={styles.welcomeIcon}>
+                <MaterialIcons name="forum" size={40} color={theme.colors.primary} />
+              </View>
+              <Text style={styles.welcomeTitle}>Your people. Your space.</Text>
+              <Text style={styles.welcomeDescription}>
+                Pick a conversation to catch up, share something, or simply say hello.
+              </Text>
+              <View style={styles.security}>
+                <MaterialIcons name="lock-outline" size={14} color={theme.colors.textSecondary} />
+                <Text style={styles.securityText}>Personal chats are end-to-end encrypted</Text>
+              </View>
+            </View>
           )}
         </>
       )}
@@ -197,7 +213,50 @@ const styles = StyleSheet.create({
   },
   chatScreen: {
     flex: 1,
-    marginBottom: theme.spacing.sm,
+    minWidth: 0,
   },
-  setup: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.lg },
+  setup: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: theme.spacing.lg,
+    gap: 20,
+  },
+  retryButton: {
+    borderRadius: 12,
+    backgroundColor: theme.colors.primary,
+    paddingHorizontal: 24,
+    paddingVertical: 13,
+  },
+  retryLabel: { color: theme.colors.background, fontWeight: '600' },
+  welcome: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 32, minWidth: 0 },
+  welcomeIcon: {
+    width: 94,
+    height: 94,
+    borderRadius: 32,
+    backgroundColor: '#F5BA3012',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 26,
+    borderWidth: 1,
+    borderColor: '#F5BA3025',
+  },
+  welcomeTitle: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8, textAlign: 'center' },
+  welcomeDescription: {
+    maxWidth: 340,
+    marginTop: 12,
+    fontSize: 15,
+    lineHeight: 24,
+    textAlign: 'center',
+    color: theme.colors.textSecondary,
+  },
+  security: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 7,
+    marginTop: 48,
+    flexWrap: 'wrap',
+  },
+  securityText: { fontSize: 11, color: theme.colors.textSecondary, textAlign: 'center' },
 })

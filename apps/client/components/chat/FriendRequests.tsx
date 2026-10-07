@@ -12,6 +12,7 @@ import {
 } from 'react-native'
 
 import { Text } from '@/components/common/Text'
+import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useConversationStore } from '@/lib/stores'
 import { useCreateConversation } from '@/services/conversations'
 import {
@@ -29,6 +30,8 @@ import { theme } from '@/theme/theme'
 type RequestTab = 'received' | 'sent' | 'ignored'
 
 export function FriendRequests() {
+  const { width } = useBreakpoint()
+  const compact = width < 480
   const [visible, setVisible] = useState(false)
   const [activeTab, setActiveTab] = useState<RequestTab>('received')
   const [username, setUsername] = useState('')
@@ -200,7 +203,7 @@ export function FriendRequests() {
                       <Text
                         style={[styles.countText, activeTab === tab.id && styles.activeCountText]}
                       >
-                        {tab.count}
+                        {tab.count > 99 ? '99+' : tab.count}
                       </Text>
                     </View>
                   )}
@@ -226,10 +229,12 @@ export function FriendRequests() {
                         <MaterialIcons name="person" size={22} color={theme.colors.primary} />
                       </View>
                       <View style={styles.requestCopy}>
-                        <Text style={styles.name}>{other}</Text>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {other}
+                        </Text>
                         <Text style={styles.detail}>Wants to add you</Text>
                       </View>
-                      <View style={styles.actions}>
+                      <View style={[styles.actions, compact && styles.compactActions]}>
                         <Pressable
                           disabled={busy}
                           style={styles.acceptButton}
@@ -276,7 +281,9 @@ export function FriendRequests() {
                         <MaterialIcons name="person" size={22} color={theme.colors.primary} />
                       </View>
                       <View style={styles.requestCopy}>
-                        <Text style={styles.name}>{other}</Text>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {other}
+                        </Text>
                         <Text style={styles.detail}>Waiting for a response</Text>
                       </View>
                       <Pressable
@@ -331,7 +338,9 @@ export function FriendRequests() {
                         />
                       </View>
                       <View style={styles.requestCopy}>
-                        <Text style={styles.name}>{other}</Text>
+                        <Text style={styles.name} numberOfLines={1}>
+                          {other}
+                        </Text>
                         <Text style={styles.detail}>Requests are silenced</Text>
                       </View>
                       <Pressable
@@ -405,9 +414,9 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: theme.spacing.lg,
+    padding: theme.spacing.md,
     paddingBottom: theme.spacing.md,
-    gap: theme.spacing.md,
+    gap: theme.spacing.sm,
   },
   headerIcon: {
     width: 42,
@@ -417,19 +426,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  headerCopy: { flex: 1 },
+  headerCopy: { flex: 1, minWidth: 0 },
   title: { ...theme.typography.h2, color: theme.colors.text, fontWeight: '700' },
   subtitle: { color: theme.colors.textSecondary, marginTop: 2, fontSize: 13 },
   closeButton: {
-    width: 34,
-    height: 34,
+    width: 44,
+    height: 44,
     borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: theme.colors.card,
   },
   sendCard: {
-    marginHorizontal: theme.spacing.lg,
+    marginHorizontal: theme.spacing.md,
     padding: theme.spacing.md,
     borderRadius: 14,
     backgroundColor: theme.colors.card,
@@ -466,7 +475,7 @@ const styles = StyleSheet.create({
   tabs: {
     flexDirection: 'row',
     marginTop: theme.spacing.md,
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderSecondary,
   },
@@ -481,7 +490,7 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: { borderBottomColor: theme.colors.primary },
-  tabText: { color: theme.colors.textSecondary, fontSize: 14, fontWeight: '600' },
+  tabText: { color: theme.colors.textSecondary, fontSize: 12, fontWeight: '600' },
   activeTabText: { color: theme.colors.primary },
   count: {
     backgroundColor: theme.colors.card,
@@ -495,9 +504,9 @@ const styles = StyleSheet.create({
   activeCount: { backgroundColor: theme.colors.primary },
   countText: { color: theme.colors.textSecondary, fontSize: 11, fontWeight: '700' },
   activeCountText: { color: '#111' },
-  list: { maxHeight: 300 },
+  list: { maxHeight: 340, flexShrink: 1 },
   listContent: {
-    paddingHorizontal: theme.spacing.lg,
+    paddingHorizontal: theme.spacing.md,
     paddingBottom: theme.spacing.lg,
     minHeight: 145,
   },
@@ -506,6 +515,7 @@ const styles = StyleSheet.create({
   emptyText: { color: theme.colors.textSecondary, fontSize: 13, textAlign: 'center' },
   requestRow: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     alignItems: 'center',
     minHeight: 70,
     paddingVertical: theme.spacing.sm,
@@ -525,8 +535,9 @@ const styles = StyleSheet.create({
   name: { color: theme.colors.text, fontWeight: '600' },
   detail: { color: theme.colors.textSecondary, fontSize: 12, marginTop: 3 },
   actions: { flexDirection: 'row', gap: 5 },
+  compactActions: { width: '100%', justifyContent: 'flex-end', marginTop: 4, paddingLeft: 46 },
   acceptButton: {
-    minHeight: 34,
+    minHeight: 44,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: 8,
     backgroundColor: theme.colors.primary,
@@ -535,7 +546,7 @@ const styles = StyleSheet.create({
   },
   acceptText: { color: '#111', fontSize: 12, fontWeight: '700' },
   outlineButton: {
-    minHeight: 34,
+    minHeight: 44,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: 8,
     borderWidth: 1,
