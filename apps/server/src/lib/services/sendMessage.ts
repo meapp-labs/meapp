@@ -32,7 +32,7 @@ import { requireThreadTarget, threadRecipientDevices } from '../threads.ts'
 
 export async function sendMessage(
   body: SendMessageInput,
-  me: Pick<SessionUser, 'id' | 'username'>,
+  me: Pick<SessionUser, 'id' | 'username' | 'authVersion'>,
   instance: DbInstance,
   broadcastToRoom: (roomId: string, message: string) => Promise<void>,
 ) {
@@ -67,6 +67,8 @@ export async function sendMessage(
   if (!conversation) {
     throw createNotFoundError('Conversation')
   }
+  if (isEnvelopeSend && !body.envelopes.length && conversation.type !== 'saved')
+    throw createValidationError('Encrypted messages require a recipient device')
 
   let envelopeDigest = ''
   let senderProtocolDeviceId = 1
@@ -132,7 +134,16 @@ export async function sendMessage(
         userId: me.id,
         clientId: msgClientId,
         attachmentIds,
-        mutation: () => requireRoomInteraction(me.id, conversationId, instance.sqlite),
+        mutation: () => {
+          requireRoomInteraction(me.id, conversationId, instance.sqlite)
+          if (me.authVersion !== undefined) {
+            const current = instance.sqlite
+              .query('SELECT auth_version FROM users WHERE id = ?')
+              .get(me.id) as { auth_version: number } | null
+            if (current?.auth_version !== me.authVersion)
+              throw createAuthError('Password changed; sign in again')
+          }
+        },
         ...(isEnvelopeSend && body.replyTo ? { replyTo: body.replyTo } : {}),
         ...(isEnvelopeSend && body.threadRootId ? { threadRootId: body.threadRootId } : {}),
         ...(isEnvelopeSend

@@ -11,10 +11,11 @@ import { TopMenu } from '@/components/forms/TopMenu'
 import { UserSettings } from '@/components/settings/UserSettings'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
 import { useAuthStore, useConversationStore } from '@/lib/stores'
-import { useGetConversations } from '@/services/conversations'
+import { useGetConversations, useSavedMessages } from '@/services/conversations'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
 import type { Conversation } from '@meapp/shared'
+import Toast from 'react-native-toast-message'
 
 export function FriendsScreen() {
   const { isMobile } = useBreakpoint()
@@ -25,6 +26,7 @@ export function FriendsScreen() {
   const [joiningGroup, setJoiningGroup] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const { data: conversations = [], isPending } = useGetConversations()
+  const saved = useSavedMessages()
 
   useEffect(() => {
     if (
@@ -58,6 +60,22 @@ export function FriendsScreen() {
       ) : (
         <>
           <View style={styles.topMenu}>
+            <Pressable
+              accessibilityLabel="Open saved messages"
+              disabled={saved.isPending}
+              style={styles.groupTrigger}
+              onPress={() => {
+                void saved.mutateAsync().catch((error: unknown) =>
+                  Toast.show({
+                    type: 'error',
+                    text1: 'Saved messages unavailable',
+                    text2: error instanceof Error ? error.message : 'Try again',
+                  }),
+                )
+              }}
+            >
+              <MaterialIcons name="bookmark" size={24} color={theme.colors.text} />
+            </Pressable>
             <TopMenu
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}

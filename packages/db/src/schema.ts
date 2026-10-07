@@ -7,6 +7,8 @@ import { index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-o
 export const users = sqliteTable('users', {
   id: text('id').primaryKey(),
   email: text('email').unique(),
+  emailVerifiedAt: integer('email_verified_at'),
+  authVersion: integer('auth_version').notNull().default(0),
   username: text('username').unique(),
   name: text('name'),
   nickname: text('nickname'), // expand phase, nullable
@@ -24,6 +26,31 @@ export const users = sqliteTable('users', {
 export type User = typeof users.$inferSelect
 export type NewUser = typeof users.$inferInsert
 
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  userId: text('user_id')
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  settings: text('settings').notNull(),
+})
+
+export const accountRecoveryProofs = sqliteTable(
+  'account_recovery_proofs',
+  {
+    tokenHash: text('token_hash').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    purpose: text('purpose', { enum: ['enroll', 'reset'] }).notNull(),
+    email: text('email').notNull(),
+    authVersion: integer('auth_version').notNull(),
+    expiresAt: integer('expires_at').notNull(),
+  },
+  (table) => [
+    index('account_recovery_user_idx').on(table.userId),
+    index('account_recovery_expiry_idx').on(table.expiresAt),
+  ],
+)
+
 // ─────────────────────────────────────────────────────────────
 // rooms (conversations) (V8 FINAL)
 // ─────────────────────────────────────────────────────────────
@@ -31,7 +58,7 @@ export type NewUser = typeof users.$inferInsert
 export const rooms = sqliteTable('rooms', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
-  type: text('type', { enum: ['dm', 'group'] })
+  type: text('type', { enum: ['dm', 'group', 'saved'] })
     .notNull()
     .default('dm'),
   createdBy: text('created_by')
@@ -52,6 +79,7 @@ export type NewRoom = typeof rooms.$inferInsert
 export const roomMembers = sqliteTable(
   'room_members',
   {
+    muted: integer('muted', { mode: 'boolean' }).notNull().default(false),
     roomId: text('room_id')
       .notNull()
       .references(() => rooms.id, { onDelete: 'cascade' }),

@@ -5,6 +5,7 @@ import { drizzle } from 'drizzle-orm/expo-sqlite'
 import * as SQLite from 'expo-sqlite'
 
 import { e2eSchemaSql } from './e2eSchemaSql'
+import type { NativeRecoveryDriver, NativeRecoverySql } from './recoveryPortable/native'
 
 let activeStore: { accountId: string; promise: ReturnType<typeof openStore> } | null = null
 let activeDatabase: SQLite.SQLiteDatabase | null = null
@@ -61,4 +62,20 @@ export const getE2EStore = (accountId: string) => {
     activeStore = { accountId, promise }
   }
   return activeStore.promise
+}
+
+export async function getNativeRecoveryDriver(accountId: string): Promise<NativeRecoveryDriver> {
+  await getE2EStore(accountId)
+  const database = activeDatabase
+  if (!database || activeStore?.accountId !== accountId)
+    throw new Error('Native encryption storage is unavailable')
+  return {
+    async transaction<T>(work: (sql: NativeRecoverySql) => Promise<T>): Promise<T> {
+      let result: T | undefined
+      await database.withExclusiveTransactionAsync(async (transaction) => {
+        result = await work(transaction)
+      })
+      return result as T
+    },
+  }
 }

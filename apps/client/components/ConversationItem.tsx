@@ -24,9 +24,12 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
     (participant) => participant && participant !== username,
   )
   const contact = useContactPresentation(conversation.isGroup ? '' : (others[0] ?? ''))
-  const displayName = conversation.isGroup
-    ? conversation.name || others.join(', ') || 'Group'
-    : contact.name || 'Unknown'
+  const displayName =
+    conversation.type === 'saved'
+      ? 'Saved messages'
+      : conversation.isGroup
+        ? conversation.name || others.join(', ') || 'Group'
+        : contact.name || 'Unknown'
   const preview = useConversationPreview(conversation)
   const incomingMessagePreview = conversation.lastIncomingMessageEncrypted
     ? (preview.data ??
@@ -56,7 +59,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
         )}
         <View style={styles.content}>
           <Text>{displayName}</Text>
-          {!conversation.isGroup && (
+          {!conversation.isGroup && conversation.type !== 'saved' && (
             <Text style={theme.typography.caption}>@{contact.profile?.username ?? others[0]}</Text>
           )}
           {incomingMessagePreview && (

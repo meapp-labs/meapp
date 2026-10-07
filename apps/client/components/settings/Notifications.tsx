@@ -1,99 +1,129 @@
-import { useState } from 'react'
-import { StyleSheet, Switch, View } from 'react-native'
-
+import { Button } from '@/components/common/Button'
 import { Text } from '@/components/common/Text'
+import { useNotificationSettings } from '@/services/notificationPreferences'
 import { theme } from '@/theme/theme'
-
-declare module 'react-native' {
-  interface SwitchProps {
-    activeThumbColor?: string
-  }
+import { notificationSettingsSchema } from '@meapp/shared'
+import { useEffect, useState } from 'react'
+import { Switch, TextInput, View } from 'react-native'
+const timeText = (minute: number) =>
+  `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`
+function timeMinutes(value: string) {
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(value)) throw new Error('Enter times as HH:MM')
+  return Number(value.slice(0, 2)) * 60 + Number(value.slice(3))
 }
-
 export function Notifications() {
-  const [isEnabled, setIsEnabled] = useState<Record<string, boolean>>({})
-
-  const handleToggle = (id: string) => {
-    setIsEnabled((prev) => ({
-      ...prev,
-      [id]: !prev[id],
-    }))
+  const settings = useNotificationSettings()
+  const [start, setStart] = useState('22:00')
+  const [end, setEnd] = useState('08:00')
+  const [zone, setZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone)
+  const [message, setMessage] = useState('')
+  useEffect(() => {
+    if (settings.data) {
+      setStart(timeText(settings.data.quietStart))
+      setEnd(timeText(settings.data.quietEnd))
+      setZone(settings.data.timeZone)
+    }
+  }, [settings.data])
+  const save = async (patch: Partial<NonNullable<typeof settings.data>>) => {
+    if (!settings.data) return
+    setMessage('')
+    try {
+      await settings.update.mutateAsync(
+        notificationSettingsSchema.parse({ ...settings.data, ...patch }),
+      )
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Unable to save notification settings')
+    }
   }
-
+  const inputStyle = {
+    color: theme.colors.text,
+    borderWidth: 1,
+    borderColor: theme.colors.secondary,
+    borderRadius: 6,
+    padding: 10,
+  }
   return (
-    <View>
-      <Text style={styles.placeholderLabel}>Account notifications</Text>
-      <Text style={styles.placeholderDesc}>{placeholderDesc}</Text>
-      {placeholderOptions.map((item) => (
-        <View key={item.label} style={styles.optionHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.itemLabel}>{item.label}</Text>
-            <Text style={styles.itemDescription}>{item.description}</Text>
-          </View>
-          <Switch
-            style={{ alignSelf: 'center' }}
-            trackColor={{
-              false: theme.colors.borderSecondary,
-              true: theme.colors.secondary,
-            }}
-            activeThumbColor={isEnabled[item.label] ? theme.colors.text : theme.colors.card}
-            thumbColor={isEnabled[item.label] ? theme.colors.text : theme.colors.card}
-            value={!!isEnabled[item.label]}
-            onValueChange={() => handleToggle(item.label)}
+    <View style={{ gap: 16 }}>
+      <Text>
+        Push preferences apply across your devices. Mute individual chats from their menu. Muting
+        keeps messages and unread counts.
+      </Text>
+      {!settings.data && (
+        <Text>{settings.isError ? 'Unable to load preferences.' : 'Loading…'}</Text>
+      )}
+      {settings.isError && (
+        <Button
+          title="Retry"
+          onPress={() => {
+            void settings.refetch()
+          }}
+        />
+      )}
+      {settings.data && (
+        <>
+          {(
+            [
+              ['messages', 'Message notifications'],
+              ['friendRequests', 'Friend requests'],
+              ['quietHours', 'Quiet hours'],
+            ] as const
+          ).map(([key, label]) => (
+            <View
+              key={key}
+              style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}
+            >
+              <Text>{label}</Text>
+              <Switch
+                accessibilityLabel={label}
+                value={settings.data?.[key]}
+                disabled={settings.update.isPending}
+                onValueChange={(value) => {
+                  void save({ [key]: value })
+                }}
+              />
+            </View>
+          ))}
+          <Text>
+            Quiet hours start and end (24-hour time). Equal times silence notifications all day.
+          </Text>
+          <TextInput
+            accessibilityLabel="Quiet hours start"
+            value={start}
+            onChangeText={setStart}
+            style={inputStyle}
           />
-        </View>
-      ))}
+          <TextInput
+            accessibilityLabel="Quiet hours end"
+            value={end}
+            onChangeText={setEnd}
+            style={inputStyle}
+          />
+          <Text>Time zone, for example Europe/Warsaw</Text>
+          <TextInput
+            accessibilityLabel="Quiet hours time zone"
+            autoCapitalize="none"
+            value={zone}
+            onChangeText={setZone}
+            style={inputStyle}
+          />
+          <Button
+            title="Save quiet hours"
+            loading={settings.update.isPending}
+            onPress={() => {
+              try {
+                void save({
+                  quietStart: timeMinutes(start),
+                  quietEnd: timeMinutes(end),
+                  timeZone: zone.trim(),
+                })
+              } catch (error) {
+                setMessage(error instanceof Error ? error.message : 'Invalid time')
+              }
+            }}
+          />
+        </>
+      )}
+      {!!message && <Text accessibilityLiveRegion="polite">{message}</Text>}
     </View>
   )
 }
-
-const styles = StyleSheet.create({
-  optionHeader: {
-    flexDirection: 'row',
-    borderColor: theme.colors.surface,
-    borderBottomWidth: 1,
-  },
-  placeholderLabel: {
-    ...theme.typography.h2,
-    marginBottom: theme.spacing.sm,
-  },
-  placeholderDesc: {
-    marginBottom: theme.spacing.lg,
-    maxWidth: '95%',
-  },
-  itemLabel: {
-    ...theme.typography.body,
-    marginVertical: theme.spacing.sm,
-  },
-  itemDescription: {
-    marginBottom: theme.spacing.md,
-  },
-})
-
-const placeholderDesc =
-  'We will send you notifications to inform you of any updates and/or changes as events occur for you or your business in MeApp. Select which notifications you want to receive below:'
-
-const placeholderOptions: { label: string; description: string }[] = [
-  {
-    label: 'Accounting',
-    description: 'When accounting and bookkeeping needs your attention.',
-  },
-  {
-    label: 'Sales',
-    description: 'When relevant sales-related activity occurs such as when an invoice is overdue.',
-  },
-  {
-    label: 'Payments',
-    description:
-      "When you've been paid or need to be notified to keep your MeApp payments operating.",
-  },
-  {
-    label: 'Purchases',
-    description:
-      "When receipts exports are ready and when receipts you've emailed to MeApp need to be posted into accounting.",
-  },
-  {
-    label: 'Bills',
-    description: 'When you need to be reminded of upcoming and/or late bills.',
-  },
-]

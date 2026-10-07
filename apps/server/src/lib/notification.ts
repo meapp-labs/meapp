@@ -2,6 +2,8 @@ export const NOTIFICATION_CHANNELS = {
   MESSAGES: 'messages',
 } as const
 
+import { getDbInstance } from '@meapp/db'
+import { notificationAllowed } from './notificationPreferences'
 import { pushQueue } from './pushQueue.ts'
 
 export type ExpoPushNotificationOptions = {
@@ -17,5 +19,6 @@ export type ExpoPushNotificationOptions = {
 }
 
 export const sendPushNotification = async (options: ExpoPushNotificationOptions): Promise<void> => {
+  if (!notificationAllowed(getDbInstance().sqlite, options)) return
   pushQueue.enqueue(options)
 }

@@ -26,6 +26,7 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
         roomId: t.String(),
         jti: t.String(),
         type: t.String(),
+        authVersion: t.Optional(t.Number()),
       }),
       secret: env.WS_TICKET_SECRET,
       exp: '60s',
@@ -49,7 +50,13 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
       // Retry on jti collision
       for (let attempt = 0; attempt < 3; attempt++) {
         const jti = randomUUID()
-        const ticket = await ticketJwt.sign({ sub: user.id, roomId, jti, type: 'ws_ticket' })
+        const ticket = await ticketJwt.sign({
+          sub: user.id,
+          roomId,
+          jti,
+          type: 'ws_ticket',
+          authVersion: user.authVersion ?? 0,
+        })
 
         try {
           const result = (await redis.call(

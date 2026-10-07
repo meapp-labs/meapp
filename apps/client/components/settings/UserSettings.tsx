@@ -7,8 +7,10 @@ import { Modal, Pressable, ScrollView, StyleSheet, TouchableHighlight, View } fr
 import { Text } from '@/components/common/Text'
 import { theme } from '@/theme/theme'
 
+import { AccountRecoveryPanel } from './AccountRecoveryPanel'
 import { BlockedUsers } from './BlockedUsers'
 import { DeviceLinkPanel } from './DeviceLinkPanel'
+import { JournalPanel } from './JournalPanel'
 import { Notifications } from './Notifications'
 import { RecoveryKeyPanel } from './RecoveryKeyPanel'
 
@@ -23,7 +25,8 @@ const optionsPlaceholder: {
   component?: React.ComponentType
 }[] = [
   { name: 'Personal Info', icon: 'person-outline' },
-  { name: 'Emails & Password', icon: 'key' },
+  { name: 'Emails & Password', icon: 'key', component: AccountRecoveryPanel },
+  { name: 'Personal journal', icon: 'book', component: JournalPanel },
   { name: 'Linked devices', icon: 'devices', component: () => <DeviceLinkPanel mode="approve" /> },
   { name: 'Recovery key', icon: 'vpn-key', component: RecoveryKeyPanel },
   {

@@ -119,16 +119,7 @@ export function LoginForm() {
             </View>
           </Pressable>
           <Pressable>
-            <Text
-              selectable={false}
-              onPress={() =>
-                Toast.show({
-                  type: 'info',
-                  text1: 'Too bad 🤷‍♂️',
-                  text2: 'Recovery not yet implemented',
-                })
-              }
-            >
+            <Text selectable={false} onPress={() => router.push('/forgot-password')}>
               Forgot password?
             </Text>
           </Pressable>

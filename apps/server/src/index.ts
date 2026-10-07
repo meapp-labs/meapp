@@ -12,6 +12,7 @@ import { logger } from './lib/logger.ts'
 import { authPlugin } from './plugins/auth.ts'
 import { rateLimitPlugin } from './plugins/rateLimit.ts'
 import { redis, redisPlugin } from './plugins/redis.ts'
+import { accountRecoveryRoutes } from './routes/accountRecovery.ts'
 import { authRoutes } from './routes/auth.ts'
 import { cleanupExpiredDeviceLinks, deviceLinkRoutes } from './routes/deviceLink.ts'
 import { e2eRelayRoutes } from './routes/e2eRelay.ts'
@@ -19,6 +20,7 @@ import { friendRoutes } from './routes/friends.ts'
 import { groupRoutes } from './routes/groups.ts'
 import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
+import { notificationRoutes } from './routes/notifications'
 import { profileRoutes, sweepProfileAvatars } from './routes/profiles.ts'
 import { reactionRoutes } from './routes/reactions.ts'
 import { receiptRoutes } from './routes/receipts.ts'
@@ -151,6 +153,8 @@ export const app = new Elysia({
     return undefined
   })
   .use(authRoutes)
+  .use(accountRecoveryRoutes)
+  .use(notificationRoutes)
   .use(devSeedRoutes)
   .use(profileRoutes)
   .use(friendRoutes)

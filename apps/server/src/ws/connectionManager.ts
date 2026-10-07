@@ -4,6 +4,7 @@ import { RATE_LIMIT_LUA } from '../lib/redisScripts.ts'
 
 export type WsSessionState = {
   authenticatedUserId?: string | undefined
+  authVersion?: number
   ip: string
   connectionId: string
   closed?: boolean

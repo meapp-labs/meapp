@@ -7,6 +7,7 @@ export type SessionUser = {
   platform: string
   tokenId: string
   expiresAt: number
+  authVersion?: number
 }
 
 /** Narrows the optional derived user, throwing a 401 when the session is absent. */

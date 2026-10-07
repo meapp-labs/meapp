@@ -11,6 +11,7 @@ type JwtPayload = {
   platform?: string
   jti?: string
   exp?: number
+  authVersion?: number
 }
 
 /**
@@ -45,12 +46,13 @@ export const authPlugin = new Elysia({ name: 'auth' })
 
       const sqlite = getDbInstance().sqlite
       const existing = sqlite
-        .query(`SELECT u.username FROM users u
+        .query(`SELECT u.username, u.auth_version FROM users u
           WHERE u.id = ? AND NOT EXISTS (
             SELECT 1 FROM revoked_tokens r WHERE r.jti = ?
           )`)
-        .get(payload.sub, payload.jti) as { username: string | null } | null
-      if (!existing) return { user: null as SessionUser | null }
+        .get(payload.sub, payload.jti) as { username: string | null; auth_version: number } | null
+      if (!existing || existing.auth_version !== (payload.authVersion ?? 0))
+        return { user: null as SessionUser | null }
 
       return {
         user: {
@@ -59,6 +61,7 @@ export const authPlugin = new Elysia({ name: 'auth' })
           platform: payload.platform ?? 'web',
           tokenId: payload.jti,
           expiresAt: payload.exp,
+          authVersion: existing.auth_version,
         } satisfies SessionUser,
       }
     } catch {

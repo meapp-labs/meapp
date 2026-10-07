@@ -25,7 +25,7 @@ export const encryptedSendSchema = z
           ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX),
         }),
       )
-      .min(1)
+      .min(0)
       .max(E2E_MAX_RECIPIENT_DEVICES),
   })
   .refine((send) => !send.replyTo || Boolean(send.threadRootId), {

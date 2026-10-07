@@ -33,6 +33,17 @@ type ActiveSocketEntry = {
 }
 const activeSockets = new Set<ActiveSocketEntry>()
 
+export const revokeAccountSockets = (userId: string): void => {
+  for (const entry of activeSockets)
+    if (entry.state.authenticatedUserId === userId) entry.ws.close(4401, 'Password changed')
+}
+const currentAuthVersion = (userId: string, version: number) => {
+  const row = getDbInstance()
+    .sqlite.query('SELECT auth_version FROM users WHERE id = ?')
+    .get(userId) as { auth_version: number } | null
+  return row?.auth_version === version
+}
+
 export const revokeUserRoomAccess = async (userId: string, roomId: string): Promise<void> => {
   for (const entry of Array.from(activeSockets)) {
     if (!entry.state.closed && entry.state.authenticatedUserId === userId) {
@@ -119,6 +130,7 @@ export const chatWs = new Elysia()
         roomId: t.String(),
         jti: t.String(),
         type: t.String(),
+        authVersion: t.Optional(t.Number()),
       }),
       secret: env.WS_TICKET_SECRET,
       exp: '60s',
@@ -190,10 +202,17 @@ export const chatWs = new Elysia()
 
         const { redis: redisClient, ticketJwt } = ws.data
         try {
+          let ticketVersion = 0
           const userId = await authenticateTicket(
             ticket,
             roomId,
-            (value) => ticketJwt.verify(value),
+            async (value) => {
+              const payload = await ticketJwt.verify(value)
+              if (!payload || !currentAuthVersion(payload.sub, payload.authVersion ?? 0))
+                return false
+              ticketVersion = payload.authVersion ?? 0
+              return payload
+            },
             redisClient,
           )
 
@@ -216,6 +235,7 @@ export const chatWs = new Elysia()
           }
 
           state.authenticatedUserId = userId
+          state.authVersion = ticketVersion
           const subscribed = await connectionManager.canSubscribeRoom(userId, roomId)
           if (state.closed) {
             if (subscribed) await connectionManager.unsubscribeRoom(userId, roomId)
@@ -242,7 +262,10 @@ export const chatWs = new Elysia()
           state.subscribedRooms.add(roomId)
 
           // Membership or blocking may have changed while awaiting subscription limits.
-          if (!roomInteractionAllowed(userId, roomId)) {
+          if (
+            !roomInteractionAllowed(userId, roomId) ||
+            !currentAuthVersion(userId, ticketVersion)
+          ) {
             state.subscribedRooms.delete(roomId)
             await connectionManager.unsubscribeRoom(userId, roomId)
             ws.close(4403, 'Room membership revoked')
@@ -257,6 +280,10 @@ export const chatWs = new Elysia()
           }
 
           state.leaseTimer = setInterval(() => {
+            if (!currentAuthVersion(userId, ticketVersion)) {
+              ws.close(4401, 'Password changed')
+              return
+            }
             void connectionManager.canUserConnect(userId, state.connectionId).then((renewed) => {
               if (!renewed && !state.closed) ws.close(4429, 'Connection lease expired')
             })
@@ -293,6 +320,10 @@ export const chatWs = new Elysia()
       }
 
       // Handle subscribe event
+      if (!currentAuthVersion(userId, state.authVersion ?? 0)) {
+        ws.close(4401, 'Password changed')
+        return
+      }
       if (msg.type === 'subscribe') {
         const targetRoom = msg.payload.roomId
         const can = roomInteractionAllowed(userId, targetRoom)
@@ -320,7 +351,11 @@ export const chatWs = new Elysia()
           return
         }
 
-        if (state.closed || !roomInteractionAllowed(userId, targetRoom)) {
+        if (
+          state.closed ||
+          !currentAuthVersion(userId, state.authVersion ?? 0) ||
+          !roomInteractionAllowed(userId, targetRoom)
+        ) {
           await connectionManager.unsubscribeRoom(userId, targetRoom)
           ws.send(
             JSON.stringify({
@@ -373,7 +408,7 @@ export const chatWs = new Elysia()
         if (!allowed) return
 
         const can = roomInteractionAllowed(userId, targetRoom)
-        if (!can) return
+        if (!can || !currentAuthVersion(userId, state.authVersion ?? 0)) return
 
         const typingMsg = JSON.stringify({
           type: 'typing',
@@ -445,13 +480,21 @@ export const chatWs = new Elysia()
         }
 
         // Atomic sequence insertion with BEGIN IMMEDIATE and retry
+        if (!currentAuthVersion(userId, state.authVersion ?? 0)) {
+          ws.close(4401, 'Password changed')
+          return
+        }
         try {
           const senderRow = getDbInstance()
             .sqlite.query('SELECT username FROM users WHERE id=?')
             .get(userId) as { username: string | null } | null
           const result = await sendMessage(
             { conversationId: payload.roomId, clientId: payload.clientId, text: payload.text },
-            { id: userId, username: senderRow?.username ?? userId },
+            {
+              id: userId,
+              username: senderRow?.username ?? userId,
+              authVersion: state.authVersion ?? 0,
+            },
             getDbInstance(),
             broadcastToRoom,
           )

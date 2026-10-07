@@ -1,5 +1,3 @@
-import { randomBytes, scrypt as scryptCb, timingSafeEqual } from 'node:crypto'
-import { promisify } from 'node:util'
 import { eq, getDbInstance, schema } from '@meapp/db'
 import { loginSchema, pushTokenSchema, registerSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
@@ -15,16 +13,10 @@ import {
   createUserExistsError,
   handleAsyncOperation,
 } from '../lib/errors.ts'
+import { makePasswordHash, verifyPassword } from '../lib/passwords'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
-
-const scryptAsync = promisify(scryptCb)
-
-const hashPassword = async (password: string, salt: string): Promise<string> => {
-  const buf = (await scryptAsync(password, salt, LOGIN_CONFIG.SCRYPT_KEY_LENGTH)) as Buffer
-  return buf.toString('hex')
-}
 
 // Composite IP+username key: a per-username key alone would let anyone lock
 // out arbitrary users with 5 failed logins.
@@ -58,9 +50,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
         throw createUserExistsError(username)
       }
 
-      const salt = randomBytes(LOGIN_CONFIG.SALT_LENGTH).toString('hex')
-      const hash = await hashPassword(password, salt)
-      const passwordHash = `${salt}:${hash}`
+      const passwordHash = await makePasswordHash(password)
       const userId = Bun.randomUUIDv7()
 
       await handleAsyncOperation(
@@ -136,14 +126,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
         throw new ApiError(ErrorCode.DATA_CORRUPTION, 'User data is corrupted', 500)
       }
 
-      const hashedBuffer = (await scryptAsync(
-        password,
-        salt,
-        LOGIN_CONFIG.SCRYPT_KEY_LENGTH,
-      )) as Buffer
-      const keyBuffer = Buffer.from(key, 'hex')
-      const matches =
-        hashedBuffer.length === keyBuffer.length && timingSafeEqual(hashedBuffer, keyBuffer)
+      const matches = await verifyPassword(password, user.passwordHash)
 
       if (!matches) {
         await recordFailedAttempt()
@@ -156,6 +139,7 @@ export const authRoutes = new Elysia({ prefix: '/api' })
 
       const token = await sessionJwt.sign({
         sub: user.id,
+        authVersion: user.authVersion,
         jti: Bun.randomUUIDv7(),
         username: user.username ?? username,
         platform: platform ?? user.platform ?? 'web',

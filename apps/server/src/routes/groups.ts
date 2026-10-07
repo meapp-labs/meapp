@@ -118,7 +118,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
         name: string
       } | null
       if (!room) throw createNotFoundError('Room')
-      if (room.type === 'dm') {
+      if (room.type !== 'group') {
         throw createValidationError('Direct messages have immutable membership')
       }
 
@@ -224,7 +224,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
         name: string
       } | null
       if (!room) throw createNotFoundError('Room')
-      if (room.type === 'dm') {
+      if (room.type !== 'group') {
         throw createValidationError('Cannot leave a direct message')
       }
 
@@ -338,7 +338,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
       name: string
     } | null
     if (!room) throw createNotFoundError('Room')
-    if (room.type === 'dm') {
+    if (room.type !== 'group') {
       throw createValidationError('Direct messages have immutable membership')
     }
 
@@ -438,7 +438,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
         name: string
       } | null
       if (!room) throw createNotFoundError('Room')
-      if (room.type === 'dm') {
+      if (room.type !== 'group') {
         throw createValidationError('Cannot rename a direct message')
       }
 
@@ -502,7 +502,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
         name: string
       } | null
       if (!room) throw createNotFoundError('Room')
-      if (room.type === 'dm') {
+      if (room.type !== 'group') {
         throw createValidationError('Direct messages have no group roles')
       }
 
@@ -582,7 +582,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
         name: string
       } | null
       if (!room) throw createNotFoundError('Room')
-      if (room.type === 'dm') {
+      if (room.type !== 'group') {
         throw createValidationError('Cannot invite to a direct message')
       }
 
@@ -720,7 +720,7 @@ export const groupRoutes = new Elysia({ prefix: '/api' })
       const room = sqlite
         .query('SELECT id, type, name FROM rooms WHERE id = ?')
         .get(invite.roomId) as { id: string; type: string; name: string } | null
-      if (!room || room.type === 'dm') {
+      if (!room || room.type !== 'group') {
         throw createValidationError('Invalid invite destination')
       }
 

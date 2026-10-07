@@ -1,3 +1,4 @@
+import * as Clipboard from 'expo-clipboard'
 import { useCallback, useEffect, useState } from 'react'
 import { Platform, Pressable, StyleSheet, View } from 'react-native'
 
@@ -33,15 +34,10 @@ export function RecoveryKeyPanel() {
   }, [])
 
   useEffect(() => {
-    if (Platform.OS !== 'web') return
     void loadStatus()
     const timer = setInterval(() => void loadStatus(), 15000)
     return () => clearInterval(timer)
   }, [loadStatus])
-
-  if (Platform.OS !== 'web') {
-    return <Text>Recovery keys are currently available in the web app.</Text>
-  }
 
   const create = async () => {
     setBusy(true)
@@ -51,7 +47,7 @@ export function RecoveryKeyPanel() {
       const generated = await createRecoveryKey(context)
       setKey(generated)
       await loadStatus()
-      setMessage('Backup saved. Keep this key somewhere outside this browser.')
+      setMessage('Backup saved. Keep this key somewhere outside this device.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create recovery backup')
     } finally {
@@ -77,8 +73,8 @@ export function RecoveryKeyPanel() {
     <View style={styles.container}>
       <Text style={styles.title}>Recovery key</Text>
       <Text style={styles.detail}>
-        Save this key outside your browser. It unlocks an encrypted backup of this device’s chat
-        keys and history. If you lose every linked device and the key, old encrypted chats cannot be
+        Save this key outside your device. It unlocks an encrypted backup of this device’s chat keys
+        and history. If you lose every linked device and the key, old encrypted chats cannot be
         recovered.
       </Text>
       {available && (
@@ -95,7 +91,7 @@ export function RecoveryKeyPanel() {
         {'\n'}Encrypted upload limit: 50 MB. Incomplete uploads expire after one hour. Only the
         backup owner can update it.
         {'\n'}Recovery restores the saved snapshot. Messages after that date may be lost. Sending
-        starts fresh encryption sessions; the original browser loses access.
+        starts fresh encryption sessions; the original device loses access.
       </Text>
       {loaded && available && !canUpdate && (
         <Text>This backup belongs to another linked device.</Text>
@@ -123,7 +119,13 @@ export function RecoveryKeyPanel() {
           <Text selectable style={styles.key}>
             {key}
           </Text>
-          <Pressable onPress={() => void navigator.clipboard?.writeText(key)}>
+          <Pressable
+            onPress={() =>
+              void Clipboard.setStringAsync(key).catch(() =>
+                setMessage('Could not copy the key. Select it and save it manually.'),
+              )
+            }
+          >
             <Text style={styles.copy}>Copy key</Text>
           </Pressable>
         </View>

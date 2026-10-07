@@ -2,6 +2,7 @@ import { getDbInstance } from '@meapp/db'
 import { pushTokenSchema } from '@meapp/shared'
 import { logger } from './logger.ts'
 import type { ExpoPushNotificationOptions } from './notification.ts'
+import { notificationAllowed } from './notificationPreferences'
 
 type Ticket = { status: 'ok' | 'error'; id?: string; details?: { error?: string } }
 type Receipt = { token: string; createdAt: number; checkAt: number }
@@ -12,6 +13,7 @@ export function createPushQueue(deps: {
   invalidateToken: (token: string) => void
   now?: () => number
   sleep?: (ms: number) => Promise<void>
+  allowed?: (options: ExpoPushNotificationOptions) => boolean
 }) {
   const now = deps.now ?? Date.now
   const sleep =
@@ -101,7 +103,8 @@ export function createPushQueue(deps: {
 
   async function drain() {
     while (!stopped && queue.length) {
-      const batch = queue.splice(0, 100)
+      const batch = queue.splice(0, 100).filter((options) => deps.allowed?.(options) ?? true)
+      if (!batch.length) continue
       const batchId = crypto.randomUUID()
       try {
         const result = (await request(
@@ -195,6 +198,7 @@ export function createPushQueue(deps: {
 }
 
 export const pushQueue = createPushQueue({
+  allowed: (options) => notificationAllowed(getDbInstance().sqlite, options),
   fetch: (...args) => fetch(...args),
   // Match the rejected token so a newly registered replacement is never cleared.
   invalidateToken: (token) => {

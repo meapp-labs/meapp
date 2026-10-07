@@ -17,7 +17,7 @@ import { recoveryStatus, restoreRecoveryBackup } from '@/services/recovery'
 import { theme } from '@/theme/theme'
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
 import { useEffect, useRef, useState } from 'react'
-import { Platform, Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
+import { Pressable, ScrollView, StyleSheet, TextInput, View } from 'react-native'
 
 export function DeviceLinkPanel({
   mode,
@@ -58,7 +58,7 @@ export function DeviceLinkPanel({
   }, [mode])
 
   useEffect(() => {
-    if (mode !== 'recover' || Platform.OS !== 'web') return
+    if (mode !== 'recover') return
     void recoveryStatus()
       .then((status) => {
         setRecoveryAvailable(status.available)
@@ -320,11 +320,11 @@ export function DeviceLinkPanel({
           >
             <Text style={styles.recoverButtonText}>{busy ? 'Connecting…' : 'Connect device'}</Text>
           </Pressable>
-          {Platform.OS === 'web' && (
+          {
             <View style={styles.recoveryOption}>
               <Text style={styles.inputLabel}>No linked device available?</Text>
               <Text style={styles.stepText}>
-                Use a recovery key saved before the original browser was closed.
+                Use a recovery key saved before the original device was lost.
               </Text>
               {recoveryStatusError && <Text>{recoveryStatusError}</Text>}
               {!recoveryRestorable && (
@@ -338,7 +338,7 @@ export function DeviceLinkPanel({
               )}
               <Text>
                 Only the saved snapshot is recoverable. Later messages may be lost. The original
-                browser loses access and future messages use new encryption sessions.
+                device loses access and future messages use new encryption sessions.
               </Text>
               <Text>
                 Send each contact a new message to restart the conversation. Messages sent on an old
@@ -376,7 +376,7 @@ export function DeviceLinkPanel({
                 </>
               )}
             </View>
-          )}
+          }
           <Pressable
             accessibilityRole="button"
             style={styles.cancelButton}

@@ -34,6 +34,36 @@ const MAX_MESSAGE_LIMIT = 100
 export const messageRoutes = new Elysia({ prefix: '/api' })
   .use(authPlugin)
 
+  .post('/saved-messages', ({ user }) => {
+    const me = requireUser(user)
+    const sqlite = getDbInstance().sqlite
+    const row = sqlite
+      .transaction(() => {
+        const existing = sqlite
+          .query("SELECT id, created_at FROM rooms WHERE type = 'saved' AND created_by = ?")
+          .get(me.id) as { id: string; created_at: number } | null
+        if (existing) return existing
+        const id = Bun.randomUUIDv7()
+        const now = Math.floor(Date.now() / 1000)
+        sqlite
+          .query(
+            "INSERT INTO rooms (id, name, type, created_by, created_at) VALUES (?, 'Saved messages', 'saved', ?, ?)",
+          )
+          .run(id, me.id, now)
+        roomRepository(sqlite).insertMember(id, me.id, 'member', now)
+        return { id, created_at: now }
+      })
+      .immediate()
+    return {
+      id: row.id,
+      type: 'saved',
+      name: 'Saved messages',
+      participants: [me.username],
+      isGroup: false,
+      createdAt: chatTimestampIso(row.created_at),
+    } satisfies Conversation
+  })
+
   .post(
     '/conversations',
     async ({ body, user, set }) => {

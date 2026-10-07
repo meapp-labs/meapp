@@ -11,6 +11,9 @@ export const serverEnvSchema = z
       .regex(/^([0-9]{1,3}\.){3}[0-9]{1,3}$|^[a-zA-Z0-9.-]+$/)
       .default('127.0.0.1'),
     DOMAIN: z.string().optional(),
+    RECOVERY_EMAIL_PROVIDER: z.enum(['disabled', 'resend']).default('disabled'),
+    RESEND_API_KEY: z.string().optional(),
+    RECOVERY_EMAIL_FROM: z.string().optional(),
     DATABASE_URL: z.string().default('./data/data.db'),
     REDIS_URL: z.string().default('redis://127.0.0.1:6379'),
     JWT_SECRET: z.string().default('dev-secret-change-me'),
@@ -66,6 +69,16 @@ export const serverEnvSchema = z
     MEDIA_LOCAL_PORT: z.coerce.number().int().min(1).max(65535).default(3001),
   })
   .superRefine((data, ctx) => {
+    if (
+      data.RECOVERY_EMAIL_PROVIDER === 'resend' &&
+      (!data.RESEND_API_KEY?.trim() || !data.RECOVERY_EMAIL_FROM?.trim())
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['RECOVERY_EMAIL_PROVIDER'],
+        message: 'Resend recovery requires RESEND_API_KEY and RECOVERY_EMAIL_FROM',
+      })
+    }
     if (data.MEDIA_STORAGE === 'local') {
       if (!data.MEDIA_LOCAL_DIRECTORY || !/^(?:[A-Za-z]:[\\/]|\/)/.test(data.MEDIA_LOCAL_DIRECTORY))
         ctx.addIssue({

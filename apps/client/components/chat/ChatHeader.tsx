@@ -15,10 +15,12 @@ import {
   confirmConversationSafetyNumber,
   getConversationSafetyNumber,
 } from '@/services/e2e'
+import { useConversationMute } from '@/services/notificationPreferences'
 import { useIgnoreFriendRequest, useIgnoredUsers, useUnignoreUser } from '@/services/others'
 import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
+import { HistoryToolsModal } from './HistoryToolsModal'
 
 /**
  * Get display name for the conversation header
@@ -40,8 +42,10 @@ function getDisplayName(
 export function ChatHeader() {
   const { setSelectedConversationId } = useConversationStore()
   const selectedConversation = useSelectedConversation()
+  const mute = useConversationMute(selectedConversation?.id)
   const { username } = useAuthStore()
   const [showMenu, setShowMenu] = useState(false)
+  const [historyMode, setHistoryMode] = useState<'search' | 'files' | null>(null)
   const [showAlias, setShowAlias] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
   const [showLeaveModal, setShowLeaveModal] = useState(false)
@@ -63,6 +67,7 @@ export function ChatHeader() {
   }
 
   const isGroup = selectedConversation?.isGroup ?? false
+  const isSaved = selectedConversation?.type === 'saved'
   // For DM, finding the other participant name for the delete modal
   const otherParticipant = selectedConversation?.participants.find((p) => p !== username) || ''
   const contact = useContactPresentation(isGroup ? '' : otherParticipant)
@@ -70,7 +75,11 @@ export function ChatHeader() {
   const block = useIgnoreFriendRequest()
   const unblock = useUnignoreUser()
   const isBlocked = blockedUsers.data?.includes(otherParticipant) ?? false
-  const displayName = isGroup ? getDisplayName(selectedConversation, username) : contact.name
+  const displayName = isSaved
+    ? 'Saved messages'
+    : isGroup
+      ? getDisplayName(selectedConversation, username)
+      : contact.name
 
   const openSafetyNumber = () => {
     if (!selectedConversation?.id) return
@@ -104,7 +113,7 @@ export function ChatHeader() {
           )}
           <View>
             <Text style={styles.contactName}>{displayName}</Text>
-            {!isGroup && <Text>@{otherParticipant}</Text>}
+            {!isGroup && !isSaved && <Text>@{otherParticipant}</Text>}
           </View>
         </TouchableOpacity>
       </View>
@@ -122,6 +131,44 @@ export function ChatHeader() {
         >
           <Pressable style={styles.menuOverlay} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false)
+                  setHistoryMode('search')
+                }}
+              >
+                <MaterialIcons name="search" size={20} color={theme.colors.text} />
+                <Text>Search chat</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false)
+                  setHistoryMode('files')
+                }}
+              >
+                <MaterialIcons name="folder" size={20} color={theme.colors.text} />
+                <Text>Shared files</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.menuItem}
+                disabled={!mute.data || mute.update.isPending}
+                onPress={() => {
+                  if (mute.data)
+                    void mute.update.mutateAsync(!mute.data.muted).catch(() => undefined)
+                }}
+              >
+                <MaterialIcons
+                  name={mute.data?.muted ? 'notifications-off' : 'notifications'}
+                  size={20}
+                  color={theme.colors.text}
+                />
+                <Text>{mute.data?.muted ? 'Unmute chat' : 'Mute chat'}</Text>
+              </TouchableOpacity>
+              {(mute.isError || mute.update.isError) && (
+                <Text>Unable to update chat notifications. Try again.</Text>
+              )}
               {!isGroup && contact.profile && contact.alias && !contact.aliasError && (
                 <TouchableOpacity
                   style={styles.menuItem}
@@ -159,7 +206,7 @@ export function ChatHeader() {
                     <Text style={{ color: theme.colors.error }}>Leave Group</Text>
                   </TouchableOpacity>
                 </>
-              ) : (
+              ) : !isSaved ? (
                 <>
                   <TouchableOpacity
                     style={styles.menuItem}
@@ -204,7 +251,7 @@ export function ChatHeader() {
                     <Text style={{ color: theme.colors.error }}>Remove Friend</Text>
                   </TouchableOpacity>
                 </>
-              )}
+              ) : null}
             </View>
           </Pressable>
         </Modal>
@@ -267,6 +314,14 @@ export function ChatHeader() {
             if (removed) handleDelete()
             setShowDeleteModal(false)
           }}
+        />
+      )}
+      {historyMode && selectedConversation?.id && (
+        <HistoryToolsModal
+          key={selectedConversation.id}
+          roomId={selectedConversation.id}
+          filesOnly={historyMode === 'files'}
+          onClose={() => setHistoryMode(null)}
         />
       )}
       {showAlias && contact.profile && contact.alias && (

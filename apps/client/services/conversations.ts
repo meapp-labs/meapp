@@ -7,6 +7,7 @@ import { useConversationStore } from '@/lib/stores'
 import { decryptE2EMessage, getE2EInstallId } from '@/services/e2e'
 import type { Conversation, CreateConversationInput, MessagesResponse } from '@meapp/shared'
 import { messagePreview } from './messagePreview'
+import { ConversationStorage } from './storage'
 
 /**
  * Create or get existing conversation
@@ -26,6 +27,20 @@ export function useCreateConversation() {
         if (exists) return old
         return [newConversation, ...old]
       })
+    },
+  })
+}
+
+export function useSavedMessages() {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => postFetcher<Conversation>('saved-messages'),
+    onSuccess: (conversation) => {
+      client.setQueryData<Conversation[]>([Keys.Query.GET_CONVERSATIONS], (old) =>
+        old?.some((item) => item.id === conversation.id) ? old : [...(old ?? []), conversation],
+      )
+      useConversationStore.getState().setSelectedConversationId(conversation.id)
+      void ConversationStorage.save(conversation.id)
     },
   })
 }

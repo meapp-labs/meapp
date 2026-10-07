@@ -6,7 +6,14 @@ import { inMemoryStore } from '@open-e2ee/signal-protocol-sdk/local/store/memory
 import { inMemoryRelay } from '@open-e2ee/signal-protocol-sdk/remote/relay/memory'
 import type { IDBPDatabase } from 'idb'
 import { MeappIndexedDbStore } from './e2eBrowserStore'
-import { decryptSnapshot, encryptSnapshot } from './recoveryCodec'
+import { getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata.web'
+import {
+  type Snapshot,
+  decryptRecoverySnapshot,
+  encode,
+  encryptSnapshot,
+  phrase,
+} from './recoveryCodec'
 
 const accountId = crypto.randomUUID()
 const oldInstallId = crypto.randomUUID()
@@ -96,7 +103,7 @@ const original = await store()
 await original.setMetadata('meapp:e2e:account', accountId)
 await original.setMetadata('meapp:e2e:install', oldInstallId)
 await original.setMetadata('meapp:e2e:device-id', '1')
-await original.setMetadata('meapp:e2e:message-content:v1:history', 'saved-history')
+await setPrivateMetadata(original, 'meapp:e2e:message-content:v1:history', 'saved-history')
 const alice = await createSignalProtocolClient({
   identity: { userId: accountId, deviceId: 1 },
   adapters: { storage: original, relay },
@@ -121,8 +128,31 @@ const key = await createRecoveryKey({
   userId: accountId,
   installId: oldInstallId,
 })
-const saved = backup
-const data = await decryptSnapshot(accountId, key, saved)
+const portableSaved = backup
+const portableData = await decryptRecoverySnapshot(accountId, key, portableSaved)
+expect(portableData.version).toBe(2)
+expect('stores' in portableData).toBe(false)
+// Retain explicit legacy acceptance coverage after uploads switch to portable data.
+const originalDb = Reflect.get(original, 'db') as IDBPDatabase
+const legacyStores: Snapshot['stores'] = {}
+for (const name of Array.from(originalDb.objectStoreNames)) {
+  const [keys, values] = await Promise.all([originalDb.getAllKeys(name), originalDb.getAll(name)])
+  legacyStores[name] = keys.map((key, index) => ({
+    key: key as string | number,
+    value: encode(values[index]),
+  }))
+}
+const proof = await original.getMetadata('meapp:e2e:recovery-proof')
+if (!proof) throw new Error('Missing recovery proof')
+const data: Snapshot = {
+  version: 1,
+  storeVersion: 6,
+  accountId,
+  installId: oldInstallId,
+  proof,
+  stores: legacyStores,
+}
+const saved = await encryptSnapshot(data, key)
 expect(data.stores.sessions?.length).toBeGreaterThan(0)
 expect(
   await bob.decryptMessage(aliceAddress, await alice.encryptMessage(bobAddress, 'after snapshot')),
@@ -135,7 +165,7 @@ current = null
 dbName = 'recovery-replacement'
 
 backup = await encryptSnapshot({ ...data, storeVersion: 999 }, key)
-await expect(restoreRecoveryBackup(accountId, key)).rejects.toThrow('incompatible')
+await expect(restoreRecoveryBackup(accountId, key)).rejects.toThrow('legacy browser store version')
 expect(await (await store()).getIdentityKey()).toBeNull()
 
 backup = await encryptSnapshot(
@@ -156,7 +186,9 @@ expect(await restored.getMetadata('meapp:e2e:restore-pending')).toBeTruthy()
 const database = Reflect.get(restored, 'db') as IDBPDatabase
 for (const name of ['sessions', 'sesameUsers', 'senderKeyRecords', 'skippedSenderKeys', 'prekeys'])
   expect(await database.count(name)).toBe(0)
-expect(await restored.getMetadata('meapp:e2e:message-content:v1:history')).toBe('saved-history')
+expect(await getPrivateMetadata(restored, 'meapp:e2e:message-content:v1:history')).toBe(
+  'saved-history',
+)
 // Resume from persisted IndexedDB state after closing the interrupted instance.
 restored.close()
 current = null
@@ -165,7 +197,7 @@ await restoreRecoveryBackup(accountId, key)
 expect(claims).toHaveLength(2)
 expect(claims[0]).toEqual(claims[1])
 restored = await store()
-expect(await restored.getMetadata('meapp:e2e:restore-pending')).toBe('')
+expect(await restored.getMetadata('meapp:e2e:restore-pending')).toBeNull()
 const recovered = await createSignalProtocolClient({
   identity: { userId: accountId, deviceId: 1 },
   adapters: { storage: restored, relay },
@@ -192,6 +224,45 @@ failUpload = false
 await uploadRecoveryBackup({ storage: restored, userId: accountId, installId: owner })
 expect((await recoveryStatus()).lastError).toBe('')
 restored.close()
+current = null
+dbName = 'recovery-portable-replacement'
+backup = portableSaved
+await expect(restoreRecoveryBackup(accountId, phrase())).rejects.toThrow('incorrect')
+expect(await (await store()).getIdentityKey()).toBeNull()
+failClaim = true
+await expect(restoreRecoveryBackup(accountId, key)).rejects.toThrow('interrupted during claim')
+let portableRestored = await store()
+expect(await portableRestored.getIdentityKey()).toEqual(originalIdentity)
+expect(await getPrivateMetadata(portableRestored, 'meapp:e2e:message-content:v1:history')).toBe(
+  'saved-history',
+)
+portableRestored.close()
+current = null
+failClaim = false
+await restoreRecoveryBackup(accountId, key)
+portableRestored = await store()
+expect(await portableRestored.getMetadata('meapp:e2e:restore-pending')).toBeNull()
+const portableClient = await createSignalProtocolClient({
+  identity: { userId: accountId, deviceId: 1 },
+  adapters: { storage: portableRestored, relay },
+})
+await portableClient.syncToServer()
+const portableBundle = await relay.fetchPreKeyBundle(bobId, 1)
+if (!portableBundle) throw new Error('Missing fresh portable prekey bundle')
+await portableClient.establishSession(bobAddress, portableBundle)
+expect(
+  await bob.decryptMessage(
+    aliceAddress,
+    await portableClient.encryptMessage(bobAddress, 'portable fresh chain'),
+  ),
+).toBe('portable fresh chain')
+expect(
+  await portableClient.decryptMessage(
+    bobAddress,
+    await bob.encryptMessage(aliceAddress, 'portable fresh reply'),
+  ),
+).toBe('portable fresh reply')
+portableRestored.close()
 console.log(
   'Browser restore: compatibility, atomic rollback, claim retry, stale ratchets, history and failure status passed',
 )
