@@ -16,6 +16,7 @@ import { groupRoutes } from './routes/groups.ts'
 import { mediaRoutes, sweepMedia } from './routes/media.ts'
 import { messageRoutes } from './routes/messages.ts'
 import { profileRoutes, sweepProfileAvatars } from './routes/profiles.ts'
+import { reactionRoutes } from './routes/reactions.ts'
 import { receiptRoutes } from './routes/receipts.ts'
 import { recoveryRoutes } from './routes/recovery.ts'
 import { wsTicketRoutes } from './routes/wsTicket.ts'
@@ -141,6 +142,7 @@ export const app = new Elysia({
   .use(friendRoutes)
   .use(messageRoutes)
   .use(receiptRoutes)
+  .use(reactionRoutes)
   .use(groupRoutes)
   .use(mediaRoutes)
   .use(e2eRelayRoutes)

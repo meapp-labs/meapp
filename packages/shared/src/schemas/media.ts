@@ -99,6 +99,9 @@ export type MediaDescriptor = z.infer<typeof mediaDescriptorSchema>
 export const decryptedContentSchema = z
   .object({
     text: z.string().max(2000).optional(),
+    // Reference only: never forward quoted plaintext or media capabilities.
+    replyTo: z.string().uuid().optional(),
+    threadRootId: z.string().uuid().optional(),
     media: z
       .array(mediaDescriptorSchema)
       .min(1)

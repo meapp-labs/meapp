@@ -123,6 +123,8 @@ CREATE INDEX `message_receipts_user_idx` ON `message_receipts` (`user_id`);--> s
 CREATE TABLE `messages` (
 	`id` text PRIMARY KEY NOT NULL,
 	`client_id` text NOT NULL,
+	`reply_to` text,
+	`thread_root_id` text,
 	`attachment_ids` text DEFAULT '[]' NOT NULL,
 	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,
@@ -139,6 +141,7 @@ CREATE TABLE `messages` (
 );
 --> statement-breakpoint
 CREATE INDEX `idx_room_sequence` ON `messages` (`room_id`,`sequence`);--> statement-breakpoint
+CREATE INDEX `messages_thread_sequence` ON `messages` (`room_id`,`thread_root_id`,`sequence`);--> statement-breakpoint
 CREATE INDEX `messages_room_idx` ON `messages` (`room_id`);--> statement-breakpoint
 CREATE INDEX `messages_user_idx` ON `messages` (`user_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `messages_user_client_unique` ON `messages` (`user_id`,`client_id`);--> statement-breakpoint
@@ -164,6 +167,22 @@ CREATE TABLE `profile_avatars` (
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX `profile_avatars_url_unique` ON `profile_avatars` (`url`);--> statement-breakpoint
+CREATE TABLE `reaction_operations` (
+	`revision` integer PRIMARY KEY AUTOINCREMENT NOT NULL,
+	`operation_id` text NOT NULL,
+	`room_id` text NOT NULL,
+	`message_id` text NOT NULL,
+	`user_id` text NOT NULL,
+	`predecessor` integer NOT NULL,
+	`emoji` text,
+	FOREIGN KEY (`room_id`) REFERENCES `rooms`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`message_id`) REFERENCES `messages`(`id`) ON UPDATE no action ON DELETE cascade,
+	FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `reaction_room_revision` ON `reaction_operations` (`room_id`,`revision`);--> statement-breakpoint
+CREATE INDEX `reaction_target_author` ON `reaction_operations` (`message_id`,`user_id`,`revision`);--> statement-breakpoint
+CREATE UNIQUE INDEX `reaction_user_operation` ON `reaction_operations` (`user_id`,`operation_id`);--> statement-breakpoint
 CREATE TABLE `receipt_preferences` (
 	`room_id` text NOT NULL,
 	`user_id` text NOT NULL,

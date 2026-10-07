@@ -13,8 +13,7 @@ import Toast from 'react-native-toast-message'
 import { FriendsScreen } from '@/components/FriendsScreen'
 import { ChatHeader } from '@/components/chat/ChatHeader'
 import { MediaDropZone } from '@/components/chat/MediaDropZone'
-import { MessageInput } from '@/components/chat/MessageInput'
-import { MessageList } from '@/components/chat/MessageList'
+import { ConversationMessages } from '@/components/chat/ThreadWindow'
 import { Text } from '@/components/common/Text'
 import { DeviceLinkPanel } from '@/components/settings/DeviceLinkPanel'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
@@ -163,8 +162,7 @@ export default function ChatApp() {
           >
             <MediaDropZone key={visibleConversationId} conversationId={visibleConversationId}>
               <ChatHeader />
-              <MessageList conversationId={visibleConversationId} />
-              <MessageInput conversationId={visibleConversationId} />
+              <ConversationMessages conversationId={visibleConversationId} />
             </MediaDropZone>
           </KeyboardAvoidingView>
         )
@@ -179,8 +177,7 @@ export default function ChatApp() {
             >
               <MediaDropZone key={visibleConversationId} conversationId={visibleConversationId}>
                 <ChatHeader />
-                <MessageList conversationId={visibleConversationId} />
-                <MessageInput conversationId={visibleConversationId} />
+                <ConversationMessages conversationId={visibleConversationId} />
               </MediaDropZone>
             </KeyboardAvoidingView>
           ) : (

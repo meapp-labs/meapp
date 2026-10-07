@@ -8,9 +8,17 @@ import { Modal, Pressable, Text, View } from 'react-native'
 
 export function VoiceRecorder({
   conversationId,
+  replyTo,
+  threadRootId,
   onClose,
   onSent,
-}: { conversationId: string; onClose: () => void; onSent: () => void }) {
+}: {
+  conversationId: string
+  replyTo?: string | undefined
+  threadRootId?: string | undefined
+  onClose: () => void
+  onSent: () => void
+}) {
   const [preview, setPreview] = useState<{ uri: string; blob: Blob; duration: number } | null>(null)
   const [recording, setRecording] = useState(false)
   const [seconds, setSeconds] = useState(0)
@@ -138,6 +146,8 @@ export function VoiceRecorder({
           duration: preview.duration,
         },
         onClose,
+        replyTo,
+        threadRootId,
       )
       onSent()
       onClose()

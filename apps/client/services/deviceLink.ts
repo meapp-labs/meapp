@@ -215,6 +215,9 @@ type HistoryRow = {
   cursor: number
   id: string
   clientId: string
+  replyTo: string | null
+  threadRootId: string | null
+  attachmentIds: string
   roomId: string
   userId: string
   fromProtocolDeviceId: number
@@ -291,6 +294,11 @@ export async function copyHistoryToDevice(
       const message = await decryptE2EMessage({
         id: row.id,
         clientId: row.clientId,
+        ...(row.replyTo ? { replyTo: row.replyTo } : {}),
+        ...(row.threadRootId ? { threadRootId: row.threadRootId } : {}),
+        ...(row.attachmentIds !== '[]'
+          ? { attachmentIds: JSON.parse(row.attachmentIds) as string[] }
+          : {}),
         roomId: row.roomId,
         userId: row.userId,
         ciphertext: row.ciphertext ?? 'unavailable',
@@ -299,7 +307,7 @@ export async function copyHistoryToDevice(
         envelopeSourceDeviceId: row.envelopeSourceDeviceId ?? undefined,
         type: 'text',
       }).catch(() => null)
-      if (!message?.text) {
+      if (!message || (!message.text && !message.media?.length)) {
         unavailable++
         await setPrivateMetadata(context.storage, unavailableKey, String(unavailable))
         continue
@@ -318,8 +326,16 @@ export async function copyHistoryToDevice(
         JSON.stringify({
           conversationId: row.roomId,
           clientId: row.clientId,
+          ...(row.replyTo ? { replyTo: row.replyTo } : {}),
+          ...(row.threadRootId ? { threadRootId: row.threadRootId } : {}),
+          ...(row.attachmentIds !== '[]'
+            ? { attachmentIds: JSON.parse(row.attachmentIds) as string[] }
+            : {}),
           senderId: row.userId,
           text: message.text,
+          ...(message.replyTo ? { replyTo: message.replyTo } : {}),
+          ...(message.threadRootId ? { threadRootId: message.threadRootId } : {}),
+          ...(message.media?.length ? { media: message.media } : {}),
         }),
       )
       envelopes.push({ messageId: row.id, ciphertext })
@@ -355,6 +371,11 @@ async function hydrateEncryptedHistory(): Promise<void> {
       await decryptE2EMessage({
         id: row.id,
         clientId: row.clientId,
+        ...(row.replyTo ? { replyTo: row.replyTo } : {}),
+        ...(row.threadRootId ? { threadRootId: row.threadRootId } : {}),
+        ...(row.attachmentIds !== '[]'
+          ? { attachmentIds: JSON.parse(row.attachmentIds) as string[] }
+          : {}),
         roomId: row.roomId,
         userId: row.userId,
         ciphertext: row.ciphertext,

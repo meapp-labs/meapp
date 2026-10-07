@@ -29,6 +29,7 @@ const dateFormatter = new Intl.DateTimeFormat('en-US', {
 
 type BubbleLayoutProps = {
   message: Message
+  quote?: React.ReactNode
   time: string
   /** Passed down from the list so each bubble doesn't call useWindowDimensions. */
   maxWidth: number | null
@@ -147,7 +148,7 @@ function MessageMedia({ message, own = false }: { message: Message; own?: boolea
 }
 
 export const MessageBubble = {
-  Received: memo(function ReceivedMessage({ message, time, maxWidth }: BubbleLayoutProps) {
+  Received: memo(function ReceivedMessage({ message, time, maxWidth, quote }: BubbleLayoutProps) {
     const contact = useContactPresentation(message.userId ?? message.from ?? '', !!message.userId)
     return (
       <View style={[styles.messageGroupContainer, maxWidth != null && { maxWidth }]}>
@@ -159,6 +160,7 @@ export const MessageBubble = {
           <View
             style={[styles.receivedMessageContainer, isLinkOnly(message) && styles.linkContainer]}
           >
+            {quote}
             <MessageMedia message={message} />
             {message.text ? (
               <MessageText text={message.text} />
@@ -171,7 +173,7 @@ export const MessageBubble = {
       </View>
     )
   }),
-  Sent: memo(function SentMessage({ message, time, maxWidth }: BubbleLayoutProps) {
+  Sent: memo(function SentMessage({ message, time, maxWidth, quote }: BubbleLayoutProps) {
     return (
       <View
         style={[
@@ -190,6 +192,7 @@ export const MessageBubble = {
         </View>
         <View style={styles.messageTextWrapper}>
           <View style={[styles.sentMessageContainer, isLinkOnly(message) && styles.linkContainer]}>
+            {quote}
             <MessageMedia message={message} own />
             {message.text ? (
               <MessageText text={message.text} />
@@ -206,8 +209,10 @@ export const MessageBubble = {
     prevTimestamp,
     currentUsername,
     bubbleMaxWidth,
+    quote,
   }: {
     message: Message
+    quote?: React.ReactNode
     prevTimestamp: string | undefined
     currentUsername: string
     bubbleMaxWidth: number | null
@@ -236,9 +241,19 @@ export const MessageBubble = {
             ? message.userId === own.data.id
             : sender === currentUsername
         ) ? (
-          <MessageBubble.Sent message={message} time={time} maxWidth={bubbleMaxWidth} />
+          <MessageBubble.Sent
+            message={message}
+            time={time}
+            maxWidth={bubbleMaxWidth}
+            quote={quote}
+          />
         ) : (
-          <MessageBubble.Received message={message} time={time} maxWidth={bubbleMaxWidth} />
+          <MessageBubble.Received
+            message={message}
+            time={time}
+            maxWidth={bubbleMaxWidth}
+            quote={quote}
+          />
         )}
         {isDifferentDay && <Text style={styles.messageDate}>{messageDate}</Text>}
       </>

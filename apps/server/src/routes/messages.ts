@@ -42,6 +42,12 @@ import {
 import { sendPushNotification } from '../lib/notification.ts'
 import { conversationReadSummary } from '../lib/receipts.ts'
 import { requireUser } from '../lib/session.ts'
+import {
+  getThreadSummaries,
+  requireThreadRoot,
+  requireThreadTarget,
+  threadRecipientDevices,
+} from '../lib/threads.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { broadcastToRoom } from '../ws/chat.ts'
 
@@ -394,14 +400,26 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           .get(me.id, body.installId) as { device_id: number } | null
         if (!linkedDevice) throw createAuthError('This device has not registered encryption keys')
         senderProtocolDeviceId = linkedDevice.device_id
-        const recipients = sqlite
-          .query(`SELECT ri.user_id, ri.device_id FROM room_members rm
+        if (body.threadRootId)
+          requireThreadTarget(
+            conversationId,
+            body.threadRootId,
+            body.replyTo,
+            me.id,
+            senderProtocolDeviceId,
+          )
+        const recipients = body.threadRootId
+          ? threadRecipientDevices(conversationId, body.threadRootId)
+              .filter((row) => row.userId !== me.id || row.deviceId !== senderProtocolDeviceId)
+              .map((row) => ({ user_id: row.userId, device_id: row.deviceId }))
+          : (sqlite
+              .query(`SELECT ri.user_id, ri.device_id FROM room_members rm
                   JOIN relay_identities ri ON ri.user_id = rm.user_id
                   WHERE rm.room_id = ? AND NOT (ri.user_id = ? AND ri.device_id = ?)`)
-          .all(conversationId, me.id, senderProtocolDeviceId) as Array<{
-          user_id: string
-          device_id: number
-        }>
+              .all(conversationId, me.id, senderProtocolDeviceId) as Array<{
+              user_id: string
+              device_id: number
+            }>)
         const memberCount = sqlite
           .query('SELECT COUNT(*) AS total FROM room_members WHERE room_id = ?')
           .get(conversationId) as { total: number }
@@ -409,14 +427,17 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           .query(`SELECT COUNT(DISTINCT rm.user_id) AS total FROM room_members rm
                   JOIN relay_identities ri ON ri.user_id = rm.user_id WHERE rm.room_id = ?`)
           .get(conversationId) as { total: number }
-        if (memberCount.total !== encryptedMembers.total)
+        if (!body.threadRootId && memberCount.total !== encryptedMembers.total)
           throw createValidationError('A recipient has not enabled encryption')
+        const existingOperation = sqlite
+          .query('SELECT id FROM messages WHERE user_id=? AND client_id=?')
+          .get(me.id, body.clientId)
         const key = (userId: string, deviceId: number) => `${userId}:${deviceId}`
         const expected = recipients.map((row) => key(row.user_id, row.device_id)).sort()
         const actual = body.envelopes.map((row) => key(row.targetUserId, row.targetDeviceId)).sort()
         if (
-          expected.length !== actual.length ||
-          expected.some((id, index) => id !== actual[index])
+          !existingOperation &&
+          (expected.length !== actual.length || expected.some((id, index) => id !== actual[index]))
         ) {
           throw createValidationError(
             'Encrypted envelopes must cover every recipient device exactly once',
@@ -433,6 +454,14 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         envelopeDigest = `v1:${createHash('sha256').update(canonical).digest('hex')}`
       }
 
+      if (isEnvelopeSend && body.replyTo) {
+        const available = getDbInstance()
+          .sqlite.query(`SELECT 1 FROM messages m WHERE m.id=? AND m.room_id=?
+          AND (m.is_encrypted=0 OR m.user_id=? OR EXISTS (SELECT 1 FROM message_envelopes e WHERE e.message_id=m.id AND e.target_user_id=? AND e.target_device_id=?))`)
+          .get(body.replyTo, conversationId, me.id, me.id, senderProtocolDeviceId)
+        if (!available)
+          throw createForbiddenError('Reply target is unavailable in this conversation')
+      }
       const msgClientId = body.clientId ?? Bun.randomUUIDv7()
       const attachmentIds = isEnvelopeSend ? (body.attachmentIds ?? []) : []
 
@@ -445,6 +474,8 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             userId: me.id,
             clientId: msgClientId,
             attachmentIds,
+            ...(isEnvelopeSend && body.replyTo ? { replyTo: body.replyTo } : {}),
+            ...(isEnvelopeSend && body.threadRootId ? { threadRootId: body.threadRootId } : {}),
             ...(isEnvelopeSend
               ? {
                   ciphertext: envelopeDigest,
@@ -509,7 +540,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
       if (result.created) {
         const otherMembers = await getDbInstance()
-          .db.select({ pushToken: schema.users.pushToken })
+          .db.select({ pushToken: schema.users.pushToken, userId: schema.users.id })
           .from(schema.roomMembers)
           .innerJoin(schema.users, eq(schema.roomMembers.userId, schema.users.id))
           .where(
@@ -519,12 +550,34 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             ),
           )
 
+        const followers =
+          isEnvelopeSend && body.threadRootId
+            ? new Set(
+                (
+                  getDbInstance()
+                    .sqlite.query(
+                      'SELECT user_id AS userId FROM messages WHERE id=? OR thread_root_id=?',
+                    )
+                    .all(body.threadRootId, body.threadRootId) as { userId: string }[]
+                ).map((row) => row.userId),
+              )
+            : null
+        const audience =
+          isEnvelopeSend && body.threadRootId
+            ? new Set(
+                threadRecipientDevices(conversationId, body.threadRootId).map((row) => row.userId),
+              )
+            : null
         for (const member of otherMembers) {
+          if (followers && (!followers.has(member.userId) || !audience?.has(member.userId)))
+            continue
           if (member.pushToken) {
             void sendPushNotification({
               expoPushToken: member.pushToken,
               senderUsername: me.username,
-              messageText: 'New message',
+              messageText:
+                isEnvelopeSend && body.threadRootId ? 'New reply in a thread' : 'New message',
+              ...(isEnvelopeSend && body.threadRootId ? { threadRootId: body.threadRootId } : {}),
               messageIndex: result.sequence,
               timestamp,
               conversationId,
@@ -534,32 +587,45 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
 
         await broadcastToRoom(
           conversationId,
-          JSON.stringify({
-            type: 'message',
-            payload: {
-              id: result.id,
-              clientId: msgClientId,
-              ...(attachmentIds.length ? { attachmentIds } : {}),
-              roomId: conversationId,
-              userId: me.id,
-              from: me.username,
-              sequence: result.sequence,
-              ...(isEnvelopeSend
-                ? {
-                    ciphertext: envelopeDigest,
-                    ciphertextType: CIPHERTEXT_TYPE_WHISPER,
-                    fromDeviceId: body.installId,
-                    fromProtocolDeviceId: senderProtocolDeviceId,
-                  }
-                : { text: body.text }),
-              createdAt: timestamp,
-            },
-          }),
+          JSON.stringify(
+            isEnvelopeSend && body.threadRootId
+              ? {
+                  type: 'thread-changed',
+                  payload: { roomId: conversationId },
+                }
+              : {
+                  type: 'message',
+                  payload: {
+                    id: result.id,
+                    clientId: msgClientId,
+                    ...(isEnvelopeSend && body.replyTo ? { replyTo: body.replyTo } : {}),
+                    ...(isEnvelopeSend && body.threadRootId
+                      ? { threadRootId: body.threadRootId }
+                      : {}),
+                    ...(attachmentIds.length ? { attachmentIds } : {}),
+                    roomId: conversationId,
+                    userId: me.id,
+                    from: me.username,
+                    sequence: result.sequence,
+                    ...(isEnvelopeSend
+                      ? {
+                          ciphertext: envelopeDigest,
+                          ciphertextType: CIPHERTEXT_TYPE_WHISPER,
+                          fromDeviceId: body.installId,
+                          fromProtocolDeviceId: senderProtocolDeviceId,
+                        }
+                      : { text: body.text }),
+                    createdAt: timestamp,
+                  },
+                },
+          ),
         )
       }
 
       return {
         id: result.id,
+        ...(isEnvelopeSend && body.replyTo ? { replyTo: body.replyTo } : {}),
+        ...(isEnvelopeSend && body.threadRootId ? { threadRootId: body.threadRootId } : {}),
         ...(attachmentIds.length ? { attachmentIds } : {}),
         sequence: result.sequence,
         index: result.sequence,
@@ -582,7 +648,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
   .get(
     '/get-messages',
     async ({ query, user }) => {
-      const { conversationId, after, before } = query
+      const { conversationId, after, before, threadRootId } = query
       const me = requireUser(user)
 
       let readerDeviceId = 1
@@ -602,14 +668,32 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         throw createAuthError('You are not a participant in this conversation')
       }
 
+      if (threadRootId) requireThreadRoot(conversationId, threadRootId, me.id, readerDeviceId)
+      const threadSummaries = getThreadSummaries(conversationId, me.id, readerDeviceId)
       const limit = query.limit
         ? Math.min(Number.parseInt(query.limit, 10), MAX_MESSAGE_LIMIT)
         : DEFAULT_MESSAGE_LIMIT
 
-      const afterIndex = after === undefined ? undefined : Number.parseInt(after, 10)
+      const audience = getDbInstance()
+        .sqlite.query(`SELECT COUNT(*) AS total, COALESCE(MAX(e.rowid),0) AS latest
+        FROM message_envelopes e JOIN messages m ON m.id=e.message_id
+        WHERE m.room_id=? AND e.target_user_id=? AND e.target_device_id=? AND e.source_user_id IS NOT NULL`)
+        .get(conversationId, me.id, readerDeviceId) as { total: number; latest: number }
+      const historyAudienceVersion = `${audience.total}:${audience.latest}`
+      const afterIndex =
+        after === undefined
+          ? undefined
+          : query.syncAudience && query.syncAudience !== historyAudienceVersion
+            ? 0
+            : Number.parseInt(after, 10)
       const beforeIndex = before === undefined ? undefined : Number.parseInt(before, 10)
 
       let whereClause = eq(schema.messages.roomId, conversationId)
+      if (threadRootId)
+        whereClause = and(
+          whereClause,
+          eq(schema.messages.threadRootId, threadRootId),
+        ) as typeof whereClause
       if (afterIndex !== undefined) {
         whereClause = and(
           whereClause,
@@ -623,42 +707,49 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         ) as typeof whereClause
       }
 
-      const rows = await getDbInstance()
-        .db.select({
-          id: schema.messages.id,
-          clientId: schema.messages.clientId,
-          attachmentIds: schema.messages.attachmentIds,
-          roomId: schema.messages.roomId,
-          userId: schema.messages.userId,
-          sequence: schema.messages.sequence,
-          text: schema.messages.text,
-          ciphertext: schema.messages.ciphertext,
-          envelopeCiphertext: schema.messageEnvelopes.ciphertext,
-          envelopeSourceUserId: schema.messageEnvelopes.sourceUserId,
-          envelopeSourceDeviceId: schema.messageEnvelopes.sourceDeviceId,
-          ciphertextType: schema.messages.ciphertextType,
-          isEncrypted: schema.messages.isEncrypted,
-          fromDeviceId: schema.messages.deviceId,
-          fromProtocolDeviceId: schema.messages.senderProtocolDeviceId,
-          createdAt: schema.messages.createdAt,
-          from: schema.users.username,
-        })
-        .from(schema.messages)
-        .innerJoin(schema.users, eq(schema.messages.userId, schema.users.id))
-        .leftJoin(
-          schema.messageEnvelopes,
-          and(
-            eq(schema.messageEnvelopes.messageId, schema.messages.id),
-            eq(schema.messageEnvelopes.targetUserId, me.id),
-            eq(schema.messageEnvelopes.targetDeviceId, readerDeviceId),
-          ),
-        )
+      const selectMessages = () =>
+        getDbInstance()
+          .db.select({
+            id: schema.messages.id,
+            clientId: schema.messages.clientId,
+            attachmentIds: schema.messages.attachmentIds,
+            replyTo: schema.messages.replyTo,
+            threadRootId: schema.messages.threadRootId,
+            roomId: schema.messages.roomId,
+            userId: schema.messages.userId,
+            sequence: schema.messages.sequence,
+            text: schema.messages.text,
+            ciphertext: schema.messages.ciphertext,
+            envelopeCiphertext: schema.messageEnvelopes.ciphertext,
+            envelopeSourceUserId: schema.messageEnvelopes.sourceUserId,
+            envelopeSourceDeviceId: schema.messageEnvelopes.sourceDeviceId,
+            ciphertextType: schema.messages.ciphertextType,
+            isEncrypted: schema.messages.isEncrypted,
+            fromDeviceId: schema.messages.deviceId,
+            fromProtocolDeviceId: schema.messages.senderProtocolDeviceId,
+            createdAt: schema.messages.createdAt,
+            from: schema.users.username,
+          })
+          .from(schema.messages)
+          .innerJoin(schema.users, eq(schema.messages.userId, schema.users.id))
+          .leftJoin(
+            schema.messageEnvelopes,
+            and(
+              eq(schema.messageEnvelopes.messageId, schema.messages.id),
+              eq(schema.messageEnvelopes.targetUserId, me.id),
+              eq(schema.messageEnvelopes.targetDeviceId, readerDeviceId),
+            ),
+          )
+      const rows = await selectMessages()
         .where(whereClause)
         .orderBy(
           afterIndex === undefined ? desc(schema.messages.sequence) : asc(schema.messages.sequence),
         )
         .limit(limit + 1)
 
+      const threadRoot = threadRootId
+        ? await selectMessages().where(eq(schema.messages.id, threadRootId)).get()
+        : undefined
       const hasMore = rows.length > limit
       const pageRows = rows.slice(0, limit)
       // History pages fetch the latest window, then return it in ascending order.
@@ -669,11 +760,15 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             .sqlite.query(`SELECT mr.message_id AS id
         FROM message_receipts mr JOIN messages m ON m.id=mr.message_id
         WHERE mr.user_id=? AND mr.read_at IS NOT NULL AND m.room_id=?
-        AND m.id IN (${orderedRows.map(() => '?').join(',') || 'NULL'})`)
-            .all(me.id, conversationId, ...orderedRows.map((row) => row.id)) as { id: string }[]
+        AND m.id IN (${[...orderedRows, ...(threadRoot ? [threadRoot] : [])].map(() => '?').join(',') || 'NULL'})`)
+            .all(
+              me.id,
+              conversationId,
+              ...[...orderedRows, ...(threadRoot ? [threadRoot] : [])].map((row) => row.id),
+            ) as { id: string }[]
         ).map((row) => row.id),
       )
-      const pageAttachmentIds = orderedRows.flatMap(
+      const pageAttachmentIds = [...orderedRows, ...(threadRoot ? [threadRoot] : [])].flatMap(
         (row) => JSON.parse(row.attachmentIds) as string[],
       )
       const availableAttachments = new Set(
@@ -690,10 +785,13 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             ).map((row) => row.id)
           : [],
       )
-      const messages = orderedRows.map((r) => ({
+      const mapMessage = (r: (typeof rows)[number]) => ({
         id: r.id,
         acknowledgedRead: ownReads.has(r.id),
+        envelopeAvailable: Boolean(r.envelopeCiphertext),
         clientId: r.clientId,
+        ...(r.replyTo ? { replyTo: r.replyTo } : {}),
+        ...(r.threadRootId ? { threadRootId: r.threadRootId } : {}),
         ...(r.attachmentIds !== '[]'
           ? { attachmentIds: JSON.parse(r.attachmentIds) as string[] }
           : {}),
@@ -720,22 +818,35 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           : { text: r.text ?? '' }),
         type: 'text',
         timestamp: chatTimestampIso(r.createdAt),
-      }))
+      })
+      const messages = orderedRows.map(mapMessage)
 
-      // Unfiltered count for UI display; the extra fetched row handles pagination.
+      // Count this view independently of its pagination cursor.
       const totalCountRow = await getDbInstance()
         .db.select({ total: count() })
         .from(schema.messages)
-        .where(eq(schema.messages.roomId, conversationId))
+        .where(
+          threadRootId
+            ? and(
+                eq(schema.messages.roomId, conversationId),
+                eq(schema.messages.threadRootId, threadRootId),
+              )
+            : eq(schema.messages.roomId, conversationId),
+        )
         .get()
 
       return {
         messages,
+        historyAudienceVersion,
+        nextAfter: orderedRows.at(-1)?.sequence ?? afterIndex ?? 0,
+        threadSummaries,
+        ...(threadRoot ? { threadRoot: mapMessage(threadRoot) } : {}),
         hasMore,
         totalCount: totalCountRow?.total ?? 0,
-        firstUnreadSequence:
-          conversationReadSummary([conversationId], me.id).get(conversationId)
-            ?.firstUnreadSequence ?? null,
+        firstUnreadSequence: threadRootId
+          ? (threadSummaries[threadRootId]?.firstUnreadSequence ?? null)
+          : (conversationReadSummary([conversationId], me.id).get(conversationId)
+              ?.firstUnreadSequence ?? null),
       }
     },
     { query: getMessagesQuerySchema },

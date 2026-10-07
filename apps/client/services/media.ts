@@ -197,6 +197,8 @@ type PreparedAttachment = Omit<Awaited<ReturnType<typeof prepareAttachment>>, 'v
   })[]
 }
 type UploadJob = {
+  replyTo?: string | undefined
+  threadRootId?: string | undefined
   roomId: string
   clientId: string
   attachments: PreparedAttachment[]
@@ -260,7 +262,15 @@ async function uploadJob(job: UploadJob, epoch: number, signal: AbortSignal) {
       loaded: total,
       total,
     })
-    return sendE2EMessage(job.roomId, '', job.clientId, job.media, signal)
+    return sendE2EMessage(
+      job.roomId,
+      '',
+      job.clientId,
+      job.media,
+      job.replyTo,
+      job.threadRootId,
+      signal,
+    )
   }
   const media: MediaDescriptor[] = []
   for (const attachment of job.attachments) {
@@ -337,7 +347,7 @@ async function uploadJob(job: UploadJob, epoch: number, signal: AbortSignal) {
     loaded: total,
     total,
   })
-  return sendE2EMessage(job.roomId, '', job.clientId, media, signal)
+  return sendE2EMessage(job.roomId, '', job.clientId, media, job.replyTo, job.threadRootId, signal)
 }
 
 const decodedSize = (value: string) =>
@@ -447,7 +457,7 @@ export function resumeMediaUploads() {
   return withUploadQueue(() => drainUploads(epoch))
 }
 
-export function pickAndSendMedia(conversationId: string) {
+export function pickAndSendMedia(conversationId: string, replyTo?: string, threadRootId?: string) {
   const epoch = mediaCacheEpoch()
   return withUploadQueue(async () => {
     // Retry a frozen job before allowing a new selection for the same room.
@@ -464,7 +474,14 @@ export function pickAndSendMedia(conversationId: string) {
     })
     requireMediaSession(epoch)
     if (picked.canceled || picked.assets.length === 0) return null
-    return persistAndSendAssets(conversationId, picked.assets.slice(0, 4), epoch)
+    return persistAndSendAssets(
+      conversationId,
+      picked.assets.slice(0, 4),
+      epoch,
+      undefined,
+      replyTo,
+      threadRootId,
+    )
   })
 }
 
@@ -473,6 +490,8 @@ async function persistAndSendAssets(
   assets: ImagePicker.ImagePickerAsset[],
   epoch: number,
   onPrepared?: () => void,
+  replyTo?: string,
+  threadRootId?: string,
 ) {
   requireMediaSession(epoch)
   const attachments: PreparedAttachment[] = []
@@ -498,7 +517,13 @@ async function persistAndSendAssets(
   }
   const { storage } = await getE2EContext()
   requireMediaSession(epoch)
-  const job: UploadJob = { roomId: conversationId, clientId: uuid(), attachments }
+  const job: UploadJob = {
+    roomId: conversationId,
+    clientId: uuid(),
+    attachments,
+    replyTo,
+    threadRootId,
+  }
   if (await getPrivateMetadata(storage, UPLOADS_KEY)) {
     for (const id of createdBlobs) await deleteFrozenCiphertext(id)
     throw new Error('Resume or discard the paused attachment before sending another.')
@@ -518,6 +543,8 @@ export function sendMediaAssets(
   conversationId: string,
   assets: ImagePicker.ImagePickerAsset[],
   onPrepared?: () => void,
+  replyTo?: string,
+  threadRootId?: string,
 ) {
   const epoch = mediaCacheEpoch()
   return withUploadQueue(async () => {
@@ -527,7 +554,7 @@ export function sendMediaAssets(
     await drainUploads(epoch)
     await publicOrigin()
     requireMediaSession(epoch)
-    return persistAndSendAssets(conversationId, assets, epoch, onPrepared)
+    return persistAndSendAssets(conversationId, assets, epoch, onPrepared, replyTo, threadRootId)
   })
 }
 
@@ -535,6 +562,8 @@ export async function sendVoiceRecording(
   conversationId: string,
   asset: ImagePicker.ImagePickerAsset,
   onPrepared?: () => void,
+  replyTo?: string,
+  threadRootId?: string,
 ) {
   const size = Platform.OS === 'web' ? (asset.file?.size ?? 0) : new File(asset.uri).size
   if (
@@ -547,10 +576,14 @@ export async function sendVoiceRecording(
     asset.duration > VOICE_MAX_DURATION_MS
   )
     throw new Error('Voice messages must be audio, at most 5 minutes and 10 MiB.')
-  return sendMediaAssets(conversationId, [asset], onPrepared)
+  return sendMediaAssets(conversationId, [asset], onPrepared, replyTo, threadRootId)
 }
 
-export async function pickAndSendFiles(conversationId: string) {
+export async function pickAndSendFiles(
+  conversationId: string,
+  replyTo?: string,
+  threadRootId?: string,
+) {
   const epoch = mediaCacheEpoch()
   // Open synchronously from the click before awaiting network work (web user activation).
   const result = await DocumentPicker.getDocumentAsync({
@@ -579,10 +612,14 @@ export async function pickAndSendFiles(conversationId: string) {
       ...(asset.size !== undefined ? { fileSize: asset.size } : {}),
     }),
   )
-  return sendMediaAssets(conversationId, assets)
+  return sendMediaAssets(conversationId, assets, undefined, replyTo, threadRootId)
 }
 
-export async function captureAndSendMedia(conversationId: string) {
+export async function captureAndSendMedia(
+  conversationId: string,
+  replyTo?: string,
+  threadRootId?: string,
+) {
   const epoch = mediaCacheEpoch()
   if (Platform.OS === 'web') {
     const file = await new Promise<globalThis.File | null>((resolve) => {
@@ -604,9 +641,13 @@ export async function captureAndSendMedia(conversationId: string) {
     if (!file) return null
     const uri = URL.createObjectURL(file)
     try {
-      return await sendMediaAssets(conversationId, [
-        { uri, file, fileName: file.name, mimeType: file.type, width: 0, height: 0 },
-      ])
+      return await sendMediaAssets(
+        conversationId,
+        [{ uri, file, fileName: file.name, mimeType: file.type, width: 0, height: 0 }],
+        undefined,
+        replyTo,
+        threadRootId,
+      )
     } finally {
       URL.revokeObjectURL(uri)
     }
@@ -622,7 +663,7 @@ export async function captureAndSendMedia(conversationId: string) {
   const picked = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 1 })
   requireMediaSession(epoch)
   if (picked.canceled) return null
-  return sendMediaAssets(conversationId, picked.assets)
+  return sendMediaAssets(conversationId, picked.assets, undefined, replyTo, threadRootId)
 }
 
 export function retryMediaUpload(id: string) {

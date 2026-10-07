@@ -196,6 +196,8 @@ export async function sendE2EMessage(
   text: string,
   clientId: string,
   media: MediaDescriptor[] = [],
+  replyTo?: string,
+  threadRootId?: string,
   signal?: AbortSignal,
 ): Promise<Message> {
   const previous = sendQueue
@@ -206,7 +208,15 @@ export async function sendE2EMessage(
   await previous
   try {
     signal?.throwIfAborted()
-    return await sendE2EMessageSerial(conversationId, text, clientId, media, signal)
+    return await sendE2EMessageSerial(
+      conversationId,
+      text,
+      clientId,
+      media,
+      replyTo,
+      threadRootId,
+      signal,
+    )
   } finally {
     release()
   }
@@ -217,12 +227,14 @@ async function sendE2EMessageSerial(
   text: string,
   clientId: string,
   media: MediaDescriptor[],
+  replyTo?: string,
+  threadRootId?: string,
   signal?: AbortSignal,
 ): Promise<Message> {
   if ((!text.trim() && media.length === 0) || text.length > 2000 || media.length > 4)
     throw new Error('Message must contain text or up to four media attachments')
   for (const descriptor of media) mediaDescriptorSchema.parse(descriptor)
-  const storedContent = encodeContent(text, media)
+  const storedContent = encodeContent(text, media, replyTo, threadRootId)
   const context = await getE2EContext()
   signal?.throwIfAborted()
   const { client, installId, storage, relay, userId, username } = context
@@ -235,13 +247,16 @@ async function sendE2EMessageSerial(
     }
     if (saved.content !== storedContent || saved.conversationId !== conversationId)
       throw new Error('Confirmed message content or conversation has changed')
+    const { ciphertext: _ciphertext, ...confirmed } = saved.response
     return {
-      ...saved.response,
+      ...confirmed,
       clientId,
       roomId: conversationId,
       userId,
       from: username,
       ...(text ? { text } : {}),
+      ...(replyTo ? { replyTo } : {}),
+      ...(threadRootId ? { threadRootId } : {}),
       ...(media.length ? { media } : {}),
       type: media.length ? 'media' : 'text',
     }
@@ -255,13 +270,16 @@ async function sendE2EMessageSerial(
       : null
     if (!saved || saved.content !== storedContent || saved.conversationId !== conversationId)
       throw new Error('Recovered message content or conversation has changed')
+    const { ciphertext: _ciphertext, ...confirmed } = recovered
     return {
-      ...recovered,
+      ...confirmed,
       clientId,
       roomId: conversationId,
       userId,
       from: username,
       ...(text ? { text } : {}),
+      ...(replyTo ? { replyTo } : {}),
+      ...(threadRootId ? { threadRootId } : {}),
       ...(media.length ? { media, attachmentIds: media.map((item) => item.id) } : {}),
     }
   }
@@ -272,13 +290,15 @@ async function sendE2EMessageSerial(
   if (!pending) {
     const recipients = await getFetcher<Array<{ userId: string; deviceId: number }>>(
       'e2e/relay/recipients',
-      { conversationId, installId },
+      { conversationId, installId, ...(threadRootId ? { threadRootId } : {}) },
     )
     const content = JSON.stringify({
       conversationId,
       clientId,
       senderId: userId,
       ...(text ? { text } : {}),
+      ...(replyTo ? { replyTo } : {}),
+      ...(threadRootId ? { threadRootId } : {}),
       ...(media.length ? { media } : {}),
     })
     const envelopes: EncryptedSend['envelopes'] = []
@@ -301,6 +321,8 @@ async function sendE2EMessageSerial(
       conversationId,
       clientId,
       installId,
+      ...(replyTo ? { replyTo } : {}),
+      ...(threadRootId ? { threadRootId } : {}),
       ...(media.length ? { attachmentIds: media.map((item) => item.id) } : {}),
       envelopes,
     } satisfies EncryptedSend)
@@ -339,13 +361,30 @@ async function sendE2EMessageSerial(
     index: sent.index,
     from: username,
     ...(text ? { text } : {}),
+    ...(replyTo ? { replyTo } : {}),
+    ...(threadRootId ? { threadRootId } : {}),
     ...(media.length ? { media, attachmentIds: media.map((item) => item.id) } : {}),
     type: media.length ? 'media' : 'text',
     timestamp: sent.timestamp,
   }
 }
 
+let decryptQueue = Promise.resolve()
 export async function decryptE2EMessage(message: Message): Promise<Message> {
+  const previous = decryptQueue
+  let release = () => {}
+  decryptQueue = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  await previous
+  try {
+    return await decryptE2EMessageSerial(message)
+  } finally {
+    release()
+  }
+}
+
+async function decryptE2EMessageSerial(message: Message): Promise<Message> {
   if (!message.ciphertext) return message
   const { client, storage, userId, deviceId, installId } = await getE2EContext()
   let cached = await getPrivateMetadata(storage, cacheKey(message.id))
@@ -356,6 +395,8 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
   if (cached !== null) {
     const { ciphertext: _ciphertext, ...rest } = message
     const content = decodeContent(cached)
+    if (message.replyTo !== content.replyTo || message.threadRootId !== content.threadRootId)
+      throw new Error('Cached reply target failed verification')
     verifyMediaIds(message.attachmentIds, content.media)
     return { ...rest, ...content }
   }
@@ -370,6 +411,8 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
       scheduleRecoveryBackup({ storage, userId, installId })
       const { ciphertext: _ciphertext, ...rest } = message
       const content = decodeContent(pendingText)
+      if (message.replyTo !== content.replyTo || message.threadRootId !== content.threadRootId)
+        throw new Error('Cached reply target failed verification')
       verifyMediaIds(message.attachmentIds, content.media)
       return { ...rest, ...content }
     }
@@ -398,15 +441,23 @@ export async function decryptE2EMessage(message: Message): Promise<Message> {
     throw new Error('Encrypted message metadata failed verification')
   }
   const contents = decryptedContentSchema.parse(decoded)
+  if (contents.replyTo !== message.replyTo || contents.threadRootId !== message.threadRootId)
+    throw new Error('Encrypted reply target failed verification')
   const media =
     contents.media === undefined ? [] : mediaDescriptorSchema.array().max(4).parse(contents.media)
   verifyMediaIds(message.attachmentIds, media)
-  await setPrivateMetadata(storage, cacheKey(message.id), encodeContent(contents.text ?? '', media))
+  await setPrivateMetadata(
+    storage,
+    cacheKey(message.id),
+    encodeContent(contents.text ?? '', media, contents.replyTo, contents.threadRootId),
+  )
   scheduleRecoveryBackup({ storage, userId, installId })
   const { ciphertext: _ciphertext, ...rest } = message
   return {
     ...rest,
     ...(contents.text ? { text: contents.text } : {}),
+    ...(contents.replyTo ? { replyTo: contents.replyTo } : {}),
+    ...(contents.threadRootId ? { threadRootId: contents.threadRootId } : {}),
     ...(media.length ? { media, type: 'media' } : {}),
   }
 }

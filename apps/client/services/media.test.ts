@@ -170,9 +170,19 @@ mock.module('./e2e', () => ({
     _text: string,
     clientId: string,
     media: MediaDescriptor[],
+    replyTo?: string,
+    threadRootId?: string,
   ) => {
     if (failMessageSend) throw new Error('Lost message response')
-    const message: Message = { id: crypto.randomUUID(), roomId, clientId, media, type: 'media' }
+    const message: Message = {
+      id: crypto.randomUUID(),
+      roomId,
+      clientId,
+      media,
+      type: 'media',
+      ...(replyTo ? { replyTo } : {}),
+      ...(threadRootId ? { threadRootId } : {}),
+    }
     sent.push(message)
     return message
   },
@@ -411,10 +421,27 @@ test('dropped media resumes frozen jobs and still sends the new drop without ope
   )
   try {
     const room = crypto.randomUUID()
-    await expect(sendMediaAssets(room, assets)).rejects.toThrow('Offline')
+    const root = crypto.randomUUID()
+    const target = crypto.randomUUID()
+    let prepared = 0
+    await expect(
+      sendMediaAssets(
+        room,
+        assets,
+        () => {
+          prepared++
+        },
+        target,
+        root,
+      ),
+    ).rejects.toThrow('Offline')
     expect(metadata.size).toBe(1)
+    expect(prepared).toBe(1)
     const message = await sendMediaAssets(room, assets)
     expect(sent.length - before).toBe(2)
+    expect(sent[before]?.threadRootId).toBe(root)
+    expect(sent[before]?.replyTo).toBe(target)
+    expect(message?.threadRootId).toBeUndefined()
     expect(message?.media?.[0]?.kind).toBe('gif')
     expect(sent[before]?.clientId).not.toBe(message?.clientId)
     expect(picks).toBe(picksBefore)

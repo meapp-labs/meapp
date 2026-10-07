@@ -26,9 +26,17 @@ function removeRecording(uri: string | null) {
 
 export function VoiceRecorder({
   conversationId,
+  replyTo,
+  threadRootId,
   onClose,
   onSent,
-}: { conversationId: string; onClose: () => void; onSent: () => void }) {
+}: {
+  conversationId: string
+  replyTo?: string | undefined
+  threadRootId?: string | undefined
+  onClose: () => void
+  onSent: () => void
+}) {
   const [uri, setUri] = useState<string | null>(null)
   const [duration, setDuration] = useState(0)
   const [busy, setBusy] = useState(false)
@@ -165,6 +173,8 @@ export function VoiceRecorder({
             : {}),
         },
         onClose,
+        replyTo,
+        threadRootId,
       )
       onSent()
       onClose()

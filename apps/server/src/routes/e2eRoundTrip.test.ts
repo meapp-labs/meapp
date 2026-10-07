@@ -323,12 +323,46 @@ it('encrypts DMs and groups for every recipient, and stores no plaintext', async
   ).toEqual({ state: 'linked', linked_to: clientId })
 
   const replyText = `reply-${crypto.randomUUID()}`
+  const threadClientId = crypto.randomUUID()
+  const threadContent = {
+    conversationId: room.id,
+    clientId: threadClientId,
+    senderId: bob.id,
+    threadRootId: sent.id,
+    text: replyText,
+  }
   const replyCiphertext = await bobClient.encryptMessage(
     ProtocolAddress.create(alice.id, 1),
-    replyText,
+    JSON.stringify(threadContent),
   )
-  expect(await aliceClient.decryptMessage(ProtocolAddress.create(bob.id, 1), replyCiphertext)).toBe(
-    replyText,
+  const threadReply = await api<{ id: string; sequence: number }>('send-message', bob.cookie, {
+    conversationId: room.id,
+    installId: bob.installId,
+    clientId: threadClientId,
+    threadRootId: sent.id,
+    envelopes: [{ targetUserId: alice.id, targetDeviceId: 1, ciphertext: replyCiphertext }],
+  })
+  const threadPage = await api<{
+    threadRoot: { id: string }
+    messages: Array<{ id: string; ciphertext: string; threadRootId: string }>
+  }>(
+    `get-messages?conversationId=${room.id}&installId=${alice.installId}&threadRootId=${sent.id}`,
+    alice.cookie,
+  )
+  expect(threadPage.threadRoot.id).toBe(sent.id)
+  const routedReply = threadPage.messages.find((message) => message.id === threadReply.id)
+  expect(routedReply?.threadRootId).toBe(sent.id)
+  expect(
+    JSON.parse(
+      await aliceClient.decryptMessage(ProtocolAddress.create(bob.id, 1), replyCiphertext),
+    ),
+  ).toEqual(threadContent)
+  const catchUp = await api<{ messages: Array<{ id: string; threadRootId?: string }> }>(
+    `get-messages?conversationId=${room.id}&installId=${alice.installId}&after=${sent.sequence}`,
+    alice.cookie,
+  )
+  expect(catchUp.messages.find((message) => message.id === threadReply.id)?.threadRootId).toBe(
+    sent.id,
   )
 
   const dbMessage = getDbInstance()

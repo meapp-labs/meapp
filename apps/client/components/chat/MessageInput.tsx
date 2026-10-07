@@ -1,11 +1,13 @@
 import { MaterialIcons } from '@expo/vector-icons'
 import { useQueryClient } from '@tanstack/react-query'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { StyleSheet, TextInput, TouchableOpacity, View } from 'react-native'
 import Toast from 'react-native-toast-message'
 
 import { Attachment } from '@/components/chat/Attachment'
+import { Text } from '@/components/common/Text'
 import { Keys } from '@/lib/keys'
+import { useAuthStore } from '@/lib/stores'
 import { uuid } from '@/lib/uuid'
 import { captureAndSendMedia, pickAndSendFiles, pickAndSendMedia } from '@/services/media'
 import { useSendMessage } from '@/services/messages'
@@ -13,24 +15,47 @@ import { theme } from '@/theme/theme'
 import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 import { MediaTransferPanel } from './MediaTransferPanel'
 import { VoiceRecorder } from './VoiceRecorder'
+import { useComposerDraft, useReplyDraft } from './replyDraft'
 
-export function MessageInput({ conversationId }: { conversationId: string }) {
-  const [inputData, setInputData] = useState('')
+export function MessageInput({
+  conversationId,
+  threadRootId,
+}: { conversationId: string; threadRootId?: string | undefined }) {
+  const draft = useReplyDraft()
+  const reply =
+    draft.roomId === conversationId && draft.threadRootId === (threadRootId ?? null)
+      ? draft.message
+      : null
+  useEffect(() => {
+    if (reply || threadRootId) inputRef.current?.focus()
+  }, [reply, threadRootId])
+  const username = useAuthStore((state) => state.username)
+  const scope = `${username}:${conversationId}:${threadRootId ?? 'main'}`
+  const inputData = useComposerDraft((state) => state.texts[scope] ?? '')
+  const setText = useComposerDraft((state) => state.setText)
+  const setInputData = (text: string) => setText(scope, text)
   const [mediaPending, setMediaPending] = useState(false)
   const [recording, setRecording] = useState(false)
   const queryClient = useQueryClient()
   const inputRef = useRef<TextInput>(null)
   const lastSubmitted = useRef<string | null>(null)
-  const retry = useRef<{ roomId: string; text: string; clientId: string } | null>(null)
+  const retry = useRef<{
+    roomId: string
+    text: string
+    clientId: string
+    replyTo?: string | undefined
+  } | null>(null)
 
-  const { mutateAsync, isPending } = useSendMessage({ conversationId })
+  const { mutateAsync, isPending } = useSendMessage({ conversationId, threadRootId })
 
   const handleMedia = async (picker = pickAndSendMedia) => {
     if (mediaPending || isPending) return
     setMediaPending(true)
     try {
-      const sent = await picker(conversationId)
+      const sent = await picker(conversationId, reply?.id, threadRootId)
       if (sent) {
+        if (sent.replyTo === reply?.id && useReplyDraft.getState().message?.id === reply?.id)
+          draft.clear()
         await Promise.all([
           queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_MESSAGES, conversationId] }),
           queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] }),
@@ -52,12 +77,15 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
     if (!submitted || isPending || lastSubmitted.current === submitted) return
     lastSubmitted.current = submitted
     const clientId =
-      retry.current?.roomId === conversationId && retry.current.text === submitted
+      retry.current?.roomId === conversationId &&
+      retry.current.text === submitted &&
+      retry.current.replyTo === reply?.id
         ? retry.current.clientId
         : uuid()
-    retry.current = { roomId: conversationId, text: submitted, clientId }
+    retry.current = { roomId: conversationId, text: submitted, clientId, replyTo: reply?.id }
     try {
-      await mutateAsync({ text: submitted, clientId })
+      await mutateAsync({ text: submitted, clientId, replyTo: reply?.id })
+      if (useReplyDraft.getState().message?.id === reply?.id) draft.clear()
       retry.current = null
       setInputData('')
       inputRef.current?.focus()
@@ -77,11 +105,27 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
       {recording && (
         <VoiceRecorder
           conversationId={conversationId}
+          replyTo={reply?.id}
+          threadRootId={threadRootId}
           onClose={() => setRecording(false)}
           onSent={() => {
             void queryClient.invalidateQueries()
           }}
         />
+      )}
+      {reply && (
+        <View style={styles.replyDraft}>
+          <MaterialIcons name="reply" size={22} color={theme.colors.primary} />
+          <View style={{ flex: 1 }}>
+            <Text style={styles.replyAuthor}>Replying to {reply.from}</Text>
+            <Text numberOfLines={2} style={styles.replyPreview}>
+              {reply.text ?? 'Attachment'}
+            </Text>
+          </View>
+          <TouchableOpacity accessibilityLabel="Cancel reply" onPress={draft.clear} hitSlop={12}>
+            <MaterialIcons name="close" size={22} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        </View>
       )}
       <View style={styles.container}>
         <View style={styles.attachment}>
@@ -98,7 +142,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
           style={styles.inputField}
           value={inputData}
           editable={!isPending}
-          placeholder="Type a message..."
+          placeholder={threadRootId ? 'Reply in thread…' : 'Type a message...'}
+          accessibilityLabel={threadRootId ? 'Reply in thread' : 'Message'}
           placeholderTextColor="#9BA1A6"
           onChangeText={(value) => {
             lastSubmitted.current = null
@@ -113,6 +158,8 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
         />
         <TouchableOpacity
           style={styles.send}
+          accessibilityRole="button"
+          accessibilityLabel={threadRootId ? 'Send thread reply' : 'Send message'}
           disabled={isPending}
           onPress={() => void handleSend()}
         >
@@ -124,6 +171,19 @@ export function MessageInput({ conversationId }: { conversationId: string }) {
 }
 
 const styles = StyleSheet.create({
+  replyDraft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    padding: 12,
+    marginHorizontal: 12,
+    backgroundColor: theme.colors.card,
+    borderRadius: 14,
+    borderLeftWidth: 3,
+    borderLeftColor: theme.colors.primary,
+  },
+  replyAuthor: { color: theme.colors.primary, fontSize: 12, fontWeight: '700' },
+  replyPreview: { color: theme.colors.textSecondary, fontSize: 13, marginTop: 3 },
   container: {
     justifyContent: 'center',
     marginHorizontal: theme.spacing.sm,
