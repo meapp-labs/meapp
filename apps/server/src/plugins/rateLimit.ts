@@ -1,21 +1,13 @@
 import { Elysia } from 'elysia'
 import { clientIpOf } from '../lib/clientIp.ts'
 import { ErrorCode } from '../lib/errors.ts'
+import { RATE_LIMIT_LUA } from '../lib/redisScripts.ts'
 import { authPlugin } from './auth.ts'
 import { redis } from './redis.ts'
 
 type Bucket = { count: number; reset: number }
 const inMemoryBuckets = new Map<string, Bucket>()
 let rateLimitPrefix = 'ratelimit'
-
-/** Atomic fixed-window counter: INCR + EXPIRE in one roundtrip. */
-const RATE_LIMIT_LUA = `
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then
-  redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1]))
-end
-return current
-`
 
 // Specific HTTP Rate Limits by method & route pattern
 export type RouteRule = {

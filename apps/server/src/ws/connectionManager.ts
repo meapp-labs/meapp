@@ -1,5 +1,6 @@
 import type Redis from 'ioredis'
 import { WS_CONFIG } from '../lib/config.ts'
+import { RATE_LIMIT_LUA } from '../lib/redisScripts.ts'
 
 export type WsSessionState = {
   authenticatedUserId?: string | undefined
@@ -73,12 +74,6 @@ for i = 1, 2 do
   if count > 0 then redis.call('DECR', KEYS[i]) end
 end
 return 1
-`
-
-const RATE_LIMIT_LUA = `
-local current = redis.call('INCR', KEYS[1])
-if current == 1 then redis.call('EXPIRE', KEYS[1], tonumber(ARGV[1])) end
-return current
 `
 
 export class WsConnectionManager {
