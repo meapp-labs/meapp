@@ -201,26 +201,25 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         } satisfies Conversation
       }
 
-      // Group conversation
+      // Group conversation — room and members must commit together or an
+      // orphan memberless room would be permanent garbage (nothing sweeps it).
       const roomId = Bun.randomUUIDv7()
       const groupName = name ?? 'Group'
+      const createdAtSeconds = Math.floor(Date.now() / 1000)
 
-      await getDbInstance().db.insert(schema.rooms).values({
-        id: roomId,
-        name: groupName,
-        type: 'group',
-        createdBy: me.id,
-      })
-
-      await getDbInstance()
-        .db.insert(schema.roomMembers)
-        .values(
-          userRecords.map((u) => ({
-            roomId,
-            userId: u.id,
-            role: u.id === me.id ? 'admin' : 'member',
-          })),
+      getDbInstance().sqlite.transaction(() => {
+        getDbInstance()
+          .sqlite.query(
+            'INSERT INTO rooms (id, name, type, created_by, created_at) VALUES (?, ?, ?, ?, ?)',
+          )
+          .run(roomId, groupName, 'group', me.id, createdAtSeconds)
+        const insertMember = getDbInstance().sqlite.query(
+          'INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)',
         )
+        for (const u of userRecords) {
+          insertMember.run(roomId, u.id, u.id === me.id ? 'admin' : 'member', createdAtSeconds)
+        }
+      })()
 
       set.status = 201
       return {
