@@ -1,6 +1,12 @@
 // biome-ignore lint: Process env is used
 const IS_PROD = process.env['APP_VARIANT'] === 'production'
 
+if (IS_PROD) {
+  const apiUrl = process.env.EXPO_PUBLIC_API_URL
+  if (!apiUrl || !URL.canParse(apiUrl) || new URL(apiUrl).protocol !== 'https:')
+    throw new Error('Production builds require an HTTPS EXPO_PUBLIC_API_URL')
+}
+
 const config = IS_PROD
   ? { packageName: 'com.meapp', appName: 'MeApp' }
   : { packageName: 'com.meapp.dev', appName: 'MeApp (dev)' }
@@ -37,6 +43,7 @@ export const expoConfig = {
       name: config.appName,
     },
     extra: {
+      appVariant: IS_PROD ? 'production' : 'development',
       eas: {
         projectId: 'afa26b45-ae5f-4382-99ec-43c30d6fcab2',
       },

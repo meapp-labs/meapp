@@ -7,7 +7,7 @@ import {
   mediaVariantSchema,
 } from '@meapp/shared'
 import { Elysia } from 'elysia'
-import { canAccessRoom } from '../lib/authz.ts'
+import { canAccessRoom, requireRoomInteraction } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { devSeedMediaOrigin } from '../lib/devSeed.ts'
 import { ApiError, ErrorCode, createAuthError, createValidationError } from '../lib/errors.ts'
@@ -79,6 +79,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
       requireMedia()
       const me = requireUser(user)
       if (!(await canAccessRoom(me.id, body.roomId))) throw createAuthError('Not a room member')
+      requireRoomInteraction(me.id, body.roomId)
       const sqlite = getDbInstance().sqlite
       const variants = [...body.variants].sort((a, b) => a.name.localeCompare(b.name))
       const variantsJson = JSON.stringify(variants)
@@ -86,6 +87,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
       let row: Row
       sqlite.exec('BEGIN IMMEDIATE')
       try {
+        requireRoomInteraction(me.id, body.roomId)
         const existing = sqlite
           .query('SELECT * FROM attachments WHERE sender_id=? AND client_id=?')
           .get(me.id, body.clientId) as Row | null
@@ -177,6 +179,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
       if (body.clientId !== row.client_id)
         throw createValidationError('Attachment client ID does not match')
       if (!(await canAccessRoom(me.id, row.room_id))) throw createAuthError('Not a room member')
+      requireRoomInteraction(me.id, row.room_id)
       if (row.state === 'expired' || row.state === 'deleting')
         throw new ApiError(ErrorCode.ITEM_NOT_FOUND, 'Attachment expired', 410)
       if (row.state === 'committed' || row.state === 'linked') return { ok: true }
@@ -190,6 +193,7 @@ export const mediaRoutes = new Elysia({ prefix: '/api/media' })
             409,
           )
       }
+      requireRoomInteraction(me.id, row.room_id)
       const result = sqlite
         .query(
           "UPDATE attachments SET state='committed',committed_at=? WHERE id=? AND state='pending'",

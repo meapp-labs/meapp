@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import { jwt } from '@elysiajs/jwt'
 import { Elysia, t } from 'elysia'
-import { canAccessRoom } from '../lib/authz.ts'
+import { roomInteractionAllowed } from '../lib/authz.ts'
 import { env } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { redisPlugin } from '../plugins/redis.ts'
@@ -40,7 +40,7 @@ export const wsTicketRoutes = new Elysia({ prefix: '/ws' })
       }
       const { roomId } = body
 
-      const can = await canAccessRoom(user.id, roomId)
+      const can = roomInteractionAllowed(user.id, roomId)
       if (!can) {
         set.status = 403
         return { error: 'Forbidden' }

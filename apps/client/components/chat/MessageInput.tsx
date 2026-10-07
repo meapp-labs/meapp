@@ -9,8 +9,10 @@ import { Text } from '@/components/common/Text'
 import { Keys } from '@/lib/keys'
 import { useAuthStore } from '@/lib/stores'
 import { uuid } from '@/lib/uuid'
+import { useSelectedConversation } from '@/services/conversations'
 import { captureAndSendMedia, pickAndSendFiles, pickAndSendMedia } from '@/services/media'
 import { useSendMessage } from '@/services/messages'
+import { useIgnoredUsers } from '@/services/others'
 import { theme } from '@/theme/theme'
 import { MESSAGE_MAX_LENGTH } from '@meapp/shared'
 import { MediaTransferPanel } from './MediaTransferPanel'
@@ -30,6 +32,12 @@ export function MessageInput({
     if (reply || threadRootId) inputRef.current?.focus()
   }, [reply, threadRootId])
   const username = useAuthStore((state) => state.username)
+  const conversation = useSelectedConversation()
+  const ignored = useIgnoredUsers()
+  const blocked =
+    conversation?.id === conversationId &&
+    !conversation.isGroup &&
+    conversation.participants.some((name) => name !== username && ignored.data?.includes(name))
   const scope = `${username}:${conversationId}:${threadRootId ?? 'main'}`
   const inputData = useComposerDraft((state) => state.texts[scope] ?? '')
   const setText = useComposerDraft((state) => state.setText)
@@ -49,7 +57,7 @@ export function MessageInput({
   const { mutateAsync, isPending } = useSendMessage({ conversationId, threadRootId })
 
   const handleMedia = async (picker = pickAndSendMedia) => {
-    if (mediaPending || isPending) return
+    if (blocked || mediaPending || isPending) return
     setMediaPending(true)
     try {
       const sent = await picker(conversationId, reply?.id, threadRootId)
@@ -74,7 +82,7 @@ export function MessageInput({
 
   const handleSend = async () => {
     const submitted = inputData.trim()
-    if (!submitted || isPending || lastSubmitted.current === submitted) return
+    if (blocked || !submitted || isPending || lastSubmitted.current === submitted) return
     lastSubmitted.current = submitted
     const clientId =
       retry.current?.roomId === conversationId &&
@@ -101,8 +109,13 @@ export function MessageInput({
 
   return (
     <View>
+      {blocked && (
+        <Text>
+          This account is blocked. Unblock it from the chat menu or settings to send messages.
+        </Text>
+      )}
       <MediaTransferPanel conversationId={conversationId} />
-      {recording && (
+      {recording && !blocked && (
         <VoiceRecorder
           conversationId={conversationId}
           replyTo={reply?.id}
@@ -134,14 +147,14 @@ export function MessageInput({
             onImagePress={() => void handleMedia()}
             onCameraPress={() => void handleMedia(captureAndSendMedia)}
             onVoicePress={() => setRecording(true)}
-            disabled={mediaPending || isPending}
+            disabled={blocked || mediaPending || isPending}
           />
         </View>
         <TextInput
           ref={inputRef}
           style={styles.inputField}
           value={inputData}
-          editable={!isPending}
+          editable={!blocked && !isPending}
           placeholder={threadRootId ? 'Reply in thread…' : 'Type a message...'}
           accessibilityLabel={threadRootId ? 'Reply in thread' : 'Message'}
           placeholderTextColor="#9BA1A6"
@@ -160,7 +173,7 @@ export function MessageInput({
           style={styles.send}
           accessibilityRole="button"
           accessibilityLabel={threadRootId ? 'Send thread reply' : 'Send message'}
-          disabled={isPending}
+          disabled={blocked || isPending}
           onPress={() => void handleSend()}
         >
           <MaterialIcons name="send" size={24} color={theme.colors.text} />

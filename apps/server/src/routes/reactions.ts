@@ -1,7 +1,7 @@
 import { getDbInstance } from '@meapp/db'
 import { type ReactionEntry, reactionOperationSchema, reactionSyncSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
-import { canAccessRoom } from '../lib/authz.ts'
+import { canAccessRoom, requireRoomInteraction } from '../lib/authz.ts'
 import { isE2EEnabled } from '../lib/config.ts'
 import { ApiError, ErrorCode, createAuthError, createForbiddenError } from '../lib/errors.ts'
 import { requireUser } from '../lib/session.ts'
@@ -32,6 +32,7 @@ export const reactionRoutes = new Elysia({ prefix: '/api' })
       const sqlite = getDbInstance().sqlite
       const result = sqlite
         .transaction(() => {
+          requireRoomInteraction(me.id, body.conversationId)
           const existing = sqlite
             .query(
               'SELECT revision, room_id, message_id, predecessor, emoji FROM reaction_operations WHERE user_id=? AND operation_id=?',

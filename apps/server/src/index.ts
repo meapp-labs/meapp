@@ -1,6 +1,7 @@
 import { cors } from '@elysiajs/cors'
 import { swagger } from '@elysiajs/swagger'
 import { checkpoint, getDbInstance, runMigrations } from '@meapp/db'
+import { E2E_SEND_MAX_BYTES } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
 import { env, isProduction } from './lib/config.ts'
@@ -180,7 +181,7 @@ if (import.meta.main) {
       port: env.PORT,
       hostname: env.HOST,
       // Socket-level cap — cannot be bypassed by chunked requests.
-      maxRequestBodySize: 700 * 1024,
+      maxRequestBodySize: E2E_SEND_MAX_BYTES,
       development: !isProduction,
     },
     () => {

@@ -2,7 +2,7 @@ import { getDbInstance } from '@meapp/db'
 import { Elysia, t } from 'elysia'
 import { requireThreadRoot, threadRecipientDevices } from '../lib/threads.ts'
 
-import { canAccessRoom } from '../lib/authz.ts'
+import { canAccessRoom, requireRoomInteraction } from '../lib/authz.ts'
 import { isE2EEnabled } from '../lib/config.ts'
 import {
   createAuthError,
@@ -405,6 +405,7 @@ export const e2eRelayRoutes = new Elysia({ prefix: '/api/e2e/relay' })
       if (!(await canAccessRoom(me.id, query.conversationId))) {
         throw createAuthError('You are not a participant in this conversation')
       }
+      requireRoomInteraction(me.id, query.conversationId)
       if (query.threadRootId) {
         const myDeviceId = requireRegistered(me.id, query.installId)
         requireThreadRoot(query.conversationId, query.threadRootId, me.id, myDeviceId)

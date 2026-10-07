@@ -15,6 +15,7 @@ import {
   confirmConversationSafetyNumber,
   getConversationSafetyNumber,
 } from '@/services/e2e'
+import { useIgnoreFriendRequest, useIgnoredUsers, useUnignoreUser } from '@/services/others'
 import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
@@ -48,6 +49,7 @@ export function ChatHeader() {
   const [showSafetyModal, setShowSafetyModal] = useState(false)
   const [safetyNumber, setSafetyNumber] = useState<SafetyNumber | null>(null)
   const [safetyError, setSafetyError] = useState('')
+  const [blockError, setBlockError] = useState('')
 
   const handlePress = () => {
     setSelectedConversationId(null)
@@ -64,6 +66,10 @@ export function ChatHeader() {
   // For DM, finding the other participant name for the delete modal
   const otherParticipant = selectedConversation?.participants.find((p) => p !== username) || ''
   const contact = useContactPresentation(isGroup ? '' : otherParticipant)
+  const blockedUsers = useIgnoredUsers()
+  const block = useIgnoreFriendRequest()
+  const unblock = useUnignoreUser()
+  const isBlocked = blockedUsers.data?.includes(otherParticipant) ?? false
   const displayName = isGroup ? getDisplayName(selectedConversation, username) : contact.name
 
   const openSafetyNumber = () => {
@@ -155,6 +161,34 @@ export function ChatHeader() {
                 </>
               ) : (
                 <>
+                  <TouchableOpacity
+                    style={styles.menuItem}
+                    disabled={
+                      block.isPending ||
+                      unblock.isPending ||
+                      blockedUsers.isPending ||
+                      blockedUsers.isError
+                    }
+                    onPress={() => {
+                      setBlockError('')
+                      void (isBlocked ? unblock : block)
+                        .mutateAsync(otherParticipant)
+                        .then(() => setShowMenu(false))
+                        .catch((error: unknown) =>
+                          setBlockError(
+                            error instanceof Error ? error.message : 'Could not update blocking',
+                          ),
+                        )
+                    }}
+                  >
+                    <MaterialIcons name="block" size={20} color={theme.colors.error} />
+                    <Text>{isBlocked ? 'Unblock account' : 'Block account'}</Text>
+                  </TouchableOpacity>
+                  {(blockError || blockedUsers.isError) && (
+                    <Text>
+                      {blockError || 'Could not load blocked accounts. Retry in settings.'}
+                    </Text>
+                  )}
                   <TouchableOpacity style={styles.menuItem} onPress={openSafetyNumber}>
                     <MaterialIcons name="verified-user" size={20} color={theme.colors.text} />
                     <Text>Verify encryption</Text>

@@ -29,6 +29,9 @@ export function DeviceLinkPanel({
   const [recoverError, setRecoverError] = useState(false)
   const [recoveryKey, setRecoveryKey] = useState('')
   const [recoveryAvailable, setRecoveryAvailable] = useState<boolean | null>(null)
+  const [recoveryStatusError, setRecoveryStatusError] = useState('')
+  const [recoveryRestorable, setRecoveryRestorable] = useState(true)
+  const [recoveryDate, setRecoveryDate] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [session, setSession] = useState<Awaited<ReturnType<typeof startDeviceLink>> | null>(null)
   const [historyTargetId, setHistoryTargetId] = useState<number | null>(null)
@@ -57,8 +60,16 @@ export function DeviceLinkPanel({
   useEffect(() => {
     if (mode !== 'recover' || Platform.OS !== 'web') return
     void recoveryStatus()
-      .then((status) => setRecoveryAvailable(status.available))
-      .catch(() => setRecoveryAvailable(false))
+      .then((status) => {
+        setRecoveryAvailable(status.available)
+        setRecoveryDate(status.updatedAt)
+        setRecoveryRestorable(status.restorable ?? true)
+      })
+      .catch(() =>
+        setRecoveryStatusError(
+          'Could not check backup availability. You can retry recovery with your saved key.',
+        ),
+      )
   }, [mode])
 
   useEffect(() => {
@@ -315,6 +326,24 @@ export function DeviceLinkPanel({
               <Text style={styles.stepText}>
                 Use a recovery key saved before the original browser was closed.
               </Text>
+              {recoveryStatusError && <Text>{recoveryStatusError}</Text>}
+              {!recoveryRestorable && (
+                <Text>
+                  This backup's linked device was revoked. Connect through another linked device to
+                  recover access.
+                </Text>
+              )}
+              {recoveryDate && (
+                <Text>Saved snapshot: {new Date(recoveryDate).toLocaleString()}</Text>
+              )}
+              <Text>
+                Only the saved snapshot is recoverable. Later messages may be lost. The original
+                browser loses access and future messages use new encryption sessions.
+              </Text>
+              <Text>
+                Send each contact a new message to restart the conversation. Messages sent on an old
+                session may be unreadable.
+              </Text>
               {recoveryAvailable === false ? (
                 <Text style={styles.stepText}>
                   No recovery backup exists for this account yet. An old device is required to
@@ -335,7 +364,7 @@ export function DeviceLinkPanel({
                   />
                   <Pressable
                     accessibilityRole="button"
-                    disabled={busy || !recoveryKey.trim()}
+                    disabled={busy || !recoveryRestorable || !recoveryKey.trim()}
                     style={[
                       styles.secondaryButton,
                       (busy || !recoveryKey.trim()) && styles.disabledButton,

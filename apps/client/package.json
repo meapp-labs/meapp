@@ -72,6 +72,7 @@
     "@babel/core": "^7.29.7",
     "@types/node": "^24.13.6",
     "@types/react": "~19.2.10",
+    "fake-indexeddb": "^6.2.5",
     "typescript": "~5.9.3"
   },
   "private": true,

@@ -2,7 +2,7 @@ import { jwt } from '@elysiajs/jwt'
 import { IdempotencyConflictError, getDbInstance, insertMessageWithSequence } from '@meapp/db'
 import { MESSAGE_MAX_LENGTH, messageWsIncomingSchema } from '@meapp/shared'
 import { Elysia, t } from 'elysia'
-import { canAccessRoom } from '../lib/authz.ts'
+import { requireRoomInteraction, roomInteractionAllowed } from '../lib/authz.ts'
 import { clientIpOf } from '../lib/clientIp.ts'
 import { WS_CONFIG, env, isE2EEnabled } from '../lib/config.ts'
 import { authPlugin } from '../plugins/auth.ts'
@@ -243,7 +243,7 @@ export const chatWs = new Elysia()
             return
           }
 
-          const can = await canAccessRoom(userId, roomId)
+          const can = roomInteractionAllowed(userId, roomId)
           if (!can) {
             ws.send(
               JSON.stringify({
@@ -299,12 +299,8 @@ export const chatWs = new Elysia()
           }
           state.subscribedRooms.add(roomId)
 
-          // Membership may have changed while awaiting Redis subscription limits.
-          if (
-            !getDbInstance()
-              .sqlite.query('SELECT 1 FROM room_members WHERE user_id=? AND room_id=?')
-              .get(userId, roomId)
-          ) {
+          // Membership or blocking may have changed while awaiting subscription limits.
+          if (!roomInteractionAllowed(userId, roomId)) {
             state.subscribedRooms.delete(roomId)
             await connectionManager.unsubscribeRoom(userId, roomId)
             ws.close(4403, 'Room membership revoked')
@@ -352,7 +348,7 @@ export const chatWs = new Elysia()
       // Handle subscribe event
       if (msg.type === 'subscribe') {
         const targetRoom = msg.payload.roomId
-        const can = await canAccessRoom(userId, targetRoom)
+        const can = roomInteractionAllowed(userId, targetRoom)
         if (!can) {
           ws.send(
             JSON.stringify({
@@ -377,12 +373,7 @@ export const chatWs = new Elysia()
           return
         }
 
-        if (
-          state.closed ||
-          !getDbInstance()
-            .sqlite.query('SELECT 1 FROM room_members WHERE user_id=? AND room_id=?')
-            .get(userId, targetRoom)
-        ) {
+        if (state.closed || !roomInteractionAllowed(userId, targetRoom)) {
           await connectionManager.unsubscribeRoom(userId, targetRoom)
           ws.send(
             JSON.stringify({
@@ -434,7 +425,7 @@ export const chatWs = new Elysia()
         const allowed = await connectionManager.checkTypingRateLimit(userId)
         if (!allowed) return
 
-        const can = await canAccessRoom(userId, targetRoom)
+        const can = roomInteractionAllowed(userId, targetRoom)
         if (!can) return
 
         const typingMsg = JSON.stringify({
@@ -495,7 +486,7 @@ export const chatWs = new Elysia()
           return
         }
 
-        const can = await canAccessRoom(userId, payload.roomId)
+        const can = roomInteractionAllowed(userId, payload.roomId)
         if (!can) {
           ws.send(
             JSON.stringify({
@@ -513,6 +504,7 @@ export const chatWs = new Elysia()
             userId,
             clientId: payload.clientId,
             text: payload.text,
+            mutation: () => requireRoomInteraction(userId, payload.roomId),
           })
 
           // Acknowledge sender

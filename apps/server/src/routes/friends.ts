@@ -2,6 +2,7 @@ import { eq, getDbInstance, schema } from '@meapp/db'
 import { addContactSchema } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
+import { contactBlocked } from '../lib/authz.ts'
 import {
   ErrorCode,
   createDuplicateItemError,
@@ -14,6 +15,7 @@ import {
 import { sendPushNotification } from '../lib/notification.ts'
 import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
+import { broadcastRevokeUserRoomAccess } from '../ws/chat.ts'
 
 type UserRow = typeof schema.users.$inferSelect
 
@@ -138,6 +140,8 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
       const other = await findUser(body.other)
       const sqlite = getDbInstance().sqlite
       sqlite.transaction(() => {
+        if (contactBlocked(me.id, other.id))
+          throw createForbiddenError('Friend request unavailable.')
         if (
           !exists(
             'SELECT 1 FROM friend_requests WHERE sender_id = ? AND recipient_id = ?',
@@ -199,6 +203,14 @@ export const friendRoutes = new Elysia({ prefix: '/api' })
           )
           .run(me.id, other.id, Math.floor(Date.now() / 1000))
       })()
+      const dms = sqlite
+        .query(`SELECT r.id FROM rooms r JOIN room_members a ON a.room_id=r.id
+        JOIN room_members b ON b.room_id=r.id WHERE r.type='dm' AND a.user_id=? AND b.user_id=?`)
+        .all(me.id, other.id) as { id: string }[]
+      for (const room of dms) {
+        await broadcastRevokeUserRoomAccess(me.id, room.id)
+        await broadcastRevokeUserRoomAccess(other.id, room.id)
+      }
       return body.other
     },
     { body: addContactSchema },

@@ -61,6 +61,7 @@ export function useIgnoreFriendRequest() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [Keys.Query.FRIEND_REQUESTS] })
       void queryClient.invalidateQueries({ queryKey: [Keys.Query.IGNORED_USERS] })
+      void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
     },
   })
 }
@@ -82,6 +83,7 @@ export function useUnignoreUser() {
     mutationFn: (other) => postFetcher<string, OtherInput>(Keys.Mutation.UNIGNORE_USER, { other }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [Keys.Query.IGNORED_USERS] })
+      void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
     },
   })
 }

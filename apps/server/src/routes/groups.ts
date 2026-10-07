@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { getDbInstance, insertMessageWithSequence } from '@meapp/db'
 import {
+  MAX_GROUP_MEMBERS,
   addGroupMemberSchema,
   createInviteSchema,
   joinInviteSchema,
@@ -22,7 +23,7 @@ import { requireUser } from '../lib/session.ts'
 import { authPlugin } from '../plugins/auth.ts'
 import { broadcastRevokeUserRoomAccess, broadcastToRoom } from '../ws/chat.ts'
 
-export const MAX_GROUP_MEMBERS = 100
+export { MAX_GROUP_MEMBERS } from '@meapp/shared'
 
 type Sqlite = ReturnType<typeof getDbInstance>['sqlite']
 function assertMembership(db: Sqlite, roomId: string, userId: string, admin = false) {

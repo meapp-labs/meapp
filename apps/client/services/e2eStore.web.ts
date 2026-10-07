@@ -1,12 +1,10 @@
 import type { SignalProtocolLocalStore } from '@open-e2ee/signal-protocol-sdk'
-import {
-  IndexedDbSignalProtocolStore,
-  indexedDbStore,
-} from '@open-e2ee/signal-protocol-sdk/local/store/web'
+import type { IndexedDbSignalProtocolStore } from '@open-e2ee/signal-protocol-sdk/local/store/web'
+import { MeappIndexedDbStore } from './e2eBrowserStore'
 
 const ACCOUNT_KEY = 'meapp:e2e:account'
 const stores = new Map<string, Promise<SignalProtocolLocalStore>>()
-let legacyStorePromise: ReturnType<typeof indexedDbStore> | null = null
+let legacyStorePromise: Promise<MeappIndexedDbStore> | null = null
 
 export const getE2EStore = (accountId: string): Promise<SignalProtocolLocalStore> => {
   if (typeof window === 'undefined' || !window.isSecureContext) {
@@ -16,11 +14,15 @@ export const getE2EStore = (accountId: string): Promise<SignalProtocolLocalStore
   if (!store) {
     store = (async () => {
       // Keep keys made before account-scoped storage accessible to their owner.
-      legacyStorePromise ??= indexedDbStore()
+      legacyStorePromise ??= (async () => {
+        const legacy = new MeappIndexedDbStore()
+        await legacy.initialize()
+        return legacy
+      })()
       const legacyStore = await legacyStorePromise
       if ((await legacyStore.getMetadata(ACCOUNT_KEY)) === accountId) return legacyStore
 
-      const accountStore = new IndexedDbSignalProtocolStore()
+      const accountStore = new MeappIndexedDbStore()
       // The SDK currently fixes dbName in its constructor and types it private.
       // Set it before initialize so each account has an independent key database.
       const dbName = `meapp-e2e-${accountId}`

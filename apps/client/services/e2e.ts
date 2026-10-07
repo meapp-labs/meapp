@@ -129,6 +129,8 @@ async function flushOutbox(context: E2EContext): Promise<Map<string, Message>> {
 async function openContext(): Promise<E2EContext> {
   const me = await getFetcher<{ id: string; username: string }>('me')
   const storage = await getE2EStore(me.id)
+  if (await storage.getMetadata('meapp:e2e:restore-pending'))
+    throw new Error('Complete the pending recovery before using encryption')
   const accountId = await storage.getMetadata(ACCOUNT_KEY)
   if (accountId && accountId !== me.id) {
     throw new Error('This installation has encryption keys for another account')
@@ -180,7 +182,11 @@ export function getE2EContext(): Promise<E2EContext> {
     contextPromise = null
     throw error
   })
-  return contextPromise
+  return contextPromise.then(async (context) => {
+    if (await context.storage.getMetadata('meapp:e2e:restore-pending'))
+      throw new Error('Complete the pending recovery before using encryption')
+    return context
+  })
 }
 
 export function resetE2EContext(): void {

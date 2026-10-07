@@ -3,6 +3,19 @@ import { Elysia } from 'elysia'
 import { getRouteRuleAndLimit, rateLimitPlugin, resetInMemoryRateLimits } from './rateLimit.ts'
 
 describe('Phase 8 - Rate Limiting & Body Limits', () => {
+  it('measures actual request bodies with missing or misleading Content-Length', async () => {
+    const app = new Elysia().use(rateLimitPlugin).post('/uploads', () => ({ success: true }))
+    for (const headers of [{}, { 'content-length': '1' }]) {
+      const response = await app.handle(
+        new Request('http://localhost/uploads', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...headers },
+          body: JSON.stringify({ data: 'A'.repeat(101 * 1024) }),
+        }),
+      )
+      expect(response.status).toBe(413)
+    }
+  })
   it('identifies correct route rules and limits', () => {
     const loginRule = getRouteRuleAndLimit('POST', '/api/login')
     expect(loginRule.max).toBe(5)

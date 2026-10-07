@@ -25,7 +25,7 @@ import {
 } from '@meapp/shared'
 import { Elysia } from 'elysia'
 
-import { canAccessRoom } from '../lib/authz.ts'
+import { canAccessRoom, contactBlocked, requireRoomInteraction } from '../lib/authz.ts'
 import { env, isE2EEnabled } from '../lib/config.ts'
 import { chatTimestampIso } from '../lib/dbTime.ts'
 import { devSeedContent } from '../lib/devSeed.ts'
@@ -98,6 +98,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         if (!u1 || !u2) {
           throw createValidationError('Participants not found')
         }
+        if (contactBlocked(u1.id, u2.id)) throw createForbiddenError('Conversation unavailable')
 
         // Single grouped query for the existing DM room (no N+1):
         // a 2-member room containing exactly these two users.
@@ -137,6 +138,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
         const dmName = name ?? `${first} & ${second}`
 
         getDbInstance().sqlite.transaction(() => {
+          if (contactBlocked(u1.id, u2.id)) throw createForbiddenError('Conversation unavailable')
           if (
             !getDbInstance()
               .sqlite.query('SELECT 1 FROM contacts WHERE user_id = ? AND contact_user_id = ?')
@@ -217,6 +219,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
           'INSERT INTO room_members (room_id, user_id, role, joined_at) VALUES (?, ?, ?, ?)',
         )
         for (const u of userRecords) {
+          if (contactBlocked(me.id, u.id)) throw createForbiddenError('Conversation unavailable')
           insertMember.run(roomId, u.id, u.id === me.id ? 'admin' : 'member', createdAtSeconds)
         }
       })()
@@ -381,6 +384,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
       if (!canAccess) {
         throw createAuthError('You are not a participant in this conversation')
       }
+      requireRoomInteraction(me.id, conversationId)
 
       const conversation = await getDbInstance()
         .db.select()
@@ -474,6 +478,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
             userId: me.id,
             clientId: msgClientId,
             attachmentIds,
+            mutation: () => requireRoomInteraction(me.id, conversationId),
             ...(isEnvelopeSend && body.replyTo ? { replyTo: body.replyTo } : {}),
             ...(isEnvelopeSend && body.threadRootId ? { threadRootId: body.threadRootId } : {}),
             ...(isEnvelopeSend
@@ -569,6 +574,7 @@ export const messageRoutes = new Elysia({ prefix: '/api' })
               )
             : null
         for (const member of otherMembers) {
+          if (conversation.type === 'dm' && contactBlocked(me.id, member.userId)) continue
           if (followers && (!followers.has(member.userId) || !audience?.has(member.userId)))
             continue
           if (member.pushToken) {

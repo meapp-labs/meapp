@@ -3,6 +3,10 @@ import { attachmentIdsSchema } from './media.ts'
 
 /** The server stores and relays these opaque SDK ciphertexts per recipient. */
 export const E2E_CIPHERTEXT_MAX = 12 * 1024
+export const MAX_GROUP_MEMBERS = 100
+export const E2E_MAX_RECIPIENT_DEVICES = MAX_GROUP_MEMBERS * 5
+// Maximum ciphertext plus JSON escaping and routing metadata for every device.
+export const E2E_SEND_MAX_BYTES = E2E_MAX_RECIPIENT_DEVICES * (E2E_CIPHERTEXT_MAX * 6 + 256) + 4096
 export const CIPHERTEXT_TYPE_WHISPER = 1
 
 export const encryptedSendSchema = z
@@ -22,7 +26,7 @@ export const encryptedSendSchema = z
         }),
       )
       .min(1)
-      .max(50),
+      .max(E2E_MAX_RECIPIENT_DEVICES),
   })
   .refine((send) => !send.replyTo || Boolean(send.threadRootId), {
     message: 'Replies require a thread root',

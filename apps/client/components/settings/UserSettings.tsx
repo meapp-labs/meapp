@@ -1,4 +1,5 @@
 import MaterialIcons from '@expo/vector-icons/MaterialIcons'
+import { router } from 'expo-router'
 import type React from 'react'
 import { useState } from 'react'
 import { Modal, Pressable, ScrollView, StyleSheet, TouchableHighlight, View } from 'react-native'
@@ -6,6 +7,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, TouchableHighlight, View } fr
 import { Text } from '@/components/common/Text'
 import { theme } from '@/theme/theme'
 
+import { BlockedUsers } from './BlockedUsers'
 import { DeviceLinkPanel } from './DeviceLinkPanel'
 import { Notifications } from './Notifications'
 import { RecoveryKeyPanel } from './RecoveryKeyPanel'
@@ -29,7 +31,7 @@ const optionsPlaceholder: {
     icon: 'mark-chat-unread',
     component: Notifications,
   },
-  { name: 'Blocked Users', icon: 'block' },
+  { name: 'Blocked Users', icon: 'block', component: BlockedUsers },
   { name: 'Account Settings', icon: 'settings' },
 ]
 export function UserSettings({ showSettings, setShowSettings }: UserSettingsProps) {
@@ -62,7 +64,12 @@ export function UserSettings({ showSettings, setShowSettings }: UserSettingsProp
                     <Pressable
                       key={item.name}
                       style={[styles.option, pressed === item.name && styles.optionPressed]}
-                      onPress={() => setPressed(item.name)}
+                      onPress={() => {
+                        if (item.name === 'Personal Info') {
+                          setShowSettings(false)
+                          router.push('/profile')
+                        } else setPressed(item.name)
+                      }}
                     >
                       <View style={styles.iconsWtext}>
                         <MaterialIcons

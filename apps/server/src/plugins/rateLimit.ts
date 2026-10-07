@@ -1,3 +1,4 @@
+import { E2E_SEND_MAX_BYTES } from '@meapp/shared'
 import { Elysia } from 'elysia'
 import { clientIpOf } from '../lib/clientIp.ts'
 import { ErrorCode } from '../lib/errors.ts'
@@ -215,32 +216,57 @@ export const resetInMemoryRateLimits = (): void => {
   rateLimitPrefix = `meapp:test:${crypto.randomUUID()}:ratelimit`
 }
 
+function bodyLimit(request: Request): number {
+  const path = new URL(request.url).pathname
+  if (request.method === 'POST' && path === '/api/send-message') return E2E_SEND_MAX_BYTES
+  if (
+    request.method === 'POST' &&
+    [
+      '/api/e2e/relay/prekeys',
+      '/api/e2e/link/history',
+      '/api/e2e/recovery/backup/chunk',
+      '/api/e2e/recovery/backup',
+    ].includes(path)
+  )
+    return 700 * 1024
+  return 100 * 1024
+}
+
 export const rateLimitPlugin = new Elysia({ name: 'rateLimit' })
   .use(authPlugin)
+  .onRequest(async ({ request, set }) => {
+    const maxBytes = bodyLimit(request)
+    const tooLarge = () => {
+      set.status = 413
+      return { message: 'Payload too large', code: ErrorCode.PAYLOAD_TOO_LARGE }
+    }
+    if (Number(request.headers.get('content-length')) > maxBytes) return tooLarge()
+    // Keep smaller route limits even when the socket cap permits large group sends.
+    // Count actual bytes before parsing; an absent or false length cannot bypass this.
+    const reader = request.body ? request.clone().body?.getReader() : undefined
+    if (!reader) return undefined
+    let bytes = 0
+    try {
+      while (true) {
+        const chunk = await reader.read()
+        if (chunk.done) return undefined
+        bytes += chunk.value.byteLength
+        if (bytes > maxBytes) {
+          void reader.cancel().catch(() => undefined)
+          return tooLarge()
+        }
+      }
+    } finally {
+      reader.releaseLock()
+    }
+  })
+  .as('global')
   .onBeforeHandle({ as: 'global' }, async ({ user, request, set, server }) => {
     const url = new URL(request.url)
     const path = url.pathname
     const method = request.method
 
     const ip = clientIpOf(request, server)
-
-    // E2E group sends contain one ciphertext per recipient; key publication
-    // contains a batch of post-quantum public keys. The socket enforces 700KB.
-    const contentLength = request.headers.get('content-length')
-    if (contentLength) {
-      const bytes = Number.parseInt(contentLength, 10)
-      const needsE2EBatch =
-        method === 'POST' &&
-        (path === '/api/send-message' ||
-          path === '/api/e2e/relay/prekeys' ||
-          path === '/api/e2e/link/history' ||
-          path === '/api/e2e/recovery/backup/chunk')
-      const maxBytes = needsE2EBatch ? 700 * 1024 : 100 * 1024
-      if (bytes > maxBytes) {
-        set.status = 413
-        return { message: 'Payload too large', code: ErrorCode.PAYLOAD_TOO_LARGE }
-      }
-    }
 
     const matched = getRouteRuleAndLimit(method, path)
     const identifier = matched.perIp ? ip : user?.id || ip

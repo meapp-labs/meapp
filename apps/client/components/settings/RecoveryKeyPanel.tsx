@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Platform, Pressable, StyleSheet, View } from 'react-native'
 
 import { Text } from '@/components/common/Text'
@@ -12,16 +12,32 @@ export function RecoveryKeyPanel() {
   const [updatedAt, setUpdatedAt] = useState<number | null>(null)
   const [message, setMessage] = useState('')
   const [busy, setBusy] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+  const [canUpdate, setCanUpdate] = useState(false)
+  const [lastError, setLastError] = useState<string | null>(null)
+  const [restorable, setRestorable] = useState(true)
+
+  const loadStatus = useCallback(async () => {
+    try {
+      const status = await recoveryStatus()
+      setAvailable(status.available)
+      setUpdatedAt(status.updatedAt)
+      setCanUpdate(status.canUpdate ?? false)
+      setLastError(status.lastError ?? null)
+      setRestorable(status.restorable ?? true)
+      setLoaded(true)
+    } catch (error) {
+      setLoaded(false)
+      setLastError(error instanceof Error ? error.message : 'Could not check backup status')
+    }
+  }, [])
 
   useEffect(() => {
     if (Platform.OS !== 'web') return
-    void recoveryStatus()
-      .then((status) => {
-        setAvailable(status.available)
-        setUpdatedAt(status.updatedAt)
-      })
-      .catch(() => undefined)
-  }, [])
+    void loadStatus()
+    const timer = setInterval(() => void loadStatus(), 15000)
+    return () => clearInterval(timer)
+  }, [loadStatus])
 
   if (Platform.OS !== 'web') {
     return <Text>Recovery keys are currently available in the web app.</Text>
@@ -34,8 +50,7 @@ export function RecoveryKeyPanel() {
       const context = await getE2EContext()
       const generated = await createRecoveryKey(context)
       setKey(generated)
-      setAvailable(true)
-      setUpdatedAt(Date.now())
+      await loadStatus()
       setMessage('Backup saved. Keep this key somewhere outside this browser.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not create recovery backup')
@@ -49,7 +64,7 @@ export function RecoveryKeyPanel() {
     setMessage('')
     try {
       await uploadRecoveryBackup(await getE2EContext())
-      setUpdatedAt(Date.now())
+      await loadStatus()
       setMessage('Encrypted backup updated.')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not update recovery backup')
@@ -71,7 +86,34 @@ export function RecoveryKeyPanel() {
           Backup: {updatedAt ? new Date(updatedAt).toLocaleString() : 'available'}
         </Text>
       )}
-      <Pressable disabled={busy} style={styles.button} onPress={() => void create()}>
+      <Text style={styles.detail}>
+        {loaded && !available
+          ? 'No saved backup yet.'
+          : !loaded
+            ? 'Backup status unavailable. Check again before relying on recovery.'
+            : ''}
+        {'\n'}Encrypted upload limit: 50 MB. Incomplete uploads expire after one hour. Only the
+        backup owner can update it.
+        {'\n'}Recovery restores the saved snapshot. Messages after that date may be lost. Sending
+        starts fresh encryption sessions; the original browser loses access.
+      </Text>
+      {loaded && available && !canUpdate && (
+        <Text>This backup belongs to another linked device.</Text>
+      )}
+      {loaded && available && !restorable && (
+        <Text>
+          The backup's linked device was revoked. This backup cannot restore device access.
+        </Text>
+      )}
+      {lastError && <Text>Last backup error: {lastError}</Text>}
+      <Pressable style={styles.secondaryButton} onPress={() => void loadStatus()}>
+        <Text>Check backup status</Text>
+      </Pressable>
+      <Pressable
+        disabled={busy || !loaded || !canUpdate}
+        style={styles.button}
+        onPress={() => void create()}
+      >
         <Text style={styles.buttonText}>
           {busy ? 'Working…' : available ? 'Show recovery key' : 'Create recovery key'}
         </Text>
@@ -86,7 +128,7 @@ export function RecoveryKeyPanel() {
           </Pressable>
         </View>
       ) : null}
-      {available && (
+      {available && canUpdate && (
         <Pressable disabled={busy} style={styles.secondaryButton} onPress={() => void refresh()}>
           <Text style={styles.secondaryText}>Update backup now</Text>
         </Pressable>

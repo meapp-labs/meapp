@@ -1,9 +1,11 @@
 import { getFetcher, isApiHttpError, postFetcher } from '@/lib/api'
+import { useAuthStore } from '@/lib/stores'
 import { uuid } from '@/lib/uuid'
 import { type ReactionOperation, type ReactionSync, reactionOperationSchema } from '@meapp/shared'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { getE2EContext } from './e2e'
 import { getPrivateMetadata, setPrivateMetadata } from './e2ePrivateMetadata'
+import { drainReactionOutbox } from './reactionRetry'
 import { mergeReactions } from './reactionState'
 
 let queue = Promise.resolve()
@@ -23,28 +25,25 @@ async function withQueue<T>(action: () => Promise<T>): Promise<T> {
 
 async function flush(roomId: string, operation?: ReactionOperation) {
   return withQueue(async () => {
-    const { storage } = await getE2EContext()
+    const { storage, username, installId } = await getE2EContext()
     const key = `meapp:reactions:outbox:v1:${roomId}`
     const raw = await getPrivateMetadata(storage, key)
-    let pending = raw ? reactionOperationSchema.array().parse(JSON.parse(raw)) : []
+    const pending = raw ? reactionOperationSchema.array().parse(JSON.parse(raw)) : []
     if (operation && !pending.some((entry) => entry.operationId === operation.operationId)) {
       pending.push(operation)
       await setPrivateMetadata(storage, key, JSON.stringify(pending))
     }
-    for (const entry of [...pending]) {
-      try {
-        await postFetcher('reactions', entry)
-      } catch (error) {
-        // Conflicts are terminal. Network failures keep the exact operation for retry.
-        if (isApiHttpError(error) && error.status >= 400 && error.status < 500) {
-          pending = pending.filter((item) => item.operationId !== entry.operationId)
-          await setPrivateMetadata(storage, key, JSON.stringify(pending))
-        }
-        throw error
-      }
-      pending = pending.filter((item) => item.operationId !== entry.operationId)
-      await setPrivateMetadata(storage, key, JSON.stringify(pending))
-    }
+    await drainReactionOutbox(
+      pending,
+      async (entry) => {
+        if (useAuthStore.getState().username !== username)
+          throw new Error('Account changed; retry after signing in')
+        // Recovery changes only the authentication binding, preserving operation identity.
+        return postFetcher('reactions', { ...entry, installId })
+      },
+      (remaining) => setPrivateMetadata(storage, key, JSON.stringify(remaining)),
+      (error) => (isApiHttpError(error) ? error.status : undefined),
+    )
   })
 }
 
