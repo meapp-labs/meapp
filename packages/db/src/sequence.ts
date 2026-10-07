@@ -43,6 +43,10 @@ export const insertMessageWithSequence = async (
   afterInsert?: (messageId: string) => void,
 ): Promise<SequenceResult> => {
   const storedText = opts.text ?? null
+  // Retry requests may rebuild the attachment list from a Set or re-selection,
+  // so order is not semantic. Normalizing keeps (userId, clientId) idempotency
+  // stable across retries and makes stored rows comparable.
+  const attachmentIds = [...(opts.attachmentIds ?? [])].sort()
   const readExisting = (): SequenceResult | null => {
     const existing = sqlite
       .query(
@@ -67,7 +71,7 @@ export const insertMessageWithSequence = async (
       existing.roomId !== opts.roomId ||
       existing.replyTo !== (opts.replyTo ?? null) ||
       existing.threadRootId !== (opts.threadRootId ?? null) ||
-      existing.attachmentIds !== JSON.stringify(opts.attachmentIds ?? []) ||
+      existing.attachmentIds !== JSON.stringify(attachmentIds) ||
       existing.text !== storedText ||
       existing.ciphertext !== (opts.ciphertext ?? null) ||
       existing.ciphertextType !== (opts.ciphertextType ?? null) ||
@@ -109,7 +113,7 @@ export const insertMessageWithSequence = async (
             opts.clientId,
             opts.roomId,
             opts.userId,
-            JSON.stringify(opts.attachmentIds ?? []),
+            JSON.stringify(attachmentIds),
             opts.deviceId ?? null,
             opts.senderProtocolDeviceId ?? 1,
             nextSeq,
