@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "7fbe8378-07cc-4f5e-8c06-dcef586c359c",
+  "id": "77e76df2-d568-4d67-9542-319c028742e4",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "attachments": {
@@ -909,6 +909,20 @@
           "notNull": true,
           "autoincrement": false
         },
+        "reply_to": {
+          "name": "reply_to",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "thread_root_id": {
+          "name": "thread_root_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
         "attachment_ids": {
           "name": "attachment_ids",
           "type": "text",
@@ -995,6 +1009,15 @@
           "name": "idx_room_sequence",
           "columns": [
             "room_id",
+            "sequence"
+          ],
+          "isUnique": false
+        },
+        "messages_thread_sequence": {
+          "name": "messages_thread_sequence",
+          "columns": [
+            "room_id",
+            "thread_root_id",
             "sequence"
           ],
           "isUnique": false
@@ -1196,6 +1219,131 @@
         "profile_avatars_user_id_users_id_fk": {
           "name": "profile_avatars_user_id_users_id_fk",
           "tableFrom": "profile_avatars",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {}
+    },
+    "reaction_operations": {
+      "name": "reaction_operations",
+      "columns": {
+        "revision": {
+          "name": "revision",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "operation_id": {
+          "name": "operation_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "predecessor": {
+          "name": "predecessor",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "emoji": {
+          "name": "emoji",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "reaction_room_revision": {
+          "name": "reaction_room_revision",
+          "columns": [
+            "room_id",
+            "revision"
+          ],
+          "isUnique": false
+        },
+        "reaction_target_author": {
+          "name": "reaction_target_author",
+          "columns": [
+            "message_id",
+            "user_id",
+            "revision"
+          ],
+          "isUnique": false
+        },
+        "reaction_user_operation": {
+          "name": "reaction_user_operation",
+          "columns": [
+            "user_id",
+            "operation_id"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {
+        "reaction_operations_room_id_rooms_id_fk": {
+          "name": "reaction_operations_room_id_rooms_id_fk",
+          "tableFrom": "reaction_operations",
+          "tableTo": "rooms",
+          "columnsFrom": [
+            "room_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reaction_operations_message_id_messages_id_fk": {
+          "name": "reaction_operations_message_id_messages_id_fk",
+          "tableFrom": "reaction_operations",
+          "tableTo": "messages",
+          "columnsFrom": [
+            "message_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "reaction_operations_user_id_users_id_fk": {
+          "name": "reaction_operations_user_id_users_id_fk",
+          "tableFrom": "reaction_operations",
           "tableTo": "users",
           "columnsFrom": [
             "user_id"

@@ -123,6 +123,8 @@ export const messages = sqliteTable(
   {
     id: text('id').primaryKey(),
     clientId: text('client_id').notNull(),
+    replyTo: text('reply_to'),
+    threadRootId: text('thread_root_id'),
     attachmentIds: text('attachment_ids').notNull().default('[]'),
     roomId: text('room_id')
       .notNull()
@@ -145,6 +147,7 @@ export const messages = sqliteTable(
     unique('messages_user_client_unique').on(t.userId, t.clientId),
     unique('messages_room_sequence_unique').on(t.roomId, t.sequence),
     index('idx_room_sequence').on(t.roomId, t.sequence),
+    index('messages_thread_sequence').on(t.roomId, t.threadRootId, t.sequence),
     index('messages_room_idx').on(t.roomId),
     index('messages_user_idx').on(t.userId),
   ],
@@ -152,6 +155,32 @@ export const messages = sqliteTable(
 
 export type Message = typeof messages.$inferSelect
 export type NewMessage = typeof messages.$inferInsert
+
+// Durable reaction operations use their own revision cursor, never message sequences.
+// Emoji and authorship are server-visible interaction metadata; message content stays E2E.
+export const reactionOperations = sqliteTable(
+  'reaction_operations',
+  {
+    revision: integer('revision').primaryKey({ autoIncrement: true }),
+    operationId: text('operation_id').notNull(),
+    roomId: text('room_id')
+      .notNull()
+      .references(() => rooms.id, { onDelete: 'cascade' }),
+    messageId: text('message_id')
+      .notNull()
+      .references(() => messages.id, { onDelete: 'cascade' }),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    predecessor: integer('predecessor').notNull(),
+    emoji: text('emoji'),
+  },
+  (t) => [
+    unique('reaction_user_operation').on(t.userId, t.operationId),
+    index('reaction_room_revision').on(t.roomId, t.revision),
+    index('reaction_target_author').on(t.messageId, t.userId, t.revision),
+  ],
+)
 
 // Exact acknowledgements avoid treating sequence gaps or unavailable history as read.
 // A user receipt aggregates successful processing by any of their linked devices.

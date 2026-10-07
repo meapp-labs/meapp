@@ -13,6 +13,8 @@ export type MessageInsert = {
   roomId: string
   userId: string
   clientId: string
+  replyTo?: string
+  threadRootId?: string
   attachmentIds?: string[]
   /** Plaintext for unencrypted messages; omit for E2E messages. */
   text?: string
@@ -44,13 +46,15 @@ export const insertMessageWithSequence = async (
   const readExisting = (): SequenceResult | null => {
     const existing = sqlite
       .query(
-        'SELECT id, room_id as roomId, sequence, attachment_ids as attachmentIds, text, ciphertext, ciphertext_type as ciphertextType, device_id as deviceId, sender_protocol_device_id as senderProtocolDeviceId, created_at as createdAt FROM messages WHERE user_id = ? AND client_id = ?',
+        'SELECT id, room_id as roomId, sequence, attachment_ids as attachmentIds, reply_to as replyTo, thread_root_id as threadRootId, text, ciphertext, ciphertext_type as ciphertextType, device_id as deviceId, sender_protocol_device_id as senderProtocolDeviceId, created_at as createdAt FROM messages WHERE user_id = ? AND client_id = ?',
       )
       .get(opts.userId, opts.clientId) as {
       id: string
       roomId: string
       sequence: number
       attachmentIds: string
+      replyTo: string | null
+      threadRootId: string | null
       text: string | null
       ciphertext: string | null
       ciphertextType: number | null
@@ -61,6 +65,8 @@ export const insertMessageWithSequence = async (
     if (!existing) return null
     if (
       existing.roomId !== opts.roomId ||
+      existing.replyTo !== (opts.replyTo ?? null) ||
+      existing.threadRootId !== (opts.threadRootId ?? null) ||
       existing.attachmentIds !== JSON.stringify(opts.attachmentIds ?? []) ||
       existing.text !== storedText ||
       existing.ciphertext !== (opts.ciphertext ?? null) ||
@@ -96,7 +102,7 @@ export const insertMessageWithSequence = async (
         const createdAt = Math.floor(Date.now() / 1000)
         sqlite
           .query(
-            'INSERT INTO messages (id, client_id, room_id, user_id, attachment_ids, device_id, sender_protocol_device_id, sequence, text, ciphertext, ciphertext_type, is_encrypted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            'INSERT INTO messages (id, client_id, room_id, user_id, attachment_ids, device_id, sender_protocol_device_id, sequence, reply_to, thread_root_id, text, ciphertext, ciphertext_type, is_encrypted, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
           )
           .run(
             id,
@@ -107,6 +113,8 @@ export const insertMessageWithSequence = async (
             opts.deviceId ?? null,
             opts.senderProtocolDeviceId ?? 1,
             nextSeq,
+            opts.replyTo ?? null,
+            opts.threadRootId ?? null,
             storedText,
             opts.ciphertext ?? null,
             opts.ciphertextType ?? null,

@@ -15,12 +15,13 @@ import { uuid } from '@/lib/uuid'
 import { decryptE2EMessage, getE2EInstallId, sendE2EMessage } from '@/services/e2e'
 import type { Conversation, Message, MessagesResponse } from '@meapp/shared'
 import { messagePreview } from './messagePreview'
+import { syncRoomEnvelopes } from './threadSync'
 
 // Re-export: notification.ts consumes MessagesResponse from this module.
 export type { MessagesResponse } from '@meapp/shared'
 
 /** Cache shape for the paginated message list. Pages hold ascending sequences. */
-type MessagesCache = {
+export type MessagesCache = {
   pages: MessagesResponse[]
   pageParams: { after?: number; before?: number }[]
 }
@@ -135,44 +136,67 @@ type SendMessageContext = {
   optimisticId: string
 }
 
-export function useSendMessage({ conversationId }: { conversationId: string }) {
+export const messageQueryKey = (conversationId: string, threadRootId?: string) =>
+  threadRootId
+    ? [Keys.Query.GET_MESSAGES, conversationId, threadRootId]
+    : [Keys.Query.GET_MESSAGES, conversationId]
+
+export function useSendMessage({
+  conversationId,
+  threadRootId,
+}: { conversationId: string; threadRootId?: string | undefined }) {
   const queryClient = useQueryClient()
 
-  return useMutation<Message, ApiError, { text: string; clientId: string }, SendMessageContext>({
+  return useMutation<
+    Message,
+    ApiError,
+    { text: string; clientId: string; replyTo?: string | undefined },
+    SendMessageContext
+  >({
     retry: (failureCount, error) =>
       failureCount < 1 && (!isApiHttpError(error) || error.status >= 500),
-    mutationFn: ({ text, clientId }) => {
+    mutationFn: ({ text, clientId, replyTo }) => {
       // The key is created before mutation execution, so automatic retries
       // reuse it even if the first response was lost after the server committed.
-      return sendE2EMessage(conversationId, text, clientId)
+      return sendE2EMessage(conversationId, text, clientId, [], replyTo, threadRootId)
     },
     // Optimistic send: show the message immediately, roll back on failure.
-    onMutate: ({ text }): SendMessageContext => {
+    onMutate: ({ text, replyTo }): SendMessageContext => {
       const optimistic: Message = {
         id: `pending-${uuid()}`,
         from: useAuthStore.getState().username,
         text,
+        ...(replyTo ? { replyTo } : {}),
+        ...(threadRootId ? { threadRootId } : {}),
         type: 'text',
         timestamp: new Date().toISOString(),
       }
-      queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
-        old ? insertIntoCache(old, optimistic) : old,
+      queryClient.setQueryData<MessagesCache>(
+        messageQueryKey(conversationId, threadRootId),
+        (old) => (old ? insertIntoCache(old, optimistic) : old),
       )
       return { optimisticId: optimistic.id }
     },
     onError: (_error, _vars, context) => {
       if (!context) return
-      queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
-        old ? removeFromCache(old, context.optimisticId) : old,
+      queryClient.setQueryData<MessagesCache>(
+        messageQueryKey(conversationId, threadRootId),
+        (old) => (old ? removeFromCache(old, context.optimisticId) : old),
       )
     },
     onSuccess: (newMessage, _vars, context) => {
-      queryClient.setQueryData<MessagesCache>([Keys.Query.GET_MESSAGES, conversationId], (old) =>
-        old
-          ? insertIntoCache(context ? removeFromCache(old, context.optimisticId) : old, newMessage)
-          : old,
+      queryClient.setQueryData<MessagesCache>(
+        messageQueryKey(conversationId, threadRootId),
+        (old) =>
+          old
+            ? insertIntoCache(
+                context ? removeFromCache(old, context.optimisticId) : old,
+                newMessage,
+              )
+            : old,
       )
       updateConversationListCache(queryClient, conversationId, newMessage)
+      void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_MESSAGES, conversationId] })
     },
   })
 }
@@ -184,9 +208,11 @@ export function useSendMessage({ conversationId }: { conversationId: string }) {
 export function useGetMessages({
   conversationId,
   enabled = true,
+  threadRootId,
 }: {
   conversationId: string
   enabled?: boolean
+  threadRootId?: string | undefined
 }) {
   const queryClient = useQueryClient()
   const [readyRoom, setReadyRoom] = useState<string | null>(null)
@@ -205,20 +231,23 @@ export function useGetMessages({
       pages: MessagesResponse[]
       pageParams: { after?: number; before?: number }[]
     },
-    [string, string],
+    readonly string[],
     { after?: number; before?: number }
   >({
-    queryKey: [Keys.Query.GET_MESSAGES, conversationId],
+    queryKey: messageQueryKey(conversationId, threadRootId),
+    refetchInterval: 30000,
     queryFn: async ({ pageParam }) => {
       const params: {
         conversationId: string
         installId?: string
+        threadRootId?: string
         limit: string
         after?: string
         before?: string
       } = {
         conversationId,
         limit: '16',
+        ...(threadRootId ? { threadRootId } : {}),
       }
 
       if (pageParam.after !== undefined) {
@@ -228,8 +257,12 @@ export function useGetMessages({
       }
 
       params.installId = await getE2EInstallId()
+      await syncRoomEnvelopes(conversationId)
 
       const response = await getFetcher<MessagesResponse>(Keys.Query.GET_MESSAGES, params)
+      const threadRoot = response.threadRoot
+        ? await decryptE2EMessage(response.threadRoot).catch(() => response.threadRoot)
+        : undefined
       const messages: Message[] = []
       // Ratchet state is sequential. Never decrypt one page concurrently.
       for (const message of response.messages) {
@@ -240,7 +273,7 @@ export function useGetMessages({
           messages.push({ ...message, type: 'undecryptable' })
         }
       }
-      return { ...response, messages }
+      return { ...response, messages, ...(threadRoot ? { threadRoot } : {}) }
     },
     initialPageParam: {},
     getNextPageParam: (lastPage) => {
@@ -254,12 +287,12 @@ export function useGetMessages({
       }
       return undefined
     },
-    enabled: !!conversationId && enabled && readyRoom === conversationId,
+    enabled: !!conversationId && enabled && (Boolean(threadRootId) || readyRoom === conversationId),
   }) // Real-time WebSocket with single-use ticket auth + auto-reconnect.
   useWebSocket(
     `${env.EXPO_PUBLIC_API_URL.replace(/^http/, 'ws')}/ws?roomId=${encodeURIComponent(conversationId)}`,
     {
-      enabled: enabled && !!conversationId,
+      enabled: enabled && !!conversationId && !threadRootId,
       getAuthMessage: async (signal) => {
         const res = await postFetcher<{ ticket?: string }>(
           '/ws/ticket',
@@ -273,7 +306,19 @@ export function useGetMessages({
       },
       onMessage: (data) => {
         const msg = data as { type?: string; payload?: Record<string, unknown> }
+        if (msg.type === 'thread-changed' && msg.payload?.roomId === conversationId) {
+          void queryClient.invalidateQueries({
+            queryKey: [Keys.Query.GET_MESSAGES, conversationId],
+          })
+          void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
+          return
+        }
+        if (msg.type === 'reactions-changed' && msg.payload?.roomId === conversationId) {
+          void queryClient.invalidateQueries({ queryKey: ['reactions', conversationId] })
+          return
+        }
         if (msg.type === 'authenticated') {
+          void queryClient.invalidateQueries({ queryKey: ['reactions', conversationId] })
           const key = [Keys.Query.GET_MESSAGES, conversationId]
           const hadData = queryClient.getQueryData(key) !== undefined
           setReadyRoom(conversationId)

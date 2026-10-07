@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { E2E_CIPHERTEXT_MAX, encryptedSendSchema } from './e2e.ts'
 import { attachmentIdsSchema, mediaDescriptorSchema } from './media.ts'
+import { threadSummarySchema } from './thread.ts'
 
 // ─────────────────────────────────────────────────────────────
 // Message Schemas (V7 FINAL - Sequence cursor + WS Ticket auth)
@@ -11,6 +12,8 @@ export const MESSAGE_MAX_LENGTH = 2000
 export const messageSchema = z
   .object({
     id: z.string(),
+    replyTo: z.string().uuid().optional(),
+    threadRootId: z.string().uuid().optional(),
     clientId: z.string().optional(),
     attachmentIds: attachmentIdsSchema.optional(),
     media: z.array(mediaDescriptorSchema).min(1).max(4).optional(),
@@ -18,6 +21,7 @@ export const messageSchema = z
     userId: z.string().optional(),
     sequence: z.number().int().nonnegative().optional(), // V7 monotonic sequence per room
     acknowledgedRead: z.boolean().optional(),
+    envelopeAvailable: z.boolean().optional(),
     text: z.string().min(1).max(MESSAGE_MAX_LENGTH).optional(),
     ciphertext: z.string().min(1).max(E2E_CIPHERTEXT_MAX).optional(),
     ciphertextType: z.number().int().optional(),
@@ -126,6 +130,11 @@ export type MessageWsOutgoing = z.infer<typeof messageWsOutgoingSchema>
 // ─────────────────────────────────────────────────────────────
 
 export const getMessagesQuerySchema = z.object({
+  threadRootId: z.string().uuid().optional(),
+  syncAudience: z
+    .string()
+    .regex(/^\d+:\d+$/)
+    .optional(),
   conversationId: z.string().uuid(),
   installId: z.string().uuid().optional(),
   after: z.string().regex(/^\d+$/).optional(),
@@ -153,6 +162,9 @@ export type SendMessageInput = z.infer<typeof sendMessageSchema>
 export type SendMessageRequest = SendMessageInput
 
 export const messagesResponseSchema = z.object({
+  historyAudienceVersion: z.string().optional(),
+  threadRoot: messageSchema.optional(),
+  threadSummaries: z.record(z.string(), threadSummarySchema).optional(),
   firstUnreadSequence: z.number().int().nonnegative().nullable().optional(),
   messages: z.array(messageSchema),
   nextAfter: z.number().int().nonnegative().optional(),

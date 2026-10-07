@@ -32,3 +32,14 @@ test('cached media stays structured when the server strips its attachment IDs', 
   expect(() => verifyMediaIds([], content.media)).toThrow()
   expect(content.text).toBeUndefined()
 })
+
+test('reply references survive encrypted content caches without forwarding quotes', () => {
+  const replyTo = crypto.randomUUID()
+  const threadRootId = crypto.randomUUID()
+  expect(decodeContent(encodeContent('Reply', [], replyTo, threadRootId))).toEqual({
+    text: 'Reply',
+    replyTo,
+    threadRootId,
+  })
+  expect(() => decodeContent(JSON.stringify({ text: 'Reply', replyTo: 'pending-id' }))).toThrow()
+})

@@ -152,6 +152,8 @@ async function prepareAttachment(asset: ImagePicker.ImagePickerAsset) {
 
 type PreparedAttachment = Awaited<ReturnType<typeof prepareAttachment>>
 type UploadJob = {
+  replyTo?: string | undefined
+  threadRootId?: string | undefined
   roomId: string
   clientId: string
   attachments: PreparedAttachment[]
@@ -214,7 +216,7 @@ async function uploadJob(job: UploadJob, epoch: number) {
     )
   }
   requireMediaSession(epoch)
-  return sendE2EMessage(job.roomId, '', job.clientId, media)
+  return sendE2EMessage(job.roomId, '', job.clientId, media, job.replyTo, job.threadRootId)
 }
 
 async function renewJob(job: UploadJob) {
@@ -282,7 +284,7 @@ export function resumeMediaUploads() {
   return withUploadQueue(() => drainUploads(epoch))
 }
 
-export function pickAndSendMedia(conversationId: string) {
+export function pickAndSendMedia(conversationId: string, replyTo?: string, threadRootId?: string) {
   const epoch = mediaCacheEpoch()
   return withUploadQueue(async () => {
     // Retry a frozen job before allowing a new selection for the same room.
@@ -299,7 +301,13 @@ export function pickAndSendMedia(conversationId: string) {
     })
     requireMediaSession(epoch)
     if (picked.canceled || picked.assets.length === 0) return null
-    return persistAndSendAssets(conversationId, picked.assets.slice(0, 4), epoch)
+    return persistAndSendAssets(
+      conversationId,
+      picked.assets.slice(0, 4),
+      epoch,
+      replyTo,
+      threadRootId,
+    )
   })
 }
 
@@ -307,6 +315,8 @@ async function persistAndSendAssets(
   conversationId: string,
   assets: ImagePicker.ImagePickerAsset[],
   epoch: number,
+  replyTo?: string,
+  threadRootId?: string,
 ) {
   requireMediaSession(epoch)
   const attachments: PreparedAttachment[] = []
@@ -316,13 +326,24 @@ async function persistAndSendAssets(
   }
   const { storage } = await getE2EContext()
   requireMediaSession(epoch)
-  const job: UploadJob = { roomId: conversationId, clientId: uuid(), attachments }
+  const job: UploadJob = {
+    roomId: conversationId,
+    clientId: uuid(),
+    attachments,
+    replyTo,
+    threadRootId,
+  }
   // Persist keys, nonces, and exact encrypted bytes before the first network write.
   await setPrivateMetadata(storage, UPLOADS_KEY, JSON.stringify([job]))
   return (await drainUploads(epoch))[0] ?? null
 }
 
-export function sendMediaAssets(conversationId: string, assets: ImagePicker.ImagePickerAsset[]) {
+export function sendMediaAssets(
+  conversationId: string,
+  assets: ImagePicker.ImagePickerAsset[],
+  replyTo?: string,
+  threadRootId?: string,
+) {
   const epoch = mediaCacheEpoch()
   return withUploadQueue(async () => {
     if (assets.length < 1 || assets.length > 4)
@@ -331,11 +352,15 @@ export function sendMediaAssets(conversationId: string, assets: ImagePicker.Imag
     await drainUploads(epoch)
     await publicOrigin()
     requireMediaSession(epoch)
-    return persistAndSendAssets(conversationId, assets, epoch)
+    return persistAndSendAssets(conversationId, assets, epoch, replyTo, threadRootId)
   })
 }
 
-export async function pickAndSendFiles(conversationId: string) {
+export async function pickAndSendFiles(
+  conversationId: string,
+  replyTo?: string,
+  threadRootId?: string,
+) {
   const epoch = mediaCacheEpoch()
   // Open synchronously from the click before awaiting network work (web user activation).
   const result = await DocumentPicker.getDocumentAsync({
@@ -364,7 +389,7 @@ export async function pickAndSendFiles(conversationId: string) {
       ...(asset.size !== undefined ? { fileSize: asset.size } : {}),
     }),
   )
-  return sendMediaAssets(conversationId, assets)
+  return sendMediaAssets(conversationId, assets, replyTo, threadRootId)
 }
 
 let publicOriginPromise: Promise<string> | null = null

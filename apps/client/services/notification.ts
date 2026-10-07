@@ -3,9 +3,11 @@ import * as Notifications from 'expo-notifications'
 import { Platform } from 'react-native'
 import Toast from 'react-native-toast-message'
 
+import { useThreadWindow } from '@/components/chat/threadWindowStore'
 import { postFetcher } from '@/lib/api'
 import { Keys } from '@/lib/keys'
 import { queryClient } from '@/lib/queryInit'
+import { useConversationStore } from '@/lib/stores'
 import { theme } from '@/theme/theme'
 
 export const NOTIFICATION_CHANNELS = {
@@ -69,9 +71,18 @@ export function setupNotificationListeners(
   onNotificationReceived: (notification: Notifications.Notification) => void,
 ) {
   const subscription = Notifications.addNotificationReceivedListener(onNotificationReceived)
+  const responses = Notifications.addNotificationResponseReceivedListener((response) => {
+    const data = response.notification.request.content.data
+    if (typeof data?.conversationId !== 'string') return
+    useConversationStore.getState().setSelectedConversationId(data.conversationId)
+    if (typeof data.threadRootId === 'string')
+      useThreadWindow.getState().open(data.conversationId, data.threadRootId)
+    else useThreadWindow.getState().close()
+  })
 
   return () => {
     subscription.remove()
+    responses.remove()
   }
 }
 

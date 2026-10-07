@@ -444,7 +444,7 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         .get(me.id, query.installId) as { device_id: number } | null
       if (!owner) throw createAuthError('This device has no encryption keys')
       const rows = sqlite
-        .query(`SELECT m.rowid AS cursor, m.id, m.client_id AS clientId,
+        .query(`SELECT m.rowid AS cursor, m.id, m.client_id AS clientId, m.reply_to AS replyTo, m.thread_root_id AS threadRootId, m.attachment_ids AS attachmentIds,
           m.room_id AS roomId, m.user_id AS userId, m.sender_protocol_device_id AS fromProtocolDeviceId,
           e.source_user_id AS envelopeSourceUserId, e.source_device_id AS envelopeSourceDeviceId,
           e.ciphertext
@@ -456,6 +456,9 @@ export const deviceLinkRoutes = new Elysia({ prefix: '/api/e2e/link' })
         cursor: number
         id: string
         clientId: string
+        replyTo: string | null
+        threadRootId: string | null
+        attachmentIds: string
         roomId: string
         userId: string
         fromProtocolDeviceId: number

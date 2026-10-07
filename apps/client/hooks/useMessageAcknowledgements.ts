@@ -14,7 +14,11 @@ const foreground = () =>
     Platform.OS === 'web' ? document.hasFocus() : true,
   )
 
-export function useMessageAcknowledgements(conversationId: string, messages: Message[]) {
+export function useMessageAcknowledgements(
+  conversationId: string,
+  messages: Message[],
+  enabled = true,
+) {
   const username = useAuthStore((state) => state.username)
   const queryClient = useQueryClient()
   const queue = useMemo(
@@ -31,6 +35,7 @@ export function useMessageAcknowledgements(conversationId: string, messages: Mes
   latest.current = { queue, username }
   const persistRead = (current: typeof queue, message: Message) => {
     if (
+      !enabled ||
       !canAcknowledgeMessage(message, current.username) ||
       current.readDone.has(message.id) ||
       message.acknowledgedRead
@@ -59,8 +64,12 @@ export function useMessageAcknowledgements(conversationId: string, messages: Mes
       if (queue.running) return
       queue.running = true
       try {
-        if (await flushReceiptQueue())
+        if (await flushReceiptQueue()) {
           void queryClient.invalidateQueries({ queryKey: [Keys.Query.GET_CONVERSATIONS] })
+          void queryClient.invalidateQueries({
+            queryKey: [Keys.Query.GET_MESSAGES, conversationId],
+          })
+        }
       } catch {
         // The encrypted queue retains private read state until the connection returns.
       } finally {
