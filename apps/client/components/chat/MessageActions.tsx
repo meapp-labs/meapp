@@ -8,11 +8,13 @@ import {
   Animated,
   Modal,
   PanResponder,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native'
 import { MessageBubble } from './MessageBubble'
 
@@ -57,6 +59,10 @@ export function MessageInteraction({
   enabled: boolean
 }) {
   const offset = useRef(new Animated.Value(0)).current
+  const [hovered, setHovered] = useState(false)
+  const [focused, setFocused] = useState(false)
+  const { width } = useWindowDimensions()
+  const desktopActions = Platform.OS === 'web' && width >= 768
   const callbacks = useRef({ onReply, enabled })
   callbacks.current = { onReply, enabled }
   const pan = useRef(
@@ -73,7 +79,12 @@ export function MessageInteraction({
     }),
   ).current
   return (
-    <View style={{ paddingRight: 30, paddingVertical: 4 }}>
+    <Pressable
+      accessible={false}
+      onHoverIn={() => setHovered(true)}
+      onHoverOut={() => setHovered(false)}
+      style={{ paddingVertical: 4 }}
+    >
       <Animated.View
         pointerEvents="none"
         style={[
@@ -92,6 +103,16 @@ export function MessageInteraction({
       <Animated.View {...pan.panHandlers} style={{ transform: [{ translateX: offset }] }}>
         <Pressable
           onLongPress={enabled ? onOpen : undefined}
+          {...(Platform.OS === 'web'
+            ? {
+                onContextMenu: (event: { preventDefault: () => void }) => {
+                  if (enabled) {
+                    event.preventDefault()
+                    onOpen()
+                  }
+                },
+              }
+            : {})}
           delayLongPress={350}
           accessibilityLabel="Message. Hold for actions or swipe right to reply"
           accessibilityActions={[
@@ -107,18 +128,20 @@ export function MessageInteraction({
           {children}
         </Pressable>
       </Animated.View>
-      {enabled && (
+      {enabled && desktopActions && (
         <Pressable
           onPress={onOpen}
           accessibilityRole="button"
           accessibilityLabel="Open message actions"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           hitSlop={8}
-          style={styles.more}
+          style={[styles.more, { opacity: hovered || focused ? 1 : 0 }]}
         >
-          <MaterialIcons name="more-horiz" size={18} color={theme.colors.textSecondary} />
+          <MaterialIcons name="add-reaction" size={20} color={theme.colors.text} />
         </Pressable>
       )}
-    </View>
+    </Pressable>
   )
 }
 
@@ -358,10 +381,14 @@ const styles = StyleSheet.create({
   swipeHint: { position: 'absolute', left: 20, top: 24 },
   more: {
     position: 'absolute',
-    right: 0,
-    top: 10,
-    width: 30,
-    minHeight: 44,
+    right: 10,
+    top: 0,
+    width: 40,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.card,
     alignItems: 'center',
     justifyContent: 'center',
   },

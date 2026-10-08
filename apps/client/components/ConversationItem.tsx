@@ -4,7 +4,7 @@ import { Pressable, StyleSheet, View } from 'react-native'
 
 import { UserAvatar } from '@/components/UserAvatar'
 import { Text } from '@/components/common/Text'
-import { useAuthStore, useConversationStore } from '@/lib/stores'
+import { chatColors, useAuthStore, useChatColor, useConversationStore } from '@/lib/stores'
 import { useConversationPreview } from '@/services/conversations'
 import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
@@ -19,6 +19,8 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
   const [hovered, setHovered] = useState<boolean>(false)
   const { selectedConversationId, setSelectedConversationId } = useConversationStore()
   const { username } = useAuthStore()
+  const chatColor = useChatColor(conversation.id)
+  const customized = chatColor !== chatColors[0].color
 
   const others = conversation.participants.filter(
     (participant) => participant && participant !== username,
@@ -64,6 +66,11 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
         styles.item,
         hovered && styles.itemHovered,
         isSelected && styles.itemSelected,
+        customized && {
+          backgroundColor: chatColor,
+          borderColor: isSelected ? theme.colors.primary : theme.colors.border,
+          borderLeftWidth: 3,
+        },
         pressed && styles.itemPressed,
       ]}
     >
@@ -103,7 +110,7 @@ export function ConversationItem({ conversation }: ConversationItemProps) {
                 style={styles.unreadCount}
                 accessibilityLabel={`${conversation.unreadCount} unread messages`}
               >
-                {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount}
+                {conversation.unreadCount > 99 ? '99+' : conversation.unreadCount} new
               </Text>
             </View>
           )}
@@ -167,17 +174,19 @@ const styles = StyleSheet.create({
     marginLeft: theme.spacing.xs,
   },
   unreadBadge: {
-    backgroundColor: theme.colors.primary,
+    backgroundColor: '#263B55',
     minWidth: 24,
     minHeight: 24,
-    borderRadius: 12,
-    paddingHorizontal: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: '#476588',
+    paddingHorizontal: 8,
     alignItems: 'center',
     justifyContent: 'center',
   },
   unreadCount: {
-    color: theme.colors.background,
-    fontSize: 12,
+    color: '#FFFFFF',
+    fontSize: 13,
     lineHeight: 16,
     fontWeight: '700',
   },

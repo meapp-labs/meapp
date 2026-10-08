@@ -1,5 +1,6 @@
 import { Text } from '@/components/common/Text'
 import { useBreakpoint } from '@/hooks/useBreakpoint'
+import { useChatColor } from '@/lib/stores'
 import { theme } from '@/theme/theme'
 import { MaterialIcons } from '@expo/vector-icons'
 import { useEffect } from 'react'
@@ -10,6 +11,7 @@ import { MessageList } from './MessageList'
 import { useThreadWindow } from './threadWindowStore'
 
 export function ThreadWindow({ conversationId }: { conversationId: string }) {
+  const backgroundColor = useChatColor(conversationId)
   const window = useThreadWindow()
   useEffect(
     () => () => {
@@ -34,7 +36,10 @@ export function ThreadWindow({ conversationId }: { conversationId: string }) {
             accessibilityLabel="Close thread and return to chat"
           />
         )}
-        <SafeAreaView style={[styles.panel, isDesktop && styles.desktop]} accessibilityViewIsModal>
+        <SafeAreaView
+          style={[styles.panel, { backgroundColor }, isDesktop && styles.desktop]}
+          accessibilityViewIsModal
+        >
           <View style={styles.header}>
             <Pressable
               onPress={window.close}
@@ -73,8 +78,9 @@ export function ThreadWindow({ conversationId }: { conversationId: string }) {
 }
 
 export function ConversationMessages({ conversationId }: { conversationId: string }) {
+  const backgroundColor = useChatColor(conversationId)
   return (
-    <View style={styles.body}>
+    <View style={[styles.body, { backgroundColor }]}>
       <MessageList conversationId={conversationId} />
       <MessageInput conversationId={conversationId} />
       <ThreadWindow conversationId={conversationId} />

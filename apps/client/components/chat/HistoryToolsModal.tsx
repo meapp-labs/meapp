@@ -16,7 +16,20 @@ import {
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { FileAttachment } from './FileAttachment'
+import { SharedFilesModal } from './SharedFilesModal'
 export function HistoryToolsModal({
+  roomId,
+  filesOnly,
+  onClose,
+}: { roomId: string; filesOnly: boolean; onClose(): void }) {
+  return filesOnly ? (
+    <SharedFilesModal roomId={roomId} onClose={onClose} />
+  ) : (
+    <ChatSearchModal roomId={roomId} filesOnly={false} onClose={onClose} />
+  )
+}
+
+function ChatSearchModal({
   roomId,
   filesOnly,
   onClose,

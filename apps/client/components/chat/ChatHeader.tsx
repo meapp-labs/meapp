@@ -21,6 +21,7 @@ import { useIgnoreFriendRequest, useIgnoredUsers, useUnignoreUser } from '@/serv
 import { useContactPresentation } from '@/services/profiles'
 import { ConversationStorage } from '@/services/storage'
 import { theme } from '@/theme/theme'
+import { ChatAppearanceModal } from './ChatAppearanceModal'
 import { HistoryToolsModal } from './HistoryToolsModal'
 
 /**
@@ -47,6 +48,7 @@ export function ChatHeader() {
   const mute = useConversationMute(selectedConversation?.id)
   const { username } = useAuthStore()
   const [showMenu, setShowMenu] = useState(false)
+  const [showAppearance, setShowAppearance] = useState(false)
   const [historyMode, setHistoryMode] = useState<'search' | 'files' | null>(null)
   const [showAlias, setShowAlias] = useState(false)
   const [showDeleteModal, setShowDeleteModal] = useState(false)
@@ -162,6 +164,17 @@ export function ChatHeader() {
         >
           <Pressable style={styles.menuOverlay} onPress={() => setShowMenu(false)}>
             <View style={styles.menuContainer}>
+              <TouchableOpacity
+                accessibilityRole="button"
+                style={styles.menuItem}
+                onPress={() => {
+                  setShowMenu(false)
+                  setShowAppearance(true)
+                }}
+              >
+                <MaterialIcons name="palette" size={20} color={theme.colors.text} />
+                <Text>Chat background</Text>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.menuItem}
                 onPress={() => {
@@ -345,6 +358,13 @@ export function ChatHeader() {
             if (removed) handleDelete()
             setShowDeleteModal(false)
           }}
+        />
+      )}
+      {showAppearance && selectedConversation?.id && (
+        <ChatAppearanceModal
+          key={selectedConversation.id}
+          roomId={selectedConversation.id}
+          onClose={() => setShowAppearance(false)}
         />
       )}
       {historyMode && selectedConversation?.id && (
